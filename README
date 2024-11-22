@@ -1,0 +1,10 @@
+Hi Dave,
+ 
+Sorry for the delay. Attached are the Poincare plot (or particle tracing) scripts I previously used. The main file is “fieldline_tracing.m” which reads BOUT++ grid file and simulation data, evaluate perturbed magnetic field (get_apar_sc.m if shift circular configuration or get_apar_sn.m if single null configuration), then trace the field line along the unperturbed magnetic field-line direction with RK4 method (RK4_FLT1.m), and calculate the puncture points and save data (parsave.m and parsave8.m for saving under parfor loop) if needed. A separate script (poincare.m) for final Poincare plot.
+ 
+In “fieldline_tracing.m”, there is a section define an analytical form of perturbation (line 256-284) bounding the perturbuation within the closed flux surface region. One may test the field-line tracing with this setting (comment out the BOUT++ data read-in at line 293-313) and the result should be similar to the attached animation – magnetic islands emerge, overlap at the rational surfaces, and eventually become chaotic as the perturbation amplitude increases.
+ 
+Please let me know if you have any further questions.
+ 
+Best,
+Ben
