@@ -13,24 +13,30 @@ set(groot,'DefaultTextFontSize',20);
 set(groot,'DefaultLineMarkerSize',12);
 
 %%% STEP 0: user setup
+pkg load netcdf; %% for octave
+OUTfid = -1;
 
 % BOUT++ grid file
-gridfile =  '../kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
+%gridfile =  'kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
+gridfile =  '../data/kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
 % Mesh resolution info
 nx = 260; ny = 128; nz = 256; zperiod = 1; 
 % Field-line tracing direction: 1 (y index increasing); -1 (y index decreasing)
 direction = 1; 
 % Individual field-lines to be traced radially
 nlines = 256; % number of field-lines in radial direction
-deltaix = 1; ixoffset = 1; % by default, line tracing starts at 
+nlines = 10;
+deltaix = 1; ixoffset = 1; % by default, line tracing starts at
                            % index space (deltaix*ilines+ixoffset, iy, iz)
 % (Roughly) total poloidal turns
-nturns = 250; 
+nturns = 250;
+nturns = 100;
 nsteps = nturns*ny;
 np = 1250; % maximum puncture points, rougly nturns*q
+
 % Output option
-save_traj = 0;  % save trajectory of each field line
-save_pp = 0;    % save puncture point of each field line
+save_traj = 1;  % save trajectory of each field line
+save_pp = 1;    % save puncture point of each field line
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%% no user setup in this section %%%%%%%%
@@ -289,18 +295,18 @@ yiarray = (1:ny);
 
     %parpool('local',8);
 
-    % load BOUT++ psi data or Apar data somewhere
-    p=restore_idl('./psi.sav');
-    psi=p.PSI;
-
+    % Read RMP info on BOUT++ grid either from mat file or from grid file
+    %rmp=load('apar_kstar_30306_7850_psi085105_nx260ny128_f2_nz256.mat');
+    rmp=load('../data/apar_kstar_30306_7850_psi085105_nx260ny128_f2_nz256.mat');
+ 
     if (divertor == 0)
         [apar0,dapardx0,dapardy0,dapardz0] = ...
-            get_apar_sc(psi,bxy,psixy,zShift,sa,sinty,dy0,dz,...
-            zperiod,0,1,0);
+            get_apar_sc(rmp.apar,bxy,psixy,zShift,sa,sinty,dy0,dz,...
+            zperiod,0,1,1);
     elseif (divertor == 1)
         [apar0,dapardx0,dapardy0,dapardz0] = ...
-            get_apar_sn(psi,bxy,psixy,zShift,sa,sinty,dy0,dz,...
-            ixsep,nypf1,nypf2,zperiod,0,1,0);
+            get_apar_sn(rmp.apar,bxy,psixy,zShift,sa,sinty,dy0,dz,...
+            ixsep,nypf1,nypf2,zperiod,0,0,1);
     else
         fprintf('\tConfiguration to be implemented!');
     end    
@@ -375,7 +381,7 @@ yiarray = (1:ny);
     %parfor iline = 1:nlines
     for iline = 1:nlines
         % pick starting points
-        xind = iline;
+        xind = iline+50;
         xStart = psixy(xind,jyomp); % note here jyomp doesn't matter
         yyy = jyomp;
         yStart = jyomp;
@@ -402,17 +408,18 @@ yiarray = (1:ny);
         yind = yStart;
         zind = interp1(zarray, ziarray, zStart);
         
-        fprintf('\tline %i started at indeices (%f,%f,%f),\n',iyz,xind,yind,zind);
-        
+        fprintf('\tline %i started at indeices (%f,%f,%f),\n',iline,xind,yind,zind);
+        fprintf('FieldLine: startXYZ(%d %d) = %f %f %f\n',xind, jyomp, xStart, yStart, zStart);
+
         % rule out the starting points on the divertor targets and go towards
         % the divertor plates
         if (divertor == 1)
             if (yStart == double(ny) && direction == 1)
-                fprintf('\tline %i starts on the divertor.\n',iyz);
+                fprintf('\tline %i starts on the divertor.\n',iline);
                 region=14;
                 traj(6,it)=0.; lc=0.;
             elseif (yStart == double(1) && direction == -1)
-                fprintf('\tline %i starts on the divertor.\n',iyz);
+                fprintf('\tline %i starts on the divertor.\n',iline);
                 region=13;
                 traj(6,it)=0.; lc=0.;
             end
@@ -430,8 +437,8 @@ yiarray = (1:ny);
 
         while (region < 10 && iturn < nturns)
 
-            if (mod(iturn,50) == 1) 
-                fprintf('\t\t line%i, turn %i/%i ...\n',iyz,iturn,nturns); 
+            if (mod(iturn,5) == 1)
+                fprintf('\t\t line%i, turn %i/%i ...\n',iline,iturn,nturns); 
             end
 
             % start field-line tracing
@@ -460,16 +467,16 @@ yiarray = (1:ny);
 
                 % check the where is the end of the fieldline
                 if (xEnd > xMax) % field-line hits the outer boundary
-                    fprintf('\tstarting xind=%f, line %i reaches outer bndry\n',xind,iyz);
+                    fprintf('\tstarting xind=%f, line %i reaches outer bndry\n',xind,iline);
                     region = 12; 
                 elseif (xEnd < xMin) % field-line hits the inner boundary
-                    fprintf('\tstarting xind=%f, line %i reaches inner bndry\n',xind,iyz);
+                    fprintf('\tstarting xind=%f, line %i reaches inner bndry\n',xind,iline);
                     region = 11;
                 else % end of field-line remains in the simulation domain
                     xind = interp1(xarray, xiarray, xEnd);
                     if (xind > double(ixsep1)+0.5)
                         region = 1;
-                        fprintf('\tending xind=%f, line %i enters the SOL\n',xind,iyz);
+                        fprintf('\tending xind=%f, line %i enters the SOL\n',xind,iline);
                     end
                 end
 
@@ -536,31 +543,31 @@ yiarray = (1:ny);
                     
                 % check the where is the end of the fieldline
                 if (xEnd > xMax)
-                    fprintf('\tstarting xind=%f, line %i reaches outer bndry\n',xind,iyz);
+                    fprintf('\tstarting xind=%f, line %i reaches outer bndry\n',xind,iline);
                     region = 12;
                 elseif (xEnd < xMin)
-                    fprintf('\tstarting xind=%f, line %i reaches inner bndry\n',xind,iyz);
+                    fprintf('\tstarting xind=%f, line %i reaches inner bndry\n',xind,iline);
                     region = 11;
                 else % end of field-line remains in the simulation domain
                     xind = interp1(xarray, xiarray, xEnd);
                     if (xind < double(ixsep1)+0.5 && yEnd > nypf1 && yEnd < nypf2+1)
                         if (region~=0) % if not already in the CFR
-                            fprintf('\tending xind=%f, line %i enters the CFR\n',xind,iyz);
+                            fprintf('\tending xind=%f, line %i enters the CFR\n',xind,iline);
                         end
                         region = 0;
                     elseif (xind < double(ixsep1)+0.5 && (yEnd > nypf2-1 || yEnd < nypf1))
                         if (region~=2) % if not already in the PFR
-                            fprintf('\tending xind=%f, line %i enters the PFR\n',xind,iyz); 
+                            fprintf('\tending xind=%f, line %i enters the PFR\n',xind,iline); 
                         end
                         region = 2;  
                     end
                 end
                 
                 if (direction == 1 && yEnd == ny) % in the sol/pfr, last point is outer divertor no matter what
-                    fprintf('\tstarting xind=%f, line %i reaches divertor\n',xind,iyz);
+                    fprintf('\tstarting xind=%f, line %i reaches divertor\n',xind,iline);
                     region = 14;
                 elseif (direction == -1 && yEnd == 1) % in the sol/pfr, last point is inner divertor
-                    fprintf('\tstarting xind=%f, line %i reaches divertor\n',xind,iyz);
+                    fprintf('\tstarting xind=%f, line %i reaches divertor\n',xind,iline);
                     region = 13;
                 end
                     
@@ -731,7 +738,7 @@ yiarray = (1:ny);
         
     end
     
-    fprintf('\t\tline %i has %i(+%i) interception points.\n',iyz,ip,id);
+    fprintf('\t\tline %i has %i(+%i) interception points.\n',iline,ip,id);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %     % quick plot of the Poincare plot
@@ -772,10 +779,19 @@ yiarray = (1:ny);
     
     % calculate connection length
     lc = sum(traj(6,1:itmax),2);
-    fprintf('\t\tline %i: connection length is %f and ends at region=%i.\n',iyz,lc,region);
+    fprintf('\t\tline %i: connection length is %f and ends at region=%i.\n',iline,lc,region);
     
     % save puncture point info for Poincare plot
     if (save_pp)
+        if OUTfid == -1
+            OUTfid = fopen('./mat_pp/points.txt', 'w');
+            fprintf(OUTfid, 'ID,X,Y\n');
+        end
+        fprintf('SAVE. ip= %d\n', ip);
+        for i = 1:ip
+            fprintf(OUTfid, '%d, %f, %f\n', iline, pyp(i), pzp(i));
+        end
+
         if (direction == 1)
             parsave8(strcat('./mat_pp/x',num2str(iline),'y',num2str(yyy), ...
                 'z',num2str(zzz),'_v3lc-00-250','p.mat'), ...
@@ -786,10 +802,12 @@ yiarray = (1:ny);
                 pxp,pyp,pzp,ptp,ppp,traj0,lc,region);
         end
     end
-    
+
     end % end itmax>1
-    
+
     %clear traj fl_x3d fl_y3d fl_z3d fit ffl_x3d iit px py pz ptheta ppsi pxp pyp pzp ptp ppp traj0 lc region
-    
+
     end % end iline loop
+
+    fclose(OUTfid);
 
