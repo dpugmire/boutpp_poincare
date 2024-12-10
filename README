@@ -8,3 +8,29 @@ Please let me know if you have any further questions.
  
 Best,
 Ben
+
+Datafiles at NERSC:
+/global/cfs/cdirs/m4491/ABOUND/data-for-adios
+
+missing psi.sav file.
+
+
+
+Hi Dave,
+ 
+Em… I don’t think there is a psi.sav BOUT++ file for this particular KSTAR grid. For this KSTAR shot, I got the perturbed magnetic field information is from the GPEC code, mapping it to BOUT++ grid, and saving it in MATLAB’s .mat file. Sorry for the inconsistency, I put the required file (apar_kstar_30306_7850_psi085105_nx260ny128_f2_nz256.mat) to the same folder (/global/cfs/cdirs/m4491/ABOUND/data-for-adios/). You may also need to modify line 292-303 in fieldline_tracing.m to the following:
+ 
+   % Read RMP info on BOUT++ grid either from mat file or from grid file
+ 
+   rmp=load('apar_kstar_30306_7850_psi085105_nx260ny128_f2_nz256.mat');
+ 
+    if (divertor == 0)
+        [apar0,dapardx0,dapardy0,dapardz0] = ...
+            get_apar_sc(rmp.apar,bxy,psixy,zShift,sa,sinty,dy0,dz,...
+            zperiod,0,1,1);
+    elseif (divertor == 1)
+        [apar0,dapardx0,dapardy0,dapardz0] = ...
+            get_apar(rmp.apar,bxy,psixy,zShift,sa,sinty,dy0,dz,...
+            ixsep,nypf1,nypf2,zperiod,0,0,1);
+ 
+Please let me know if this works.

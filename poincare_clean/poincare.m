@@ -18,10 +18,13 @@ set(groot,'DefaultTextFontSize',20);
 set(groot,'DefaultLineMarkerSize',2);
 
 % step 0: equilibrium and grid resolution
-g = read_eqdsk('g030306.007850_kin_2','../../../GPEC/30306_7850/');
-gridfile =  '../kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
+%pkg load netcdf; %% for octave
+%g = read_eqdsk('../data/g030306.007850_kin_2','../../../GPEC/30306_7850/');
+g = read_eqdsk('g030306.007850_kin_2','../data/');
+gridfile =  '../data/kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
 nx = 260; ny = 128; nz = 256; zperiod = 1; 
 nlines = 256;
+nlines = 10
 direction = 1;
 
 % read in grid info
@@ -63,10 +66,11 @@ for iline=1:nlines
     fprintf('\tradial index: %i \n',iline);
 
     if (direction == 1)
-        filename = strcat('./mat_pp/x',num2str(iline),'y55z1_v3lc-01-250p.mat');
+        filename = strcat('./mat_pp/x',num2str(iline),'y55z1_v3lc-00-250p.mat');
     elseif (direction == -1)
         filename = strcat('./mat_pp/x',num2str(iline),'y55z1_v3lc-01-250m.mat');
     end
+    fprintf("Loading: %s\n", filename);
     
     if isfile(filename)
         load(filename);
@@ -90,3 +94,5 @@ subplot(1,2,2)
 hold on
 plot([psixy(195,55),psixy(195,55)],[0,2],'--k');
 xlabel('$\psi$','Interpreter','latex'); ylabel('$\theta/\pi$','Interpreter','latex');
+xlabel('psi');
+ylabel('theta / pi');

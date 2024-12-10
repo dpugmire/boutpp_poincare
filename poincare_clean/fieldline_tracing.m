@@ -25,12 +25,12 @@ nx = 260; ny = 128; nz = 256; zperiod = 1;
 direction = 1; 
 % Individual field-lines to be traced radially
 nlines = 256; % number of field-lines in radial direction
-nlines = 10;
+nlines = 50;
 deltaix = 1; ixoffset = 1; % by default, line tracing starts at
                            % index space (deltaix*ilines+ixoffset, iy, iz)
 % (Roughly) total poloidal turns
 nturns = 250;
-nturns = 100;
+nturns = 250;
 nsteps = nturns*ny;
 np = 1250; % maximum puncture points, rougly nturns*q
 
@@ -71,7 +71,7 @@ yiarray = (1:ny);
     rxy = netcdf.getVar(fid, vid); rxy = double(rxy); rxy = permute(rxy, [2 1]);
     vid = netcdf.inqVarID(fid, 'Zxy');
     zxy = netcdf.getVar(fid, vid); zxy = double(zxy); zxy = permute(zxy, [2 1]);
-    vid = netcdf.inqVarID(fid, 'psixy');  
+    vid = netcdf.inqVarID(fid, 'psixy');
     psixy = netcdf.getVar(fid, vid); psixy = double(psixy); psixy = permute(psixy, [2 1]);
     vid = netcdf.inqVarID(fid, 'rmag');
     rmag = netcdf.getVar(fid, vid);
@@ -378,10 +378,11 @@ yiarray = (1:ny);
     
     cm = jet(nlines);
 
+    VALUES = round(linspace(1,256, nlines));
     %parfor iline = 1:nlines
     for iline = 1:nlines
         % pick starting points
-        xind = iline+50;
+        xind = VALUES(iline);
         xStart = psixy(xind,jyomp); % note here jyomp doesn't matter
         yyy = jyomp;
         yStart = jyomp;
@@ -438,7 +439,7 @@ yiarray = (1:ny);
         while (region < 10 && iturn < nturns)
 
             if (mod(iturn,5) == 1)
-                fprintf('\t\t line%i, turn %i/%i ...\n',iline,iturn,nturns); 
+                fprintf('\t\t line%i, turn %i/%i ...\n',iline,iturn,nturns);
             end
 
             % start field-line tracing

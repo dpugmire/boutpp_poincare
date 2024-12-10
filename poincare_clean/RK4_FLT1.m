@@ -47,6 +47,7 @@ function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,reg
     dzdyh(:,end+1)=dzdyh(:,end);
     
     % first step
+    % dxdyp': the ' performs the complex conjugate transpose.
     dxdy1=interp2(xarray,zarray,dxdyp',xStart,zStart,'spline');
     dzdy1=interp2(xarray,zarray,dzdyp',xStart,zStart,'spline');
     x1=xStart+dir*hh*dxdy1;
