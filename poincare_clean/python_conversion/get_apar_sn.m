@@ -19,8 +19,8 @@ function [apar,dapardx,dapardy,dapardz] = ...
     iy_cfr=[nypf1+1:nypf2]; iy_pfr=[1:nypf1 nypf2+1:ny];
     zarray = (0:nz-1)*dz; zarrayp=(0:nz)*dz; zmax = dz*nz;
 
-%    write_array_to_file(iy_cfr, 'iy_cfr')
-%    write_array_to_file(iy_pfr, 'iy_pfr')
+    write_array_to_file(iy_cfr, 'iy_cfr')
+    write_array_to_file(iy_pfr, 'iy_pfr')
 
     if (~true_apar) % if not true_apar but psi as in most BOUT++ output
 
@@ -91,8 +91,8 @@ function [apar,dapardx,dapardy,dapardz] = ...
     apars=zeros(nx,ny,nz); dapardpsi=zeros(nx,ny,nz);
     kz=[0:nz/2 -nz/2+1:1:-1]*zperiod; kz=kz';
 
-%    write_array_to_file(kz, 'kz');
-%    write_array_to_file(zs, 'zs');
+    write_array_to_file(kz, 'kz');
+    write_array_to_file(zs, 'zs');
     ci=sqrt(-1);
     for i=1:nx
         for j=1:ny
@@ -100,7 +100,8 @@ function [apar,dapardx,dapardy,dapardz] = ...
         end
     end
 
-%    write_array_to_file(apars, 'apars');
+    write_array_to_file(apars, 'apars');
+    shit();
     
     if (deriv_opt == 0)
     % numerical differentiate, less accurate

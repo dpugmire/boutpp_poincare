@@ -1,0 +1,2 @@
+diff --speed-large-files --suppress-common-lines <(cut -c 1-5 A3.m.txt) <(cut -c 1-5 A3.p.txt)
+
