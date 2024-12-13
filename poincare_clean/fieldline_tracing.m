@@ -13,17 +13,17 @@ set(groot,'DefaultTextFontSize',20);
 set(groot,'DefaultLineMarkerSize',12);
 
 %%% STEP 0: user setup
-pkg load netcdf; %% for octave
+%pkg load netcdf; %% for octave
 OUTfid = -1;
-testPoint = 0;
+testPoint = 1;
 
 
 % BOUT++ grid file
 gridfile =  '../data/kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
 % Mesh resolution info
-nx = 260; ny = 128; nz = 256; zperiod = 1; 
+nx = 260; ny = 128; nz = 256; zperiod = 1;
 % Field-line tracing direction: 1 (y index increasing); -1 (y index decreasing)
-direction = 1; 
+direction = 1;
 % Individual field-lines to be traced radially
 nlines = 256; % number of field-lines in radial direction
 nlines = 25; % number of field-lines in radial direction
@@ -43,6 +43,7 @@ end
 % Output option
 save_traj = 1;  % save trajectory of each field line
 save_pp = 1;    % save puncture point of each field line
+saveFields = 0; % save mag field info to netcdf file
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%% no user setup in this section %%%%%%%%
@@ -84,6 +85,7 @@ yiarray = (1:ny);
     
     vid = netcdf.inqVarID(fid, 'ixseps1');  ixsep1 = netcdf.getVar(fid, vid);
     vid = netcdf.inqVarID(fid, 'ixseps2');  ixsep2 = netcdf.getVar(fid, vid);
+    fprintf('ixsep: %d %d\n', ixsep1, ixsep2);
     if (ixsep2 < nx)
         divertor = 2; % double null
         fprintf('\tDouble null configration\n');
@@ -94,7 +96,7 @@ yiarray = (1:ny);
     elseif (ixsep1 < nx)
         divertor = 1;
         fprintf('\tSingle null configration\n');
-        ixsep = ixsep1; % index of the LCFS 
+        ixsep = ixsep1; % index of the LCFS
         vid = netcdf.inqVarID(fid, 'jyseps1_1'); nypf1 = netcdf.getVar(fid, vid) + 1;
         vid = netcdf.inqVarID(fid, 'jyseps2_2'); nypf2 = netcdf.getVar(fid, vid) + 1;
     else
@@ -102,7 +104,8 @@ yiarray = (1:ny);
         ixsep = nx; nypf1 = 0; nypf2 = ny;
         fprintf('\tCircular configration\n');
     end
-    
+    fprintf('ixsep= %d nypf1= %d, nypf2= %d\n', ixsep, nypf1, nypf2);
+
     [~,jyomp]=max(rxy(end,:));
     xarray = psixy(:,jyomp); % in psi
     % note in BOUT++ convention, psixy is always increasing UNLESS ...
@@ -198,7 +201,7 @@ yiarray = (1:ny);
         solx(2*nypf1+nx-1:2*nypf1+nx+ny-2) = rxy(end,ny:-1:1); soly(2*nypf1+nx-1:2*nypf1+nx+ny-2) = zxy(end,ny:-1:1);
         solx(2*nypf1+nx+ny-2:2*nypf1+2*nx+ny-3) = rxy(nx:-1:1,1); soly(2*nypf1+nx+ny-2:2*nypf1+2*nx+ny-3) = zxy(nx:-1:1,1);
         tmp = [1:nypf1 ny-nypf1:-1:nypf1+1 ny-nypf1+1:ny];
-        sepx = 0.5*(rxy(ixsep,tmp)+rxy(ixsep+1,tmp)); sepy = 0.5*(zxy(ixsep,tmp)+zxy(ixsep+1,tmp)); 
+        sepx = 0.5*(rxy(ixsep,tmp)+rxy(ixsep+1,tmp)); sepy = 0.5*(zxy(ixsep,tmp)+zxy(ixsep+1,tmp));
    
         center_x=0.5*(max(rxy(1,nypf1+1:ny-nypf1))+min(rxy(1,nypf1+1:ny-nypf1)));
         center_y=0.5*(max(zxy(1,nypf1+1:ny-nypf1))+min(zxy(1,nypf1+1:ny-nypf1)));
@@ -266,7 +269,7 @@ yiarray = (1:ny);
     JJ = 4.*pi*1.e-7*bpxy./hthe./(bxy.^2).*jpar0;
     
     fprintf('Loading perturbed field information ...\n');
-    % this script use BOUT++ output psi, note apar=psi*B0 -- refer to idl script  
+    % this script use BOUT++ output psi, note apar=psi*B0 -- refer to idl script
     apar    = zeros(nx,ny,nzG);
     dapardx = zeros(nx,ny,nzG);
     dapardy = zeros(nx,ny,nzG);
@@ -276,7 +279,7 @@ yiarray = (1:ny);
 %     % analytical apar model for test purpose -- only for closed flux region
 %     sFactor1=1e-5;  sFactor2=0e-4;
 %     alpx=185.637*100;   alpy=2.53303;
-%     nz1=5; nz2=60; 
+%     nz1=5; nz2=60;
 %     xMid = xarray(ixsep); yMid = 39;
 %     
 % %    apar=exp(-alpx*(x-xMid).^2)*EXP(-alpy*(y-yMid).^2)*( sFactor1*sin(nz1*z) + sFactor2*sin(nz2*z) );
@@ -383,12 +386,34 @@ yiarray = (1:ny);
     for ix=1:ixsep
         zarray_rshift=mod(zarray(1:nzG)-sa(ix),zmax);
         dxdy_m1(ix,:)=spline(zarray,dxdyt(ix,:),zarray_rshift);
-        dzdy_m1(ix,:)=spline(zarray,dzdyt(ix,:),zarray_rshift); 
+        dzdy_m1(ix,:)=spline(zarray,dzdyt(ix,:),zarray_rshift);
     end
-    
+
+
+    %% save out tracing data to netcdf.
+    if saveFields == 1
+        fprintf('Saving out fields....\n');
+        %dxdy = rand(nx,ny,nz);
+        %n=nx*ny*nz;
+        %dxdy = reshape(0:(n-1), nx,ny,nz);
+        write_array_to_file(dxdy, 'dxdy_0');
+        %tmp = reshape(0:(n-1), nx,ny,nz);
+        printEval(dxdy, 124, 80, 102);
+        printEval(dxdy, 14, 100, 28);
+
+        %fprintf('ixseps: %d  jyseps: %d %d %d %d  nyfp1,2: %d %d\n', ixsep1, ixsep2, jyseps1_1, jyseps1_2, jyseps2_1, jyseps2_2, nypf1, nypf2);
+        dump_fieldline_data('stuff.nc', nx, ny, nz, rxy, zxy, sa, psixy, dxdy, dzdy, dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1);
+        return;
+    end
+
+
+    write_array_to_file(dxdy, 'dxdy_0');
+    write_array_to_file(dzdy, 'dzdy_0');
     fprintf('Starting field-line tracing ...\n');
     fprintf('\n');
-    
+
+
+
     cm = jet(nlines);
 
     %parfor iline = 1:nlines
@@ -402,12 +427,13 @@ yiarray = (1:ny);
             xind = VALUES(iline);
         end		  
 
+        fprintf('psixy: %s   idx= %d %d\n', mat2str(size(psixy)), xind, jyomp);
         xStart = psixy(xind,jyomp); % note here jyomp doesn't matter
         yyy = jyomp;
         yStart = jyomp;
         zzz = 1;
 	    zStart = zarray(zzz);
-        fprintf('FieldLine: startXYZ(%d %d) = %f %f %f\n',xind, jyomp, xStart, yStart, zStart);
+        fprintf('FieldLine: startXYZ(%d %d) = %12.10f %12.10f %12.10f\n',xind, jyomp, xStart, yStart, zStart);
 
         % declare trajectory and puncture points arrays for this field-line
         traj=zeros(7,nsteps);fl_x3d=zeros(nsteps,1);fl_y3d=zeros(nsteps,1);fl_z3d=zeros(nsteps,1);
@@ -416,8 +442,8 @@ yiarray = (1:ny);
         it = 1; iturn = 1;
 
         if (xind < double(ixsep)+0.5)
-            region = 0; % =0, closed flux surface; 
-                        % =1 sol; =2 pfr; 
+            region = 0; % =0, closed flux surface;
+                        % =1 sol; =2 pfr;
                         % = 11/12 inner/outer budry; 13/14 inner/outer divertor
             if (yStart<nypf1+1 || yStart>nypf2)
                 region = 2;
@@ -425,11 +451,11 @@ yiarray = (1:ny);
         else
             region = 1;
         end
-        
+
         yind = yStart;
         zind = interp1(zarray, ziarray, zStart);
         
-        fprintf('\tline %i started at indeices (%f,%f,%f),\n',iline,xind,yind,zind);
+        fprintf('\tline %i started at indices (%12.10f,%12.10f,%12.10f), region= %d\n',iline,xind,yind,zind, region);
         
         % rule out the starting points on the divertor targets and go towards
         % the divertor plates
@@ -463,9 +489,10 @@ yiarray = (1:ny);
 
             % start field-line tracing
             for iy = 1:ny-1
+                fprintf('iy= %d, xi= %d\n', iy, xind);
 
                 if (region == 0 && yStart > nypf1 && yStart < nypf2+1) % in CFR
-                
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                % quick test for equilibrium field
 %                %xEnd = xStart;
@@ -481,14 +508,15 @@ yiarray = (1:ny);
                     [xEnd,zEnd]=RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,region,dxdy_m1,dzdy_m1,-1,nypf1,nypf2);
                     yEnd = yStart-1;
                 end
+                fprintf('  step: xyz: %12.10e %12.10e %12.10e --> xz: %12.10e %12.10e\n', xStart,yStart,zStart, xEnd, zEnd);
 
                 % zEnd info is needed for better interpolation of puncture point
-                traj(7,it+1)=zEnd; 
+                traj(7,it+1)=zEnd;
 
                 % check the where is the end of the fieldline
                 if (xEnd > xMax) % field-line hits the outer boundary
                     fprintf('\tstarting xind=%f, line %i reaches outer bndry\n',xind,iline);
-                    region = 12; 
+                    region = 12;
                 elseif (xEnd < xMin) % field-line hits the inner boundary
                     fprintf('\tstarting xind=%f, line %i reaches inner bndry\n',xind,iline);
                     region = 11;
@@ -512,15 +540,17 @@ yiarray = (1:ny);
                     zEnd = zEnd-shiftangle;
                     yEnd = nypf2;
                 end
-                
+
                 % re-label toroidal location (zEnd) if necessary
                 if (zEnd < zmin || zEnd > zmax)
                     zEnd = mod(zEnd,zmax);
                 end
                 zind = interp1(zarray, ziarray, zEnd);
-                
+
+                fprintf('    record: %d (%12.10e %12.10e %12.10e) region=%d\n', iturn, xEnd, yEnd, zEnd, region);
+
                 it = it+1;
-                traj(1,it) = iturn; 
+                traj(1,it) = iturn;
                 traj(2,it) = xind;
                 traj(3,it) = yEnd;
                 traj(4,it) = zind;
@@ -532,9 +562,10 @@ yiarray = (1:ny);
                 % now the end-point becomes new start-point
                 xStart = xEnd;
                 yStart = yEnd;
-                zStart = zEnd;                
-                
+                zStart = zEnd;
+
                 elseif (region == 1 || region == 2) % for points at SOL/PFR
+                    fprintf('   CASE B\n');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                    % if equilibrium field
@@ -542,7 +573,7 @@ yiarray = (1:ny);
 %                    %zEnd = zStart;
 %                    % if perturbed field, i.e, finite dxdy, dzdy
 %                    %[xEnd,zEnd]=RK4_FLT0(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray);
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
                     if (direction == 1)
                         [xEnd,zEnd]=RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,region,dxdy_p1,dzdy_p1,1,nypf1,nypf2);
@@ -832,3 +863,7 @@ yiarray = (1:ny);
 	
     fclose(OUTfid);
 
+
+function printEval(arr, i,j,k)
+    fprintf('arr(%d,%d,%d)= %12.10e\n', i,j,k, arr(i,j,k));
+end

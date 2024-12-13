@@ -22,8 +22,9 @@ function write_array_to_file(array, filename)
     fprintf(fid, '%s\n', sizeStr);
     if numDims == 2
         tmpArray = transpose(tmpArray);
-    elseif numDims = 3
-        tmpArray = permute(tmpArray, [2 1 3]);
+    elseif numDims == 3
+        %tmpArray = permute(tmpArray, [2 1 3]);
+        fprintf('skipping...\n');
     end
 
     tmpArray = tmpArray(:); % Flatten the array into a column vector
