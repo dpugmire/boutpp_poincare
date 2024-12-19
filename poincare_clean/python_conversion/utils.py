@@ -1,6 +1,6 @@
 def write_array_to_file(array, filename):
     filename = filename + '.p.txt'
-    print('array.shape= ', array.shape)
+    #print('array.shape= ', array.shape)
     shp = f"({', '.join(map(str, array.shape))})"
     with open(filename, "w") as f:
         # Flatten the array and write each element to the file

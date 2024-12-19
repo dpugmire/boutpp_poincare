@@ -21,6 +21,7 @@ else
 end
 
 trajFID = fopen('traj.m.txt', 'w');
+stepsFID = fopen('steps.m.txt', 'w');
 fprintf(trajFID, 'ID, ITER, X, Y, Z\n');
 
 %%% STEP 0: user setup
@@ -398,12 +399,11 @@ yiarray = (1:ny);
     
     cm = jet(nlines);
 
+    COUNTER = 0;
     LINES = 1:nlines;
     LINES = [100, 150, 175, 195, 200, 210];
     LINES = [150]; %% this stays in region 0 the whole time.
     LINES = [195]; %% this from region 0 to 1 to 2.
-
-    LINES = [150];
 
     %parfor iline = 1:nlines
     for iline = LINES
@@ -462,7 +462,11 @@ yiarray = (1:ny);
         traj(7,it) = zStart; 
 %        traj(:,it)=[1;xind;yStart;zind;region];
 
+        fprintf(stepsFID, 'COUNTER= %d region= %d xyzind= %d %d %d\n', COUNTER, region, xind-1, yind-1, zind-1);
+
         while (region < 10 && iturn < nturns)
+
+            fprintf(stepsFID, 'COUNTER= %d region= %d iturn= %d\n', COUNTER, region, iturn);
 
             if (mod(iturn,50) == 1) 
                 fprintf('\t\t line%i, turn %i/%i ...\n',iline,iturn,nturns); 
@@ -470,7 +474,7 @@ yiarray = (1:ny);
 
             % start field-line tracing
             for iy = 1:ny-1
-
+                fprintf(stepsFID, 'COUNTER= %d region= %d iy= %d\n   xyzStart= %.8f %.8f %.8f\n   xyzInd= %.8f %.8f %.8f\n', COUNTER, region, iy-1, xStart, yStart-1, zStart, xind-1, yind-1, zind-1);
                 if (region == 0 && yStart > nypf1 && yStart < nypf2+1) % in CFR
                 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -619,6 +623,8 @@ yiarray = (1:ny);
                 zStart = zEnd;
                 
                 end % end single (CFR/SOL/PFR) stepping
+
+                COUNTER = COUNTER + 1;
                 
             end % end apparoximate one turn (ny steps)
 
@@ -660,6 +666,10 @@ yiarray = (1:ny);
 
     %DRP
     for istep=1:itmax
+        xi = traj(2,istep);
+        yi = traj(3,istep);
+        zi = traj(4,istep);
+        TMP = rxy(:,traj(3,istep))
         rxyvalue = interp1(xiarray,rxy(:,traj(3,istep)),traj(2,istep));
         zsvalue  = interp1(xiarray,zShift(:,traj(3,istep)),traj(2,istep));
         zvalue   = interp1(ziarray,zarray,traj(4,istep));
@@ -668,7 +678,7 @@ yiarray = (1:ny);
         fl_x3d(istep) = x3d_tmp*cos(zvalue)-y3d_tmp*sin(zvalue);
         fl_y3d(istep) = x3d_tmp*sin(zvalue)+y3d_tmp*cos(zvalue);   
         fl_z3d(istep) = interp1(xiarray,zxy(:,traj(3,istep)),traj(2,istep));
-        fprintf(trajFID, '%d, %d, %.8f, %.8f, %.8f\n', iline, istep, fl_x3d(istep), fl_y3d(istep), fl_z3d(istep));
+        fprintf(trajFID, '%d, %d, %.8f, %.8f, %.8f\n', iline-1, istep-1, fl_x3d(istep), fl_y3d(istep), fl_z3d(istep));
     end
     fprintf('All done dumping the file....\n');
  
