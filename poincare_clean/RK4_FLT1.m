@@ -10,6 +10,7 @@
 function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,region,dxdy_pm1,dzdy_pm1,dir,nypf1,nypf2)
     hh=1/2.; h6=1/6.;
 
+    dumpFiles = 0;
     % need half step and full step info
     if (dir == 1)
         dxdyp=squeeze(dxdy(:,yStart,:)); dzdyp=squeeze(dzdy(:,yStart,:));
@@ -18,11 +19,13 @@ function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,reg
 
 
         if (region ==0 && yStart==nypf2)
+            dumpFiles = 0;
             dxdyn=dxdy_pm1;
             dxdyh=0.5*(dxdyp+dxdyn);
             dzdyn=dzdy_pm1;
             dzdyh=0.5*(dzdyp+dzdyn);
         else
+            dumpFiles = 0;
             dxdyn=squeeze(dxdy(:,yStart+1,:));
             dxdyh=0.5*squeeze(dxdy(:,yStart,:)+dxdy(:,yStart+1,:));
             dzdyn=squeeze(dzdy(:,yStart+1,:));
@@ -44,10 +47,12 @@ function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,reg
     else
         fprintf('\tCheck direction parameter setting!! \n');
     end
-    %write_array_to_file(dxdyn, 'dxdyn');
-    %write_array_to_file(dxdyh, 'dxdyh');
-    %write_array_to_file(dzdyn, 'dzdyn');
-    %write_array_to_file(dzdyh, 'dzdyh');
+    if dumpFiles == 1
+        write_array_to_file(dxdyn, 'dxdyn');
+        write_array_to_file(dxdyh, 'dxdyh');
+        write_array_to_file(dzdyn, 'dzdyn');
+        write_array_to_file(dzdyh, 'dzdyh');
+    end
 
     % pathing last z point
     dxdyp(:,end+1)=dxdyp(:,end);
@@ -57,12 +62,14 @@ function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,reg
     dzdyn(:,end+1)=dzdyn(:,end);
     dzdyh(:,end+1)=dzdyh(:,end);
 
-    %write_array_to_file(dxdyp, 'dxdyp_');
-    %write_array_to_file(dxdyn, 'dxdyn_');
-    %write_array_to_file(dxdyh, 'dxdyh_');
-    %write_array_to_file(dzdyp, 'dzdyp_');
-    %write_array_to_file(dzdyn, 'dzdyn_');
-    %write_array_to_file(dzdyh, 'dzdyh_');
+    if dumpFiles == 1
+        write_array_to_file(dxdyp, 'dxdyp_');
+        write_array_to_file(dxdyn, 'dxdyn_');
+        write_array_to_file(dxdyh, 'dxdyh_');
+        write_array_to_file(dzdyp, 'dzdyp_');
+        write_array_to_file(dzdyn, 'dzdyn_');
+        write_array_to_file(dzdyh, 'dzdyh_');
+    end
 
     % first step
     %fprintf('xzStart= %12.10f %12.10f\n', xStart, zStart);

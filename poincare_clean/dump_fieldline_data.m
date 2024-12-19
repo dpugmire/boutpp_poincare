@@ -2,7 +2,7 @@
 
 %pkg load netcdf; %% for octave
 
-function dump_fieldline_data(fname, nx, ny, nz, rxy, zxy, shiftAngle, psixy, dxdy, dzdy, dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1)
+function dump_fieldline_data(fname, nx, ny, nz, rxy, zxy, shiftAngle, zShift, psixy, dxdy, dzdy, dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1)
 
   fprintf('nxyz= %d %d %d\n', nx,ny,nz);
   drp_print_dims('psixy', psixy);
@@ -13,6 +13,7 @@ function dump_fieldline_data(fname, nx, ny, nz, rxy, zxy, shiftAngle, psixy, dxd
   drp_print_dims('dxdy_m1', dxdy_m1);
   drp_print_dims('dzdy_m1', dzdy_m1);
   drp_print_dims('shiftAngle', shiftAngle);
+  drp_print_dims('zShift', zShift);
 
   ncid = netcdf.create(fname, 'CLOBBER');
 
@@ -30,6 +31,7 @@ function dump_fieldline_data(fname, nx, ny, nz, rxy, zxy, shiftAngle, psixy, dxd
   v_dxdy_m1 = netcdf.defVar(ncid, 'dxdy_m1', 'double', [nx_dim, nz_dim]);
   v_dzdy_m1 = netcdf.defVar(ncid, 'dzdy_m1', 'double', [nx_dim, nz_dim]);
   v_shiftangle = netcdf.defVar(ncid, 'shiftAngle', 'double', [nx_dim]);
+  v_zShift = netcdf.defVar(ncid, 'zShift', 'double', [nx_dim, ny_dim]);  
   v_rxy = netcdf.defVar(ncid, 'rxy', 'double', [nx_dim, ny_dim]);
   v_zxy = netcdf.defVar(ncid, 'zxy', 'double', [nx_dim, ny_dim]);
   % End define mode
@@ -43,6 +45,7 @@ function dump_fieldline_data(fname, nx, ny, nz, rxy, zxy, shiftAngle, psixy, dxd
   netcdf.putVar(ncid, v_dxdy_m1, dxdy_m1);
   netcdf.putVar(ncid, v_dzdy_m1, dzdy_m1);
   netcdf.putVar(ncid, v_shiftangle, shiftAngle);
+  netcdf.putVar(ncid, v_zShift, zShift);
   netcdf.putVar(ncid, v_rxy, rxy);
   netcdf.putVar(ncid, v_zxy, zxy);
 
