@@ -400,6 +400,10 @@ yiarray = (1:ny);
 
     LINES = 1:nlines;
     LINES = [100, 150, 175, 195, 200, 210];
+    LINES = [150]; %% this stays in region 0 the whole time.
+    LINES = [195]; %% this from region 0 to 1 to 2.
+
+    LINES = [150];
 
     %parfor iline = 1:nlines
     for iline = LINES
