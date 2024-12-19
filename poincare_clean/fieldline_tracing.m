@@ -12,7 +12,14 @@ set(groot,'DefaultAxesFontSize',20);
 set(groot,'DefaultTextFontSize',20);
 set(groot,'DefaultLineMarkerSize',12);
 
-%pkg load netcdf; %% for octave
+% Check if running in Octave
+if exist('OCTAVE_VERSION', 'builtin') ~= 0
+    disp('Running in Octave');
+    pkg load netcdf; %% for octave
+else
+    disp('Running in MATLAB');
+end
+
 trajFID = fopen('traj.m.txt', 'w');
 fprintf(trajFID, 'ID, ITER, X, Y, Z\n');
 
@@ -32,6 +39,7 @@ deltaix = 1; ixoffset = 1; % by default, line tracing starts at
                            % index space (deltaix*ilines+ixoffset, iy, iz)
 % (Roughly) total poloidal turns
 nturns = 250; 
+nturns = 5;
 nsteps = nturns*ny;
 np = 1250; % maximum puncture points, rougly nturns*q
 % Output option
@@ -391,7 +399,7 @@ yiarray = (1:ny);
     cm = jet(nlines);
 
     LINES = 1:nlines;
-    LINES = [195, 200, 210];
+    LINES = [100, 150, 175, 195, 200, 210];
 
     %parfor iline = 1:nlines
     for iline = LINES
