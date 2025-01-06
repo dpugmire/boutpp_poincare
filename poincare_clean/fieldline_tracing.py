@@ -17,6 +17,102 @@ def INTERP(X,Y,val) :
     y_i = y1 + (y2 - y1) * (val - x1) / (x2 - x1)
     return y_i
 
+def cubic_spline_coefficients(knots, values):
+    """
+    Compute cubic spline coefficients for 1D interpolation.
+
+    Parameters:
+        knots (array): Knot points of the spline.
+        values (array): Values at the knots.
+
+    Returns:
+        coeffs (array): Coefficients for cubic spline interpolation.
+    """
+    n = len(knots) - 1
+    h = np.diff(knots)
+    alpha = np.zeros(n - 1)
+
+    for i in range(1, n):
+        alpha[i - 1] = (
+            3 / h[i] * (values[i + 1] - values[i]) -
+            3 / h[i - 1] * (values[i] - values[i - 1])
+        )
+
+    l = np.ones(n + 1)
+    mu = np.zeros(n)
+    z = np.zeros(n + 1)
+
+    for i in range(1, n):
+        l[i] = 2 * (knots[i + 1] - knots[i - 1]) - h[i - 1] * mu[i - 1]
+        mu[i] = h[i] / l[i]
+        z[i] = (alpha[i - 1] - h[i - 1] * z[i - 1]) / l[i]
+
+    c = np.zeros(n + 1)
+    b = np.zeros(n)
+    d = np.zeros(n)
+    a = values[:-1]
+
+    for j in range(n - 1, -1, -1):
+        c[j] = z[j] - mu[j] * c[j + 1]
+        b[j] = (
+            (values[j + 1] - values[j]) / h[j] -
+            h[j] * (c[j + 1] + 2 * c[j]) / 3
+        )
+        d[j] = (c[j + 1] - c[j]) / (3 * h[j])
+
+    return a, b, c[:-1], d
+
+
+def evaluate_spline(coeffs, knots, t):
+    """
+    Evaluate a cubic spline at a given point.
+
+    Parameters:
+        coeffs (tuple): Coefficients (a, b, c, d) for the spline.
+        knots (array): Knot points of the spline.
+        t (float): Point to evaluate the spline.
+
+    Returns:
+        float: Interpolated value.
+    """
+    a, b, c, d = coeffs
+    n = len(knots) - 1
+
+    # Find the interval containing t
+    for i in range(n):
+        if knots[i] <= t <= knots[i + 1]:
+            h = t - knots[i]
+            return a[i] + b[i] * h + c[i] * h**2 + d[i] * h**3
+
+    raise ValueError("t is outside the range of the knots.")
+
+
+def interp2(xarray, zarray, dxdyp, xStart, zStart):
+    """
+    Perform 2D spline interpolation.
+
+    Parameters:
+        xarray (array): x-axis grid points.
+        zarray (array): z-axis grid points.
+        dxdyp (2D array): Grid values of shape (len(xarray), len(zarray)).
+        xStart (float): x-coordinate to interpolate.
+        zStart (float): z-coordinate to interpolate.
+
+    Returns:
+        float: Interpolated value.
+    """
+    # Step 1: Interpolate along z for each x
+    temp_values = np.zeros(len(xarray))
+    for i in range(len(xarray)):
+        z_coeffs = cubic_spline_coefficients(zarray, dxdyp[i, :])
+        temp_values[i] = evaluate_spline(z_coeffs, zarray, zStart)
+
+    # Step 2: Interpolate along x using the intermediate results
+    x_coeffs = cubic_spline_coefficients(xarray, temp_values)
+    result = evaluate_spline(x_coeffs, xarray, xStart)
+
+    return result
+
 
 ### matlab structure
 '''
@@ -128,9 +224,14 @@ def RK4_FLT1(xStart, yStart, zStart, dxdy, dzdy, xarray, zarray, region, dxdy_pm
     #dzdy1 = interp2d(xarray, zarray, dzdyp.T, kind='cubic')(xStart, zStart)
     dxdy1 = spline_dxdyp(xStart, zStart)
     dzdy1 = spline_dzdyp(xStart, zStart)
+
+    XX_dxdy1 = interp2(xarray, zarray, dxdyp, xStart, zStart)
+    XX_dzdy1 = interp2(xarray, zarray, dzdyp, xStart, zStart)
+    
     x1 = xStart + direction * hh * dxdy1
     z1 = zStart + direction * hh * dzdy1
     #print('dxdy1/dzdy1= %12.10e %12.10e xz= %12.10e %12.10e' % (dxdy1, dzdy1, x1,z1))
+
 
     # Second step
     #dxdy2 = interp2d(xarray, zarray, dxdyh.T, kind='cubic')(x1, np.mod(z1, 2 * np.pi))

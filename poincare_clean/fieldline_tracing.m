@@ -571,7 +571,7 @@ yiarray = (1:ny);
                     elseif (direction == -1 && yStart == nypf2+1 && region == 2)
                         yEnd = nypf1;
                     end
-                    
+
                 % check the where is the end of the fieldline
                 if (xEnd > xMax)
                     fprintf('\tstarting xind=%f, line %i reaches outer bndry\n',xind,iline);
