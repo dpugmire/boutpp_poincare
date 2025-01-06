@@ -347,6 +347,9 @@ for iline in LINES:
 
         # Start field-line tracing
         for iy in range(ny):
+            if yStart +1 == dxdy.shape[1] :
+                print('overflow of some kind..... Need to track this down.')
+                break
 
             stepsF.write('COUNTER= %d region= %d iy= %d\n   xyzStart= %.8f %.8f %.8f\n   xyzInd= %.8f %.8f %.8f\n' % (COUNTER, region, iy, xStart, yStart, zStart, xind, yind, zind))
 
@@ -391,9 +394,74 @@ for iline in LINES:
                 
                 # Update starting points
                 xStart, yStart, zStart = xEnd, yEnd, zEnd
-                
+
+            elif region == 1 or region == 2 :
+                print('region= ', region)
+                stepsF.write('region 1 or 2\n')
+                print('******* in SOL/PFR')
+                #if direction == 1
+                print('yStart= ', yStart, dxdy.shape)
+                xEnd, zEnd = RK4_FLT1(xStart, yStart, zStart, dxdy, dzdy, xarray, zarray, region, dxdy_p1, dzdy_p1, 1, nypf1, nypf2)
+                yEnd = yStart + 1
+                print('xxx ', it, xStart, yStart, zStart, xEnd, zEnd)
+                print('  step_%d: xyz: %12.10e %12.10e %12.10e --> xz: %12.10e %12.10e' % (it, xStart, yStart, zStart, xEnd, zEnd))
+
+                #if direction == 1 :
+                xEnd, zEnd = RK4_FLT1(xStart, yStart, zStart, dxdy, dzdy, xarray, zarray, region, dxdy_p1, dzdy_p1, 1, nypf1, nypf2)
+                #traj(7,it+1)=zEnd; % for better interpolation of puncture point
+
+                #correct yEnd for two PFR cases
+                if (direction == 1 and yStart == nypf1 and region == 2) :
+                    yEnd = nypf2+1
+                elif (direction == -1 and yStart == nypf2+1 and region == 2) :
+                    yEnd = nypf1
+
+                if xEnd > xMax :
+                    print('Starting xind=%f, line %i reaches outer bndry' %(xind, iline))
+                    stepsF.write('region 12: %.8f > %.8f\n' % (xEnd, xMax))
+                    region = 12
+                elif xEnd < xMin :
+                    print('Starting xind=%f, line %i reaches inner bndry\n' % (xind,iline))
+                    stepsF.write('region 11: %d < %d\n' % (xEnd, xMin))
+                    region = 11
+                else:
+                    print('********** in end of field-line remains in simulation\n');
+                    xind = INTERP(xarray, xiarray, xEnd)
+                    stepsF.write('xind INTERP(%.8f)= %.8f\n' % (xEnd, xind))
+
+                if xind < float(ixsep1)+0.5 and yEnd > nypf1 and yEnd < nypf2+1 :
+                    if region != 0 :
+                        print('\tending xind=%f, line %i enters the CFR\n' %(xind,iline))
+                    stepsF.write('region 0: %.8f < %d AND %d > %d AND %d < %d\n' % (xind, ixsep1, yEnd, nypf1, yEnd, nypf2+1))
+                    region = 0
+                elif xind < float(ixsep1)+0.5 and (yEnd > nypf2-1 or yEnd < nypf1) :
+                    if region != 2 :
+                        print('\tending xind=%f, line %i enters the PFR\n' % (xind,iline))
+                    region = 2
+                    stepsF.write('region 2: %.8f < %d AND %d > %d OR %d < %d\n' %(xind, ixsep1,  yEnd, nypf2-1, yEnd, nypf1))
+
+                zind = INTERP(zarray, ziarray, zEnd)
+                stepsF.write('zind INTERP(%.8f)= %.8f\n' % (zEnd, zind))
+
+                if direction == 1 and yEnd == ny :
+                    print('\tstarting xind=%f, line %i reaches divertor\n' %(xind,iline))
+                    stepsF.write('region 14: %d == %d\n' % (yEnd, ny))
+                    region = 14
+                elif direction == -1 and yEnd == 1 :
+                    print('\tstarting xind=%f, line %i reaches divertor\n' %(xind,iline))
+                    stepsF.write('region 13: %d == 1\n' % (yEnd))
+                    region = 13
+
+                zind = INTERP(zarray, ziarray, zEnd)
+                XYZVals.append((xind, yEnd, zind))
+                it = it+1
+                COUNTER = COUNTER+1
+                # Update starting points
+                xStart, yStart, zStart = xEnd, yEnd, zEnd
+
             else:
-                print("In other region. Need to fix this.")
+                print("In other region. Need to fix this. region= ", region)
+                shit()
 
         iturn = iturn + 1
 

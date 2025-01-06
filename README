@@ -34,3 +34,9 @@ Em… I don’t think there is a psi.sav BOUT++ file for this particular KSTAR g
             ixsep,nypf1,nypf2,zperiod,0,0,1);
  
 Please let me know if this works.
+
+
+To run:
+
+source ../../../ENV/bin/activate
+python3 fieldline_tracing.py
