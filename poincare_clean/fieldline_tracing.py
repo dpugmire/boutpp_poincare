@@ -87,7 +87,7 @@ def evaluate_spline(coeffs, knots, t):
     raise ValueError("t is outside the range of the knots.")
 
 
-def interp2(xarray, zarray, dxdyp, xStart, zStart):
+def interp2d(xarray, zarray, dxdyp, xStart, zStart):
     """
     Perform 2D spline interpolation.
 
@@ -211,57 +211,54 @@ def RK4_FLT1(xStart, yStart, zStart, dxdy, dzdy, xarray, zarray, region, dxdy_pm
 
 
     #print(xarray.shape, zarray.shape, dxdyp.T.shape, dxdyp.shape)
-    spline_dxdyp = RectBivariateSpline(xarray, zarray, dxdyp)
-    spline_dzdyp = RectBivariateSpline(xarray, zarray, dzdyp)
-    spline_dxdyh = RectBivariateSpline(xarray, zarray, dxdyh)
-    spline_dzdyh = RectBivariateSpline(xarray, zarray, dzdyh)
-    spline_dxdyn = RectBivariateSpline(xarray, zarray, dxdyn)
-    spline_dzdyn = RectBivariateSpline(xarray, zarray, dzdyn)
+    #spline_dxdyp = RectBivariateSpline(xarray, zarray, dxdyp)
+    #spline_dzdyp = RectBivariateSpline(xarray, zarray, dzdyp)
+    #spline_dxdyh = RectBivariateSpline(xarray, zarray, dxdyh)
+    #spline_dzdyh = RectBivariateSpline(xarray, zarray, dzdyh)
+    #spline_dxdyn = RectBivariateSpline(xarray, zarray, dxdyn)
+    #spline_dzdyn = RectBivariateSpline(xarray, zarray, dzdyn)
 
     # First step
     #print('xzStart= %12.10e %12.10e\n' %(xStart, zStart))
-    #dxdy1 = interp2d(xarray, zarray, dxdyp.T, kind='cubic')(xStart, zStart)
-    #dzdy1 = interp2d(xarray, zarray, dzdyp.T, kind='cubic')(xStart, zStart)
-    dxdy1 = spline_dxdyp(xStart, zStart)
-    dzdy1 = spline_dzdyp(xStart, zStart)
+    dxdy1 = interp2d(xarray, zarray, dxdyp, xStart, zStart)
+    dzdy1 = interp2d(xarray, zarray, dzdyp, xStart, zStart)
+    #dxdy1 = spline_dxdyp(xStart, zStart)
+    #dzdy1 = spline_dzdyp(xStart, zStart)
 
-    XX_dxdy1 = interp2(xarray, zarray, dxdyp, xStart, zStart)
-    XX_dzdy1 = interp2(xarray, zarray, dzdyp, xStart, zStart)
-    
     x1 = xStart + direction * hh * dxdy1
     z1 = zStart + direction * hh * dzdy1
     #print('dxdy1/dzdy1= %12.10e %12.10e xz= %12.10e %12.10e' % (dxdy1, dzdy1, x1,z1))
 
-
     # Second step
-    #dxdy2 = interp2d(xarray, zarray, dxdyh.T, kind='cubic')(x1, np.mod(z1, 2 * np.pi))
-    #dzdy2 = interp2d(xarray, zarray, dzdyh.T, kind='cubic')(x1, np.mod(z1, 2 * np.pi))
-    dxdy2 = spline_dxdyh(x1, np.mod(z1, 2 * np.pi))
-    dzdy2 = spline_dzdyh(x1, np.mod(z1, 2 * np.pi))
+    dxdy2 = interp2d(xarray, zarray, dxdyh, x1, np.mod(z1, 2 * np.pi))
+    dzdy2 = interp2d(xarray, zarray, dzdyh, x1, np.mod(z1, 2 * np.pi))
+    #dxdy2 = spline_dxdyh(x1, np.mod(z1, 2 * np.pi))
+    #dzdy2 = spline_dzdyh(x1, np.mod(z1, 2 * np.pi))
     x2 = xStart + direction * hh * dxdy2
     z2 = zStart + direction * hh * dzdy2
     #print('dxdy2/dzdy2= %12.10e %12.10e xz= %12.10e %12.10e' % (dxdy2, dzdy2, x2,z2))
 
     # Third step
-    #dxdy3 = interp2d(xarray, zarray, dxdyh.T, kind='cubic')(x2, np.mod(z2, 2 * np.pi))
-    #dzdy3 = interp2d(xarray, zarray, dzdyh.T, kind='cubic')(x2, np.mod(z2, 2 * np.pi))
-    dxdy3 = spline_dxdyh(x2, np.mod(z2, 2 * np.pi))
-    dzdy3 = spline_dzdyh(x2, np.mod(z2, 2 * np.pi))
+    dxdy3 = interp2d(xarray, zarray, dxdyh, x2, np.mod(z2, 2 * np.pi))
+    dzdy3 = interp2d(xarray, zarray, dzdyh, x2, np.mod(z2, 2 * np.pi))
+    #dxdy3 = spline_dxdyh(x2, np.mod(z2, 2 * np.pi))
+    #dzdy3 = spline_dzdyh(x2, np.mod(z2, 2 * np.pi))
     x3 = xStart + direction * dxdy3
     z3 = zStart + direction * dzdy3
     #print('dxdy3/dzdy3= %12.10e %12.10e xz= %12.10e %12.10e' % (dxdy3, dzdy3, x3,z3))
 
     # Fourth step
-    #dxdy4 = interp2d(xarray, zarray, dxdyn.T, kind='cubic')(x3, np.mod(z3, 2 * np.pi))
-    #dzdy4 = interp2d(xarray, zarray, dzdyn.T, kind='cubic')(x3, np.mod(z3, 2 * np.pi))
-    dxdy4 = spline_dxdyn(x3, np.mod(z3, 2 * np.pi))
-    dzdy4 = spline_dzdyn(x3, np.mod(z3, 2 * np.pi))
+    dxdy4 = interp2d(xarray, zarray, dxdyn, x3, np.mod(z3, 2 * np.pi))
+    dzdy4 = interp2d(xarray, zarray, dzdyn, x3, np.mod(z3, 2 * np.pi))
+    #dxdy4 = spline_dxdyn(x3, np.mod(z3, 2 * np.pi))
+    #dzdy4 = spline_dzdyn(x3, np.mod(z3, 2 * np.pi))
     # Accumulate increments with proper weights
     xEnd = xStart + direction * h6 * (dxdy1 + 2 * dxdy2 + 2 * dxdy3 + dxdy4)
     zEnd = zStart + direction * h6 * (dzdy1 + 2 * dzdy2 + 2 * dzdy3 + dzdy4)
     #print('dxdy4/dzdy4= %12.10e %12.10e xz= %12.10e %12.10e' % (dxdy4, dzdy4, xEnd,zEnd))
 
-    return (xEnd[0][0], zEnd[0][0])
+    #return (xEnd[0][0], zEnd[0][0])
+    return (xEnd, zEnd)
 
 def printEval(arr, i,j,k) :
     i = i-1
