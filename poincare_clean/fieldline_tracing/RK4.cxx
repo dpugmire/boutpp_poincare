@@ -5,13 +5,13 @@
 #include <fstream>
 #include <iostream>
 
-extern float float_mod(float val, float mod_base);
+extern double double_mod(double val, double mod_base);
 
-float bilinear_interp2(const std::vector<float>& xarray,
-              const std::vector<float>& zarray, 
-              const std::vector<std::vector<float>>& data, 
-              float x, 
-              float z)
+double bilinear_interp2(const std::vector<double>& xarray,
+              const std::vector<double>& zarray, 
+              const std::vector<std::vector<double>>& data, 
+              double x, 
+              double z)
 {
     // Validate inputs
     if (xarray.empty() || zarray.empty() || data.empty() || data[0].empty())
@@ -34,13 +34,13 @@ float bilinear_interp2(const std::vector<float>& xarray,
     int j2 = std::min(j1 + 1, static_cast<int>(zarray.size() - 1));
 
     // Get the corners of the grid
-    float x1 = xarray[i1], x2 = xarray[i2];
-    float z1 = zarray[j1], z2 = zarray[j2];
-    float q11 = data[i1][j1], q21 = data[i2][j1];
-    float q12 = data[i1][j2], q22 = data[i2][j2];
+    double x1 = xarray[i1], x2 = xarray[i2];
+    double z1 = zarray[j1], z2 = zarray[j2];
+    double q11 = data[i1][j1], q21 = data[i2][j1];
+    double q12 = data[i1][j2], q22 = data[i2][j2];
 
     // Perform bilinear interpolation
-    float interp = (q11 * (x2 - x) * (z2 - z) +
+    double interp = (q11 * (x2 - x) * (z2 - z) +
                     q21 * (x - x1) * (z2 - z) +
                     q12 * (x2 - x) * (z - z1) +
                     q22 * (x - x1) * (z - z1)) /
@@ -49,10 +49,10 @@ float bilinear_interp2(const std::vector<float>& xarray,
     return interp;
 }
 
-std::vector<float>
-flatten(std::vector<std::vector<float>>& input)
+std::vector<double>
+flatten(std::vector<std::vector<double>>& input)
 {
-    std::vector<float> flattened;
+    std::vector<double> flattened;
     for (const auto& row : input)
     {
         flattened.insert(flattened.end(), row.begin(), row.end());
@@ -60,7 +60,7 @@ flatten(std::vector<std::vector<float>>& input)
     return flattened;
 }
 void
-writeArray1DToFile(std::vector<float>& array, const std::string& fname, std::vector<std::size_t> dims)
+writeArray1DToFile(std::vector<double>& array, const std::string& fname, std::vector<std::size_t> dims)
 {
     auto fname2 = fname + ".c.txt";
     std::ofstream out(fname2, std::ofstream::out);
@@ -82,22 +82,22 @@ writeArray1DToFile(std::vector<float>& array, const std::string& fname, std::vec
 }
 
 void
-writeArray1DToFile(std::vector<float>& array, const std::string& fname)
+writeArray1DToFile(std::vector<double>& array, const std::string& fname)
 {
     std::vector<std::size_t> dims = {array.size()};
     writeArray1DToFile(array, fname, dims);
 }
 
 void
-writeArray2DToFile(std::vector<std::vector<float>>& array, const std::string& fname)
+writeArray2DToFile(std::vector<std::vector<double>>& array, const std::string& fname)
 {
     auto flatArray = flatten(array);
     std::vector<std::size_t> dims = {array.size(), array[0].size()};
     writeArray1DToFile(flatArray, fname, dims);
 }
 
-static std::vector<std::vector<float>>
-Slice(const std::vector<std::vector<std::vector<float>>>& data, size_t idx)
+static std::vector<std::vector<double>>
+Slice(const std::vector<std::vector<std::vector<double>>>& data, size_t idx)
 {
     // Check bounds
     if (idx >= data[0].size())
@@ -109,7 +109,7 @@ Slice(const std::vector<std::vector<std::vector<float>>>& data, size_t idx)
     size_t dim3 = data[0][0].size(); // Third dimension
 
     // Create a 2D vector to hold the slice
-    std::vector<std::vector<float>> dataSlice(dim1, std::vector<float>(dim3));
+    std::vector<std::vector<double>> dataSlice(dim1, std::vector<double>(dim3));
 
     // Extract the slice
     for (size_t i = 0; i < dim1; ++i)
@@ -123,8 +123,8 @@ Slice(const std::vector<std::vector<std::vector<float>>>& data, size_t idx)
     return dataSlice;
 }
 
-std::vector<std::vector<float>>
-pad2DEdge(const std::vector<std::vector<float>>& input)
+std::vector<std::vector<double>>
+pad2DEdge(const std::vector<std::vector<double>>& input)
 {
     if (input.empty() || input[0].empty())
     {
@@ -134,7 +134,7 @@ pad2DEdge(const std::vector<std::vector<float>>& input)
     // Create a new 2D vector with an additional column
     size_t rows = input.size();
     size_t cols = input[0].size();
-    std::vector<std::vector<float>> padded(rows, std::vector<float>(cols + 1, 0.0f));
+    std::vector<std::vector<double>> padded(rows, std::vector<double>(cols + 1, 0.0f));
 
     // Copy original data and pad the last column
     for (size_t i = 0; i < rows; ++i)
@@ -148,11 +148,11 @@ pad2DEdge(const std::vector<std::vector<float>>& input)
     return padded;
 }
 
-std::vector<std::vector<float>>
-avgArrays(const std::vector<std::vector<float>>& x,
-          const std::vector<std::vector<float>>& y)
+std::vector<std::vector<double>>
+avgArrays(const std::vector<std::vector<double>>& x,
+          const std::vector<std::vector<double>>& y)
 {
-    std::vector<std::vector<float>> result(x.size(), std::vector<float>(x[0].size(), 0.0f));
+    std::vector<std::vector<double>> result(x.size(), std::vector<double>(x[0].size(), 0.0f));
     for (size_t i = 0; i < x.size(); ++i)
         for (size_t j = 0; j < x[i].size(); ++j)
             result[i][j] = 0.5f * (x[i][j] + y[i][j]);
@@ -160,29 +160,27 @@ avgArrays(const std::vector<std::vector<float>>& x,
     return result;
 }
 
-std::pair<float, float> RK4_FLT1(
-    float xStart, float yStart, float zStart,
-    const std::vector<std::vector<std::vector<float>>>& dxdy,
-    const std::vector<std::vector<std::vector<float>>>& dzdy,
-     std::vector<float>& xarray,  std::vector<float>& zarray,
+std::pair<double, double> RK4_FLT1(
+    double xStart, double yStart, double zStart,
+    const std::vector<std::vector<std::vector<double>>>& dxdy,
+    const std::vector<std::vector<std::vector<double>>>& dzdy,
+     std::vector<double>& xarray,  std::vector<double>& zarray,
     int region,
-    const std::vector<std::vector<float>>& dxdy_pm1,
-    const std::vector<std::vector<float>>& dzdy_pm1,
+    const std::vector<std::vector<double>>& dxdy_pm1,
+    const std::vector<std::vector<double>>& dzdy_pm1,
     int direction, int nypf1, int nypf2)
 {
-    float hh = 0.5f;
-    float h6 = 1.0f / 6.0f;
+    double hh = 0.5f;
+    double h6 = 1.0f / 6.0f;
 
-    bool dumpFiles = true;
+    bool dumpFiles = false;
 
     if (direction != 1 && direction != -1)
         throw std::invalid_argument("Direction parameter must be 1 or -1.");
 
-    std::cout<<"dxdy.shape= "<<dxdy.size()<<" "<<dxdy[0].size()<<" "<<dxdy[0][0].size()<<std::endl;
-    std::vector<std::vector<float>> dxdyp = Slice(dxdy, yStart);
-    std::vector<std::vector<float>> dzdyp = Slice(dzdy, yStart);
-    std::vector<std::vector<float>> dxdyn, dzdyn, dxdyh, dzdyh;
-    std::cout<<"dxdyp.shape= "<<dxdyp.size()<<" "<<dxdyp[0].size()<<std::endl;
+    std::vector<std::vector<double>> dxdyp = Slice(dxdy, yStart);
+    std::vector<std::vector<double>> dzdyp = Slice(dzdy, yStart);
+    std::vector<std::vector<double>> dxdyn, dzdyn, dxdyh, dzdyh;
 
     if (direction == 1)
     {
@@ -206,12 +204,6 @@ std::pair<float, float> RK4_FLT1(
             dzdyn = Slice(dzdy, yStart+1);
             dxdyh = avgArrays(Slice(dxdy, yStart), Slice(dxdy, yStart+1));
             dzdyh = avgArrays(Slice(dzdy, yStart), Slice(dzdy, yStart+1));
-            auto tmp0 = Slice(dxdy, yStart);
-            auto tmp1 = Slice(dxdy, yStart+1);
-            writeArray2DToFile(tmp0, "tmp0");
-            writeArray2DToFile(tmp1, "tmp1");
-            writeArray2DToFile(dxdyh, "sum0");
-            writeArray2DToFile(dzdyh, "sum1");
         }
     }
     else
@@ -231,19 +223,21 @@ std::pair<float, float> RK4_FLT1(
         writeArray2DToFile(dzdyh, "dzdyh");
     }
 
-    std::cout<<"Add the padding in Z!!! "<<std::endl;
     dxdyp = pad2DEdge(dxdyp);
     dxdyn = pad2DEdge(dxdyn);
     dxdyh = pad2DEdge(dxdyh);
     dzdyp = pad2DEdge(dzdyp);
     dzdyn = pad2DEdge(dzdyn);
     dzdyh = pad2DEdge(dzdyh);
-    writeArray2DToFile(dxdyp, "dxdyp_");
-    writeArray2DToFile(dxdyn, "dxdyn_");
-    writeArray2DToFile(dxdyh, "dxdyh_");
-    writeArray2DToFile(dzdyp, "dzdyp_");
-    writeArray2DToFile(dzdyn, "dzdyn_");
-    writeArray2DToFile(dzdyh, "dzdyh_");
+    if (dumpFiles)
+    {
+        writeArray2DToFile(dxdyp, "dxdyp_");
+        writeArray2DToFile(dxdyn, "dxdyn_");
+        writeArray2DToFile(dxdyh, "dxdyh_");
+        writeArray2DToFile(dzdyp, "dzdyp_");
+        writeArray2DToFile(dzdyn, "dzdyn_");
+        writeArray2DToFile(dzdyh, "dzdyh_");
+    }
 
     // Interpolation using the SplineInterpolation class
     //SplineInterpolation splineDxdy(xarray, zarray, dxdyp); //[zStart]);
@@ -252,13 +246,13 @@ std::pair<float, float> RK4_FLT1(
     //std::cout<<"RK4 step1: "<<xStart<<" "<<zStart<<" xx: "<<xarray.front()<<" "<<xarray.back()<<std::endl;
     printf("RK4 step1: %12.10e %12.10e\n", xStart, zStart);
     // RK4 Step 1
-    float tmp1 = bilinear_interp2(xarray, zarray, dxdyp, xStart, zStart);
-    float tmp2 = bilinear_interp2(xarray, zarray, dzdyp, xStart, zStart);
+    double tmp1 = bilinear_interp2(xarray, zarray, dxdyp, xStart, zStart);
+    double tmp2 = bilinear_interp2(xarray, zarray, dzdyp, xStart, zStart);
 
-    float dxdy1 = bilinear_interp2(xarray, zarray, dxdyp, xStart, zStart);
-    float dzdy1 = bilinear_interp2(xarray, zarray, dzdyp, xStart, zStart); //splineDzdy.evaluate(xStart);
-    float x1 = xStart + direction * hh * dxdy1;
-    float z1 = zStart + direction * hh * dzdy1;
+    double dxdy1 = bilinear_interp2(xarray, zarray, dxdyp, xStart, zStart);
+    double dzdy1 = bilinear_interp2(xarray, zarray, dzdyp, xStart, zStart); //splineDzdy.evaluate(xStart);
+    double x1 = xStart + direction * hh * dxdy1;
+    double z1 = zStart + direction * hh * dzdy1;
     printf("  RES: %12.10e %12.10e\n", dxdy1, dzdy1);
     printf("  bi-RES: %12.10e %12.10e\n", tmp1, tmp2);
     //std::cout<<"   RES= "<<dxdy1<<" "<<dzdy1<<std::endl;
@@ -266,29 +260,29 @@ std::pair<float, float> RK4_FLT1(
     // RK4 Step 2
     std::cout<<"RK4 step2: "<<x1<<" "<<z1<<" xz: "<<xarray[0]<<" "<<zarray[0]<<std::endl;
 
-    float dxdy2 = bilinear_interp2(xarray, zarray, dxdyh, x1, std::fmod(z1, M_2_PI));
-    float dzdy2 = bilinear_interp2(xarray, zarray, dzdyh, x1, std::fmod(z1, M_2_PI));
-    float x2 = xStart + direction * hh * dxdy2;
-    float z2 = zStart + direction * hh * dzdy2;
+    double dxdy2 = bilinear_interp2(xarray, zarray, dxdyh, x1, double_mod(z1, M_2_PI));
+    double dzdy2 = bilinear_interp2(xarray, zarray, dzdyh, x1, double_mod(z1, M_2_PI));
+    double x2 = xStart + direction * hh * dxdy2;
+    double z2 = zStart + direction * hh * dzdy2;
     std::cout<<"   RES= "<<dxdy2<<" "<<dzdy2<<std::endl;
 
     // RK4 Step 3
     std::cout<<"RK4 step3: "<<x2<<" "<<z2<<" xz: "<<xarray[0]<<" "<<zarray[0]<<std::endl;
-    float dxdy3 = bilinear_interp2(xarray, zarray, dxdyh, x2, z2);
-    float dzdy3 = bilinear_interp2(xarray, zarray, dzdyh, x2, z2);
-    float x3 = xStart + direction * dxdy3;
-    float z3 = zStart + direction * dzdy3;
+    double dxdy3 = bilinear_interp2(xarray, zarray, dxdyh, x2, double_mod(z2, M_2_PI));
+    double dzdy3 = bilinear_interp2(xarray, zarray, dzdyh, x2, double_mod(z2, M_2_PI));
+    double x3 = xStart + direction * dxdy3;
+    double z3 = zStart + direction * dzdy3;
     std::cout<<"   RES= "<<dxdy3<<" "<<dzdy3<<std::endl;
 
-    // RK4 Step 4
+    // RK4 Step 4BGHN
     std::cout<<"RK4 step4: "<<x3<<" "<<z3<<" xz: "<<xarray[0]<<" "<<zarray[0]<<std::endl;
-    float dxdy4 = bilinear_interp2(xarray, zarray, dxdyn, x3, z3);
-    float dzdy4 = bilinear_interp2(xarray, zarray, dzdyn, x3, z3);
+    double dxdy4 = bilinear_interp2(xarray, zarray, dxdyn, x3, double_mod(z3, M_2_PI));
+    double dzdy4 = bilinear_interp2(xarray, zarray, dzdyn, x3, double_mod(z3, M_2_PI));
     std::cout<<"   RES= "<<dxdy4<<" "<<dzdy4<<std::endl;
 
     // Compute final x and z
-    float xEnd = xStart + direction * h6 * (dxdy1 + 2.0f * dxdy2 + 2.0f * dxdy3 + dxdy4);
-    float zEnd = zStart + direction * h6 * (dzdy1 + 2.0f * dzdy2 + 2.0f * dzdy3 + dzdy4);
+    double xEnd = xStart + direction * h6 * (dxdy1 + 2.0f * dxdy2 + 2.0f * dxdy3 + dxdy4);
+    double zEnd = zStart + direction * h6 * (dzdy1 + 2.0f * dzdy2 + 2.0f * dzdy3 + dzdy4);
 
     printf("   STEP= %12.10e %12.10e\n", xEnd, zEnd);
 

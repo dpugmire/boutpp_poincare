@@ -2,7 +2,7 @@
 
 %pkg load netcdf; %% for octave
 
-function dump_fieldline_data(fname, nx, ny, nz, rxy, zxy, shiftAngle, zShift, psixy, dxdy, dzdy, dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1)
+function dump_fieldline_data(fname, nx, ny, nz, rxy, zxy, rxy_cfr, zxy_cfr, shiftAngle, zShift, zShift_cfr, psixy, dxdy, dzdy, dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1)
 
   fprintf('nxyz= %d %d %d\n', nx,ny,nz);
   drp_print_dims('psixy', psixy);
@@ -14,6 +14,8 @@ function dump_fieldline_data(fname, nx, ny, nz, rxy, zxy, shiftAngle, zShift, ps
   drp_print_dims('dzdy_m1', dzdy_m1);
   drp_print_dims('shiftAngle', shiftAngle);
   drp_print_dims('zShift', zShift);
+  nx_cfr = size(rxy_cfr, 1);
+  ny_cfr = size(rxy_cfr, 2);
 
   ncid = netcdf.create(fname, 'CLOBBER');
 
@@ -21,6 +23,8 @@ function dump_fieldline_data(fname, nx, ny, nz, rxy, zxy, shiftAngle, zShift, ps
   nx_dim = netcdf.defDim(ncid, 'nx', nx);
   ny_dim = netcdf.defDim(ncid, 'ny', ny);
   nz_dim = netcdf.defDim(ncid, 'nz', nz);
+  nx_cfr_dim = netcdf.defDim(ncid, 'nx_cfr', nx_cfr);
+  ny_cfr_dim = netcdf.defDim(ncid, 'ny_cfr', ny_cfr);
 
   % Define the variable
   v_psixy = netcdf.defVar(ncid, 'psixy', 'double', [nx_dim, ny_dim]);
@@ -31,9 +35,12 @@ function dump_fieldline_data(fname, nx, ny, nz, rxy, zxy, shiftAngle, zShift, ps
   v_dxdy_m1 = netcdf.defVar(ncid, 'dxdy_m1', 'double', [nx_dim, nz_dim]);
   v_dzdy_m1 = netcdf.defVar(ncid, 'dzdy_m1', 'double', [nx_dim, nz_dim]);
   v_shiftangle = netcdf.defVar(ncid, 'shiftAngle', 'double', [nx_dim]);
-  v_zShift = netcdf.defVar(ncid, 'zShift', 'double', [nx_dim, ny_dim]);  
+  v_zShift = netcdf.defVar(ncid, 'zShift', 'double', [nx_dim, ny_dim]);
   v_rxy = netcdf.defVar(ncid, 'rxy', 'double', [nx_dim, ny_dim]);
   v_zxy = netcdf.defVar(ncid, 'zxy', 'double', [nx_dim, ny_dim]);
+  v_rxy_cfr = netcdf.defVar(ncid, 'rxy_cfr', 'double', [nx_cfr_dim, ny_cfr_dim]);
+  v_zxy_cfr = netcdf.defVar(ncid, 'zxy_cfr', 'double', [nx_cfr_dim, ny_cfr_dim]);
+  v_zShift_cfr = netcdf.defVar(ncid, 'zShift_cfr', 'double', [nx_cfr_dim, ny_cfr_dim]);
   % End define mode
 
   netcdf.endDef(ncid);
@@ -48,6 +55,9 @@ function dump_fieldline_data(fname, nx, ny, nz, rxy, zxy, shiftAngle, zShift, ps
   netcdf.putVar(ncid, v_zShift, zShift);
   netcdf.putVar(ncid, v_rxy, rxy);
   netcdf.putVar(ncid, v_zxy, zxy);
+  netcdf.putVar(ncid, v_rxy_cfr, rxy_cfr);
+  netcdf.putVar(ncid, v_zxy_cfr, zxy_cfr);
+  netcdf.putVar(ncid, v_zShift_cfr, zShift_cfr);
 
   netcdf.close(ncid);
 

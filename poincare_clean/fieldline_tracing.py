@@ -6,11 +6,11 @@ from scipy.interpolate import RectBivariateSpline
 
 def INTERP(X,Y,val) :
     idx = next((i for i in range(len(X) - 1) if X[i] <= val <= X[i+1]), None)
-    
+
     # Handle out-of-bounds x_i
     if idx is None:
         raise ValueError("x_i is out of the interpolation range.")
-    
+
     # Linear interpolation formula
     x1, x2 = X[idx], X[idx + 1]
     y1, y2 = Y[idx], Y[idx + 1]
@@ -152,7 +152,7 @@ def RK4_FLT1(xStart, yStart, zStart, dxdy, dzdy, xarray, zarray, region, dxdy_pm
     hh = 0.5
     h6 = 1 / 6.0
 
-    dumpFiles = False
+    dumpFiles = True
     # Need half-step and full-step info
     if direction == 1:
         dxdyp = dxdy[:, yStart, :]
@@ -168,9 +168,18 @@ def RK4_FLT1(xStart, yStart, zStart, dxdy, dzdy, xarray, zarray, region, dxdy_pm
         else:
             #dumpFiles = True
             dxdyn = dxdy[:, yStart + 1, :]
-            dxdyh = 0.5 * (dxdy[:, yStart, :] + dxdy[:, yStart + 1, :])
             dzdyn = dzdy[:, yStart + 1, :]
+            dxdyh = 0.5 * (dxdy[:, yStart, :] + dxdy[:, yStart + 1, :])
             dzdyh = 0.5 * (dzdy[:, yStart, :] + dzdy[:, yStart + 1, :])
+            tmp0 = dxdy[:, yStart, :]
+            tmp1 = dxdy[:, yStart+1, :]
+            utils.write_array_to_file(tmp0, 'tmp0')
+            utils.write_array_to_file(tmp1, 'tmp1')
+            utils.write_array_to_file(dxdyh, 'sum0')
+            utils.write_array_to_file(dzdyh, 'sum1')
+
+
+
     elif direction == -1:
         dxdyp = dxdy[:, yStart, :]
         dzdyp = dzdy[:, yStart, :]
@@ -188,6 +197,8 @@ def RK4_FLT1(xStart, yStart, zStart, dxdy, dzdy, xarray, zarray, region, dxdy_pm
         raise ValueError("Check direction parameter setting!")
 
     if dumpFiles :
+        utils.write_array_to_file(xarray, 'xarray')
+        utils.write_array_to_file(zarray, 'zarray')
         utils.write_array_to_file(dxdyn, 'dxdyn')
         utils.write_array_to_file(dxdyh, 'dxdyh')
         utils.write_array_to_file(dzdyn, 'dzdyn')
@@ -219,9 +230,10 @@ def RK4_FLT1(xStart, yStart, zStart, dxdy, dzdy, xarray, zarray, region, dxdy_pm
     #spline_dzdyn = RectBivariateSpline(xarray, zarray, dzdyn)
 
     # First step
-    #print('xzStart= %12.10e %12.10e\n' %(xStart, zStart))
+    print('RK4 Step1= %12.10e %12.10e ' %(xStart, zStart))
     dxdy1 = interp2d(xarray, zarray, dxdyp, xStart, zStart)
     dzdy1 = interp2d(xarray, zarray, dzdyp, xStart, zStart)
+    print('   RES %12.10e %12.10e' %(dxdy1, dzdy1))
     #dxdy1 = spline_dxdyp(xStart, zStart)
     #dzdy1 = spline_dzdyp(xStart, zStart)
 
@@ -230,8 +242,11 @@ def RK4_FLT1(xStart, yStart, zStart, dxdy, dzdy, xarray, zarray, region, dxdy_pm
     #print('dxdy1/dzdy1= %12.10e %12.10e xz= %12.10e %12.10e' % (dxdy1, dzdy1, x1,z1))
 
     # Second step
+    print('RK4 Step2= %12.10e %12.10e %12.10e %12.10e\n' %(x1, z1, xarray[0], xarray[-1]))
     dxdy2 = interp2d(xarray, zarray, dxdyh, x1, np.mod(z1, 2 * np.pi))
     dzdy2 = interp2d(xarray, zarray, dzdyh, x1, np.mod(z1, 2 * np.pi))
+    print('   RES ', dxdy2, dxdy2)
+
     #dxdy2 = spline_dxdyh(x1, np.mod(z1, 2 * np.pi))
     #dzdy2 = spline_dzdyh(x1, np.mod(z1, 2 * np.pi))
     x2 = xStart + direction * hh * dxdy2
@@ -239,8 +254,11 @@ def RK4_FLT1(xStart, yStart, zStart, dxdy, dzdy, xarray, zarray, region, dxdy_pm
     #print('dxdy2/dzdy2= %12.10e %12.10e xz= %12.10e %12.10e' % (dxdy2, dzdy2, x2,z2))
 
     # Third step
+    print('RK4 Step3= %12.10e %12.10e %12.10e %12.10e\n' %(x2, z2, xarray[0], xarray[-1]))
     dxdy3 = interp2d(xarray, zarray, dxdyh, x2, np.mod(z2, 2 * np.pi))
     dzdy3 = interp2d(xarray, zarray, dzdyh, x2, np.mod(z2, 2 * np.pi))
+    print('   RES ', dxdy3, dxdy3)
+
     #dxdy3 = spline_dxdyh(x2, np.mod(z2, 2 * np.pi))
     #dzdy3 = spline_dzdyh(x2, np.mod(z2, 2 * np.pi))
     x3 = xStart + direction * dxdy3
@@ -248,14 +266,18 @@ def RK4_FLT1(xStart, yStart, zStart, dxdy, dzdy, xarray, zarray, region, dxdy_pm
     #print('dxdy3/dzdy3= %12.10e %12.10e xz= %12.10e %12.10e' % (dxdy3, dzdy3, x3,z3))
 
     # Fourth step
+    print('RK4 Step4= %12.10e %12.10e %12.10e %12.10e\n' %(x3, z3, xarray[0], xarray[-1]))
     dxdy4 = interp2d(xarray, zarray, dxdyn, x3, np.mod(z3, 2 * np.pi))
     dzdy4 = interp2d(xarray, zarray, dzdyn, x3, np.mod(z3, 2 * np.pi))
+    print('   RES ', dxdy4, dxdy4)
+
     #dxdy4 = spline_dxdyn(x3, np.mod(z3, 2 * np.pi))
     #dzdy4 = spline_dzdyn(x3, np.mod(z3, 2 * np.pi))
     # Accumulate increments with proper weights
     xEnd = xStart + direction * h6 * (dxdy1 + 2 * dxdy2 + 2 * dxdy3 + dxdy4)
     zEnd = zStart + direction * h6 * (dzdy1 + 2 * dzdy2 + 2 * dzdy3 + dzdy4)
     #print('dxdy4/dzdy4= %12.10e %12.10e xz= %12.10e %12.10e' % (dxdy4, dzdy4, xEnd,zEnd))
+    print('    STEP %12.10e %12.10e' % (xEnd, zEnd))
 
     #return (xEnd[0][0], zEnd[0][0])
     return (xEnd, zEnd)
@@ -382,6 +404,10 @@ COUNTER = 0
 NUM_ROUND = 3
 nturns = 5
 LINES = [194]
+LINES = [149]
+
+Y_RANGE = range(ny)
+Y_RANGE = [50]
 
 # Loop over lines
 for iline in LINES:
@@ -394,7 +420,7 @@ for iline in LINES:
 
     if xind < ixsep + 0.5:
         region = 0  # Closed flux surface
-        if yStart < nypf1 + 1 or yStart > nypf2:
+        if yStart < nypf1 + 1 or yStart > nypf2-1:
             region = 2  # PFR
         else:
             region = 1  # SOL
@@ -412,7 +438,7 @@ for iline in LINES:
 
     it = 0
     iturn = 1
-    
+
     # Determine the region
     if xind < ixsep1 + 0.5:
         region = 0  # Closed flux surface
@@ -438,13 +464,16 @@ for iline in LINES:
     #traj[:, it] = [1, xind, yStart, zind, region, 0.0, zStart]
     XYZVals = [(xind, yStart, zind)]
 
-    while region < 10 and iturn < nturns:
+    while region < 10 and iturn < nturns and it < 100 :
         stepsF.write('COUNTER= %d region= %d iturn= %d\n' % (COUNTER, region, iturn))
         if iturn % 50 == 1:
             print(f"\tLine {iline}, turn {iturn}/{nturns}...")
 
-        # Start field-line tracing
-        for iy in range(ny):
+         # Start field-line tracing
+        for iy in Y_RANGE :
+            if it == 100 :
+                break
+
             if yStart +1 == dxdy.shape[1] :
                 print('overflow of some kind..... Need to track this down.')
                 break
@@ -484,7 +513,7 @@ for iline in LINES:
                     zEnd = zEnd % zmax
                 #zind = interp1d(zarray, ziarray, fill_value="extrapolate")(zEnd)
                 zind = INTERP(zarray, ziarray, zEnd)
-                XYZVals.append((xind, yEnd, zind))
+                XYZVals.append((xind, yEnd, zind, iline, iy))
 
                 it = it+1
                 COUNTER = COUNTER+1
@@ -551,7 +580,8 @@ for iline in LINES:
                     region = 13
 
                 zind = INTERP(zarray, ziarray, zEnd)
-                XYZVals.append((xind, yEnd, zind))
+
+                XYZVals.append((xind, yEnd, zind, iline, iy))
                 it = it+1
                 COUNTER = COUNTER+1
                 # Update starting points

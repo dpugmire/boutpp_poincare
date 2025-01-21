@@ -4,17 +4,17 @@
 #include <stdexcept>
 #include <iostream>
 
-float interpolate2D(
-    const std::vector<float>& xarray,
-    const std::vector<float>& zarray,
-    const std::vector<std::vector<float>>& dxdyp,
-    float x, float z);
+double interpolate2D(
+    const std::vector<double>& xarray,
+    const std::vector<double>& zarray,
+    const std::vector<std::vector<double>>& dxdyp,
+    double x, double z);
 
-class SplineInterpolation
+class SplineInterpolation_OLD
 {
 public:
     // Constructor
-    SplineInterpolation(const std::vector<float>& x, const std::vector<float>& y)
+    SplineInterpolation_OLD(const std::vector<double>& x, const std::vector<double>& y)
     {
         if (x.size() < 2 || y.size() < 2)
         {
@@ -27,7 +27,7 @@ public:
     }
 
     // Evaluate the spline at a given point
-    float evaluate(float t) const
+    double evaluate(double t) const
     {
         if (t < x.front() || t > x.back()) {
             throw std::out_of_range("Interpolation point is outside the range of input data.");
@@ -37,18 +37,18 @@ public:
         auto it = std::lower_bound(x.begin(), x.end(), t);
         size_t i = std::max(static_cast<size_t>(0), static_cast<size_t>(it - x.begin() - 1));
 
-        float h = t - x[i];
+        double h = t - x[i];
         return a[i] + b[i] * h + c[i] * h * h + d[i] * h * h * h;
     }
 
 private:
-    std::vector<float> x, y;       // Input data points
-    std::vector<float> a, b, c, d; // Spline coefficients
+    std::vector<double> x, y;       // Input data points
+    std::vector<double> a, b, c, d; // Spline coefficients
 
     // Compute spline coefficients
     void computeCoefficients() {
         size_t n = x.size() - 1;
-        std::vector<float> h(n), alpha(n), l(n + 1), mu(n), z(n + 1);
+        std::vector<double> h(n), alpha(n), l(n + 1), mu(n), z(n + 1);
 
         a = y;
         for (size_t i = 0; i < n; ++i) {
@@ -81,4 +81,41 @@ private:
             d[j] = (c[j + 1] - c[j]) / (3.0f * h[j]);
         }
     }
+};
+
+class SplineInterpolation
+{
+public:
+    // Constructor for 1D interpolation
+    SplineInterpolation(const std::vector<double>& x, const std::vector<double>& y);
+
+    // Constructor for 2D interpolation
+    SplineInterpolation(const std::vector<double>& x, const std::vector<double>& y, const std::vector<std::vector<double>>& z);
+
+    // Evaluate 1D interpolation
+    double evaluate(double x) const;
+
+    // Evaluate 2D interpolation
+    double evaluate(double x, double y) const;
+
+private:
+    // 1D data
+    std::vector<double> x1D, y1D;
+    std::vector<double> a1D, b1D, c1D, d1D;
+
+    // 2D data
+    std::vector<double> x2D, y2D;
+    std::vector<std::vector<double>> z2D;
+
+    // Helper for 1D spline coefficients
+    void compute1DSplineCoefficients();
+
+    // Helper for 1D evaluation
+    size_t findInterval(const std::vector<double>& x, double val) const;
+
+    // 2D spline coefficients
+    std::vector<std::vector<double>> a2D, b2D, c2D, d2D;
+
+    // Helper for 2D spline coefficients
+    void compute2DSplineCoefficients();
 };

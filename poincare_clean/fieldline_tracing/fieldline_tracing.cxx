@@ -5,23 +5,32 @@
 #include <fstream>
 #include <cmath>
 
-float
-float_mod(float val, float mod_base)
+double
+double_mod(double val, double mod_base)
 {
-    float result = std::fmod(val, mod_base);
+    double result = std::fmod(val, mod_base);
     if (result < 0)
         result += mod_base;
     return result;
+}
+
+void
+min_max_values(const std::vector<double>& arr, double& vmin, double& vmax)
+{
+    auto [minIt, maxIt] = std::minmax_element(arr.begin(), arr.end());
+    vmin = *minIt;
+    vmax = *maxIt;
 }
 
 class Point
 {
     public:
     Point() = default;
-    //Point(float _x, float _y, float _z) : x(_x), y(_y), z(_z){}
+#if 0
     template <typename T, typename U, typename V>
-    Point(T _x, U _y, V _z, int _id, int _iter) : x(static_cast<float>(_x)), y(static_cast<float>(_y)), z(static_cast<float>(_z)), id(_id), iter(_iter) {}
-    Point(const Point& pt) : x(pt.x), y(pt.y), z(pt.z), id(pt.id), iter(pt.iter) {}
+    Point(T _x, U _y, V _z, int _xi, int _yi, int _iter)
+    : x(static_cast<double>(_x)), y(static_cast<double>(_y)), z(static_cast<double>(_z)), xi(_xi), yi(_yi), iter(_iter) {}
+    Point(const Point& pt) : x(pt.x), y(pt.y), z(pt.z), xi(pt.xi), yi(pt.yi), iter(pt.iter) {}
 
     Point& operator=(const Point& pt)
     {
@@ -30,7 +39,8 @@ class Point
             x = pt.x;
             y = pt.y;
             z = pt.z;
-            id = pt.id;
+            xi = pt.xi;
+            yi = pt.yi;
             iter = pt.iter;
         }
         return *this;
@@ -41,12 +51,17 @@ class Point
         os << "(" << pt.x << ", " << pt.y << ", " << pt.z << ")";
         return os;
     }
+    #endif
 
-    int id = 0;
+    double traj1 = 0.0, traj2 = 0.0, traj3 = 0.0, traj4=0.0, traj5=0.0, traj6=0.0, traj7=0.0;
+    /*
+    int xi = 0;
+    int yi = 0;
     int iter = 0;
-    float x = 0.0;
-    float y = 0.0;
-    float z = 0.0;
+    double x = 0.0;
+    double y = 0.0;
+    double z = 0.0;
+    */
 };
 
 class Options
@@ -57,8 +72,11 @@ class Options
     {
         this->rxy = this->loader.read2DVariable("rxy");
         this->zxy = this->loader.read2DVariable("zxy");
+        this->rxy_cfr = this->loader.read2DVariable("rxy_cfr");
+        this->zxy_cfr = this->loader.read2DVariable("zxy_cfr");
         this->psixy = this->loader.read2DVariable("psixy");
         this->zShift = this->loader.read2DVariable("zShift");
+        this->zShift_cfr = this->loader.read2DVariable("zShift_cfr");
         this->shiftAngle = this->loader.read1DVariable("shiftAngle");
         this->dxdy = this->loader.read3DVariable("dxdy");
         this->dzdy = this->loader.read3DVariable("dzdy");
@@ -69,17 +87,36 @@ class Options
         this->nzG = this->nz * this->zperiod;
         this->dz = (this->zmax - this->zmin) / this->nzG;
 
-        this->ziarray.resize(this->nzG+1);
+        this->init_array(this->ziarray, this->nzG+1);
         this->zarray.resize(this->nzG+1);
-
         for (int i = 0; i <= this->nzG; i++)
-        {
-            this->ziarray[i] = static_cast<float>(i);
             this->zarray[i] = this->ziarray[i] * this->dz;
+        this->init_array(this->xiarray, this->nx);
+        this->init_array(this->yiarray, this->ny);
+        this->init_array(this->xiarray_cfr, this->ixsep);
+        this->init_array(this->yiarray_cfr, this->nypf1, this->nypf2);
+
+        //zs_cfr.
+        #if 0
+        size_t numRows = this->ixsep, numCols = this->nypf2 - this->nypf1 + 1;
+        this->zs_cfr.resize(numRows, std::vector<double>(numCols, 0.0));
+        for (size_t i = 0; i < numRows; ++i)
+            for (size_t j = 0; j < numCols; ++j)
+                this->zs_cfr[i][j] = this->zShift[i][this->nypf1 + j];
+
+        // Add an additional column to zs_cfr
+        std::cout<<"Compute nu!!! "<<std::endl;
+        for (size_t i = 0; i < numRows; ++i)
+        {
+            // Compute the value for the additional column
+            double nuVal1 = 0.0; /* Replace with nu(xiarray_cfr[i], nypf1 + 1) */
+            double nuVal2 = 0.0; /* Replace with nu(xiarray_cfr[i], nypf2) */
+            double newVal = 0.5 * (nuVal1 + nuVal2) * dy0 + zs_cfr[i][numCols - 1];
+
+            // Append the value to the row
+            this->zs_cfr[i].push_back(newVal);
         }
-        this->xiarray.resize(this->nx);
-        for (int i = 0; i < this->nx; i++)
-            xiarray[i] = static_cast<float>(i);
+        #endif
 
         // Find the index of the maximum value in the last row of rxy
         auto& lastRow = this->rxy.back();
@@ -94,10 +131,26 @@ class Options
         this->xMax = *minmaxIt.second;
     }
 
-    int GetRegion(float xind, int yStart) const
+
+    void
+    init_array(std::vector<double>& arr, size_t n)
+    {
+        this->init_array(arr, 0, n);
+    }
+
+    void
+    init_array(std::vector<double>& arr, size_t n0, size_t n1)
+    {
+        size_t n = n1-n0;
+        arr.resize(n);
+        for (size_t i = 0; i < n; i++)
+            arr[i] = static_cast<double>(i+n0);
+    }
+
+    int GetRegion(double xind, int yStart) const
     {
         int region = -1;
-        if (xind < static_cast<float>(this->ixsep + 0.5))
+        if (xind < static_cast<double>(this->ixsep + 0.5))
         {
             region = 0;  //Closed flux surface
             std::cout<<"Check this +1 stuff.."<<std::endl;
@@ -123,11 +176,11 @@ class Options
     int nx = 260;
     int ny = 128;
     int nz = 256;
-    float xMin, xMax;
+    double xMin, xMax;
     int jyomp;
-    float zmin = 0.0;
-    float zmax = 2.0 * M_PI;
-    float dz;
+    double zmin = 0.0;
+    double zmax = 2.0 * M_PI;
+    double dz;
     int zperiod = 1;
     int jyseps1_1 = 16;
     int jyseps2_2 = 112;
@@ -140,18 +193,22 @@ class Options
     int direction = 1;
 
     int nzG;
-    std::vector<float> xiarray, xarray;
-    std::vector<float> ziarray, zarray;
+    std::vector<double> xiarray, xarray, xiarray_cfr;
+    std::vector<double> yiarray, yiarray_cfr;
+    std::vector<double> ziarray, zarray;
 
-    std::vector<std::vector<std::vector<float>>> dxdy, dzdy;
-    std::vector<std::vector<float>> rxy, zxy, psixy, zShift;
-    std::vector<std::vector<float>> dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1;
-    std::vector<float> shiftAngle;
+    std::vector<double> dy;
+    double dy0 = 0.0;
+    std::vector<std::vector<std::vector<double>>> dxdy, dzdy;
+    std::vector<std::vector<double>> rxy, zxy, psixy, zShift;
+    std::vector<std::vector<double>> rxy_cfr, zxy_cfr, zShift_cfr;
+    std::vector<std::vector<double>> dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1;
+    std::vector<double> shiftAngle;
 
     NetCDFLoader loader;
 };
 
-float INTERP(const std::vector<float>& X, const std::vector<float>& Y, float val)
+double INTERP(const std::vector<double>& X, const std::vector<double>& Y, double val)
 {
     // Ensure input vectors have the same size
     if (X.size() != Y.size())
@@ -173,13 +230,137 @@ float INTERP(const std::vector<float>& X, const std::vector<float>& Y, float val
         throw std::out_of_range("val is out of the interpolation range.");
 
     // Perform linear interpolation
-    float x1 = X[idx];
-    float x2 = X[idx + 1];
-    float y1 = Y[idx];
-    float y2 = Y[idx + 1];
-    float y_i = y1 + (y2 - y1) * (val - x1) / (x2 - x1);
+    double x1 = X[idx];
+    double x2 = X[idx + 1];
+    double y1 = Y[idx];
+    double y2 = Y[idx + 1];
+    double y_i = y1 + (y2 - y1) * (val - x1) / (x2 - x1);
 
     return y_i;
+}
+
+// Function to find zero crossings
+std::tuple<std::vector<double>, std::vector<size_t>, std::vector<double>>
+find_zero_crossings(const std::vector<double>& itarray, const std::vector<double>& fl_x3d, double dx)
+{
+    //x = itarray, y = fl_x3d;
+    double x0 = 0.0, x1 = static_cast<double>(itarray.size());
+    //min_max_values(x, x0, x1);
+
+    SplineInterpolation spline(itarray, fl_x3d);
+
+    std::vector<double> ffl_x3d, fit;
+    for (double xi = x0; xi < x1-1; xi += dx)
+    {
+        ffl_x3d.push_back(spline.evaluate(xi));
+        fit.push_back(xi);
+    }
+
+    std::cout<<" spline: "<<ffl_x3d[190]<<" xi= "<<fit[190]<<std::endl;
+    std::vector<size_t> crossings;
+    std::vector<double> crossing_vals;
+    for (size_t i = 1; i < ffl_x3d.size(); ++i)
+    {
+        if (ffl_x3d[i - 1] * ffl_x3d[i] <= 0 && ffl_x3d[i] != 0.0 && ffl_x3d[i-1]) //sign change
+        {
+            crossing_vals.push_back(ffl_x3d[i]);
+            crossings.push_back(i);
+        }
+    }
+    return std::tuple(fit, crossings, crossing_vals);
+}
+
+void processPunctures(
+    const std::vector<double>& itarray,
+    const std::vector<double>& fl_x3d,
+    const std::vector<std::vector<double>>& traj,
+    const SplineInterpolation& xiSpline,
+    const SplineInterpolation& yiSpline,
+    const SplineInterpolation& rxySpline,
+    const SplineInterpolation& zxySpline,
+    const SplineInterpolation& zsSpline,
+    const SplineInterpolation& thetaSpline,
+    double zmax, double ixsep, double nypf1, double nypf2, int direction)
+{
+    std::vector<double> px, py, pz, ptheta, ppsi;
+    size_t itmax = itarray.size();
+
+    // Fit spline over itarray and fl_x3d
+    SplineInterpolation flSpline(itarray, fl_x3d);
+
+    // Compute zero crossings
+    auto findZeroCrossings = [](const std::vector<double>& data) {
+        std::vector<size_t> crossings;
+        for (size_t i = 1; i < data.size(); ++i)
+        {
+            if (data[i - 1] * data[i] <= 0)
+                crossings.push_back(i - 1);
+        }
+        return crossings;
+    };
+
+    auto iit = findZeroCrossings(fl_x3d);
+    size_t nc = iit.size();
+
+    if (nc > 0)
+    {
+        std::ofstream puncFid("punc.m.txt");
+        puncFid << "ID, X, Y, Z\n";
+
+        for (size_t i = 0; i < nc; ++i)
+        {
+            size_t it = static_cast<size_t>(std::floor(itarray[iit[i]]));
+            double a = itarray[iit[i]] - it;
+            double b = 1.0 - a;
+
+            // Linear interpolation along field-line
+            double xind_tmp = b * traj[1][it] + a * traj[1][it + 1];
+            double yind_tmp = b * traj[2][it] + a * traj[2][it + 1];
+            double zvalue = b * traj[6][it] + a * traj[6][it + 1];
+
+            if (std::fabs(traj[6][it] - traj[6][it + 1]) > 1.0)
+                zvalue = b * std::fmod(traj[6][it], zmax) + a * std::fmod(traj[6][it + 1], zmax);
+
+            if (traj[2][it] == nypf2 && direction == 1 && xind_tmp < ixsep + 0.5)
+                yind_tmp = b * traj[2][it] + a * (nypf2 + 1);
+            else if (traj[2][it] == nypf1 + 1 && direction == -1 && xind_tmp < ixsep + 0.5)
+            {
+                yind_tmp = b * (nypf2 + 1) + a * traj[2][it + 1];
+                double shiftangle = xiSpline.evaluate(xind_tmp);
+                zvalue = std::fmod(zvalue - shiftangle, zmax);
+            }
+
+            double rxyvalue, zxyvalue, zsvalue;
+            if (xind_tmp < ixsep + 0.5)
+            {
+                rxyvalue = rxySpline.evaluate(xind_tmp, yind_tmp);
+                zxyvalue = zxySpline.evaluate(xind_tmp, yind_tmp);
+                zsvalue = zsSpline.evaluate(xind_tmp, yind_tmp);
+            }
+            else
+            {
+                rxyvalue = rxySpline.evaluate(xind_tmp, yind_tmp);
+                zxyvalue = zxySpline.evaluate(xind_tmp, yind_tmp);
+                zsvalue = zsSpline.evaluate(xind_tmp, yind_tmp);
+            }
+
+            double ipx3d_tmp = rxyvalue * std::cos(zsvalue);
+            double ipy3d_tmp = rxyvalue * std::sin(zsvalue);
+            double ipx = ipx3d_tmp * std::cos(zvalue) - ipy3d_tmp * std::sin(zvalue);
+            double ipy = ipx3d_tmp * std::sin(zvalue) + ipy3d_tmp * std::cos(zvalue);
+            double ipz = zxyvalue;
+
+            if (ipy > 0)
+            {
+                px.push_back(ipx);
+                py.push_back(ipy);
+                pz.push_back(ipz);
+                ptheta.push_back(thetaSpline.evaluate(yind_tmp));
+                ppsi.push_back(xiSpline.evaluate(xind_tmp));
+                puncFid << i + 1 << ", " << ipx << ", " << ipy << ", " << ipz << "\n";
+            }
+        }
+    }
 }
 
 int main()
@@ -188,45 +369,54 @@ int main()
     Options opts(fname);
 
     int divertor = 1; //single null
-    float xind = 0.0f;
+    double xind = 0.0f;
 
     std::vector<int> LINES = {149};
     int nturns = 5;
 
     std::vector<Point> Points;
 
+    //std::ofstream trajOut("traj.c.txt", std::ofstream::out);
+    //trajOut<<"XI, ITER, X, Y, Z"<<std::endl;
+
     for (const auto& iline : LINES)
     {
-        xind = static_cast<float>(iline);
+        xind = static_cast<double>(iline);
         int yyy = opts.jyomp;
         int yStart = opts.jyomp;
         int zzz = 0;
         auto zStart = opts.zarray[zzz];
-        float xStart = opts.psixy[static_cast<int>(xind)][opts.jyomp];
+        double xStart = opts.psixy[static_cast<int>(xind)][opts.jyomp];
         int yind = yStart;
-        float zind = 0;
+        double zind = 0;
 
 
         int region = opts.GetRegion(xind, yStart);
         int iturn = 0, it = 0;
 
         std::cout<<"Region= "<<region<<std::endl;
-        Points.push_back({xind, yStart, zind, iline, it});
         while (region < 10 && iturn < nturns)
         {
-
             // Start field-line tracing.
-            for (int iy = 0; iy < opts.ny; iy++)
+            for (int iy = 0; iy < opts.ny-1; iy++)
             {
-                if (iy == 15)
-                    std::cout<<"Funky town coming up."<<std::endl;
+                //trajOut<<iline<<", "<<iy<<", "<<it<<", "<<iturn<<", "<<xStart<<", "<<yStart<<", "<<zStart<<std::endl;
+                if (it == 0)
+                {
+                    Point _p;
+                    _p.traj1 = it; _p.traj2 = xind; _p.traj3 = yStart;
+                    _p.traj4 = zind; _p.traj5 = region; _p.traj7 = zStart;
+                    Points.push_back(_p);
+                    //Points.push_back({xind, yStart, zind, iline, iy, it});
+                }
+
                 if (yStart+1 == opts.dxdy[0].size())
                 {
                     std::cout<<"Overflow of some kind... Need to track this down."<<std::endl;
                     break;
                 }
 
-                float xEnd, zEnd, yEnd;
+                double xEnd, zEnd, yEnd;
                 if (region == 0 && yStart >= opts.nypf1 && yStart < opts.nypf2+1)
                 {
                     auto step = RK4_FLT1(xStart, yStart, zStart, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2);
@@ -249,7 +439,7 @@ int main()
                 else
                 {
                     xind = INTERP(opts.xarray, opts.xiarray, xEnd);
-                    if (xind > static_cast<float>(opts.ixsep1) + 0.5)
+                    if (xind > static_cast<double>(opts.ixsep1) + 0.5)
                     {
                         region = 1;
                         std::cout<<"  Starting xind= "<<xind<<" line= "<<iline<<" enters the SOL."<<std::endl;
@@ -259,97 +449,149 @@ int main()
                 //Twist-shift at branch cut.
                 if (yStart == opts.nypf2-1 && region == 0)
                 {
-                    float shiftAngle = INTERP(opts.xiarray, opts.shiftAngle, xind);
+                    double shiftAngle = INTERP(opts.xiarray, opts.shiftAngle, xind);
                     zEnd = zEnd + shiftAngle;
                     yEnd = opts.nypf1;
                 }
 
                 //Relabel toroidal location.
                 if (zEnd < opts.zmin || zEnd > opts.zmax)
-                    zEnd = float_mod(zEnd, opts.zmax);
+                    zEnd = double_mod(zEnd, opts.zmax);
                 zind = INTERP(opts.zarray, opts.ziarray, zEnd);
 
-                Points.push_back({xind, yStart, zind, iline, it});
+                //Points.push_back({xind, yEnd, zind, iline, iy, it});
+                Point _p;
+                _p.traj1 = it; _p.traj2 = xind; _p.traj3 = yEnd; _p.traj4 = zind;
+                _p.traj5 = region; _p.traj7 = zEnd;
+                Points.push_back(_p);
 
                 it = it+1;
                 xStart = xEnd;
                 yStart = yEnd;
                 zStart = zEnd;
             }
+            iturn++;
         }
 
         //Convert to XYZ space.
-        std::vector<Point> PointsXYZ;
+        std::vector<std::vector<double>> PointsXYZ;
 
         std::ofstream trajOut("traj.c.txt", std::ofstream::out);
-        trajOut<<"ID, ITER, X, Y, Z"<<std::endl;
+        trajOut<<"XI, ITER, X, Y, Z"<<std::endl;
         for (const auto& pt : Points)
         {
-            float x = pt.x, y = pt.y, z = pt.z;
-            int xi = static_cast<int>(x), yi = static_cast<int>(y), zi = static_cast<int>(z);
+            //double x = pt.x, y = pt.y, z = pt.z;
+            //int xi = static_cast<int>(x), yi = static_cast<int>(y), zi = static_cast<int>(z);
+            int yi = int(pt.traj3);
 
             // Get the column vector rxy[:, yi]
-            std::vector<float> rxy_column(opts.rxy.size());
+            std::vector<double> rxy_column(opts.rxy.size());
             for (size_t i = 0; i < opts.rxy.size(); ++i)
-                rxy_column[i] = opts.rxy[i][static_cast<size_t>(yi)];
+                rxy_column[i] = opts.rxy[i][yi];
 
             // Interpolate values
-            float rxyvalue = INTERP(opts.xiarray, rxy_column, xi);
+            double rxyvalue = INTERP(opts.xiarray, rxy_column, pt.traj2);
 
-            std::vector<float> zShift_column(opts.zShift.size());
+            std::vector<double> zShift_column(opts.zShift.size());
             for (size_t i = 0; i < opts.zShift.size(); ++i)
-                zShift_column[i] = opts.zShift[i][static_cast<size_t>(yi)];
-            float zsvalue = INTERP(opts.xiarray, zShift_column, xi);
+                zShift_column[i] = opts.zShift[i][yi];
+            double zsvalue = INTERP(opts.xiarray, zShift_column, pt.traj4);
 
-            float zvalue = INTERP(opts.ziarray, opts.zarray, zi);
+            double zvalue = INTERP(opts.ziarray, opts.zarray, pt.traj4);
 
             // Compute x3d_tmp and y3d_tmp
-            float x3d_tmp = rxyvalue * std::cos(zsvalue);
-            float y3d_tmp = rxyvalue * std::sin(zsvalue);
+            double x3d_tmp = rxyvalue * std::cos(zsvalue);
+            double y3d_tmp = rxyvalue * std::sin(zsvalue);
 
             // Compute x3d and y3d
-            float x3d = x3d_tmp * std::cos(zvalue) - y3d_tmp * std::sin(zvalue);
-            float y3d = x3d_tmp * std::sin(zvalue) + y3d_tmp * std::cos(zvalue);
+            double x3d = x3d_tmp * std::cos(zvalue) - y3d_tmp * std::sin(zvalue);
+            double y3d = x3d_tmp * std::sin(zvalue) + y3d_tmp * std::cos(zvalue);
 
             // Get the column vector zxy[:, yi]
-            std::vector<float> zxy_column(opts.zxy.size());
+            std::vector<double> zxy_column(opts.zxy.size());
             for (size_t i = 0; i < opts.zxy.size(); ++i)
                 zxy_column[i] = opts.zxy[i][static_cast<size_t>(yi)];
-            float z3d = INTERP(opts.xiarray, zxy_column, xi);
+            double z3d = INTERP(opts.xiarray, zxy_column, pt.traj2);
 
-            trajOut<<pt.id<<", "<<pt.iter<<", "<<x3d<<", "<<y3d<<", "<<z3d<<std::endl;
+            trajOut<<-1<<", "<<pt.traj1<<", "<<x3d<<", "<<y3d<<", "<<z3d<<std::endl;
+            PointsXYZ.push_back({x3d, y3d, z3d});
         }
 
+        //find the intersections.
+        std::vector<double> fl_x3d, fl_y3d, fl_z3d, itarray;
+        double xi = 0.0;
+        for (const auto pt : PointsXYZ)
+        {
+            fl_x3d.push_back(pt[0]);
+            fl_y3d.push_back(pt[1]);
+            fl_z3d.push_back(pt[2]);
+            itarray.push_back(xi);
+            xi = xi+1.0;
+        }
+
+        SplineInterpolation ffl_x3d(itarray, fl_x3d);
+        auto [fit, iit, iit_vals] = find_zero_crossings(itarray, fl_x3d, 0.0001);
+        int nc = iit.size();
+
+        std::ofstream puncFid("punc.c.txt", std::ofstream::out);
+        puncFid << "ID, X, Y, Z\n";
+        for (int i = 0; i < nc; i++)
+        {
+            int iit_i = iit[i];
+            double fit_i = fit[iit_i];
+            int _it = std::floor(fit_i);
+            double a = fit[iit[i]] - static_cast<double>(_it);
+            double b = 1.0-a;
+            auto pt = Points[_it];
+            auto pt_1 = Points[_it+1];
+
+            auto xind_tmp = b*pt.traj2 + a*pt_1.traj2;
+            auto yind_tmp = b*pt.traj3 + a*pt_1.traj3;
+            auto zvalue = b*pt.traj7 + a*pt_1.traj7;
+            auto pt_m1 = Points[_it-1];
+            auto _nypf2 = opts.nypf2, _nypf1 = opts.nypf1;
+            if (std::abs(pt.traj7 - pt_1.traj7) > 1.0)
+                zvalue = b*double_mod(pt.traj7, opts.zmax) + a*double_mod(pt_1.traj7, opts.zmax);
+            if (pt.traj3 == double(opts.nypf2) && xind_tmp < double(opts.ixsep)+0.5)
+                yind_tmp = b*pt.traj3 + a*double(opts.nypf2+1);
+            else if (_it > 0 && (Points[_it-1].traj3 == double(opts.nypf2) || (Points[_it-1].traj3 == double(opts.nypf1+1))))
+            {
+                throw std::string("Need to support the update of zvalue");
+                //zvalue = b*
+            }
+
+            double rxyvalue, zxyvalue, zsvalue;
+            if (xind_tmp < double(opts.ixsep)+0.5)
+            {
+                rxyvalue = interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.rxy_cfr, xind_tmp, yind_tmp);
+                zxyvalue = interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zxy_cfr, xind_tmp, yind_tmp);
+                zsvalue = interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr, xind_tmp, yind_tmp);
+            }
+            else
+            {
+                rxyvalue = interpolate2D(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
+                zxyvalue = interpolate2D(opts.xiarray, opts.yiarray, opts.zxy, xind_tmp, yind_tmp);
+                zsvalue = interpolate2D(opts.xiarray, opts.yiarray, opts.zShift, xind_tmp, yind_tmp);
+            }
+
+            double ipx3d_tmp = rxyvalue*cos(zsvalue);
+            double ipy3d_tmp = rxyvalue*sin(zsvalue);
+            double ipx = ipx3d_tmp*cos(zvalue)-ipy3d_tmp*sin(zvalue);
+            double ipy = ipx3d_tmp*sin(zvalue)+ipy3d_tmp*cos(zvalue);
+            double ipz = zxyvalue;
+
+            if (ipy > 0.0)
+            {
+                // do the rxy/zxy interpolation
+                //if (i > 0) puncFid<<iit[i]-1<<", "<<fl_x3d[iit[i]-1]<<", "<<fl_y3d[iit[i]-1]<<", "<<fl_z3d[iit[i]-1]<<std::endl;
+                //puncFid<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
+                puncFid<<i<<", "<<rxyvalue<<", "<<zxyvalue<<", "<<zvalue<<std::endl;
+                //puncFid<<iit[i]+1<<", "<<fl_x3d[iit[i]+1]<<", "<<fl_y3d[iit[i]+1]<<", "<<fl_z3d[iit[i]+1]<<std::endl;
+            }
+        }
+        std::cout<<"All done"<<std::endl;
+        std::cout<<" Exiting now."<<std::endl;
     }
 
-
-#if 0
-    // Example data
-    std::vector<float> xarray = {0, 1, 2, 3, 4};
-    std::vector<float> zarray = {0, 1, 2, 3};
-    std::vector<std::vector<float>> dxdyp = {
-        {0, 1, 4, 9},
-        {1, 2, 5, 10},
-        {4, 5, 8, 13},
-        {9, 10, 13, 18},
-        {16, 17, 20, 25}
-    };
-
-    float xStart = 2.5, zStart = 1.5;
-    try {
-        float result = interp2D(xarray, zarray, dxdyp, xStart, zStart);
-        std::cout << "Interpolated value: " << result << std::endl;
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-    }
-
-
-
-    std::vector<std::vector<float>> rxy = opts.rxy;
-    std::cout << "Read 2D variable 'rxy' with dimensions: " << rxy.size() << " x " << rxy[0].size() << "\n";
-
-    // Print a few values
-    std::cout << "First value in rxy: " << rxy[0][0] << "\n";
-#endif
     return 0;
 }

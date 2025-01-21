@@ -20,9 +20,9 @@ public:
         nc_close(this->ncid);
     }
 
-    std::vector<float> read1DVariable(const std::string& varName);
-    std::vector<std::vector<float>> read2DVariable(const std::string& varName, bool transpose=true);
-    std::vector<std::vector<std::vector<float>>> read3DVariable(const std::string& varName, bool permute=true);
+    std::vector<double> read1DVariable(const std::string& varName);
+    std::vector<std::vector<double>> read2DVariable(const std::string& varName, bool transpose=true);
+    std::vector<std::vector<std::vector<double>>> read3DVariable(const std::string& varName, bool permute=true);
 
 private:
     int ncid;
@@ -46,11 +46,11 @@ private:
     }
 
     // Transpose a 2D vector
-    std::vector<std::vector<float>> transpose2D(const std::vector<std::vector<float>>& data)
+    std::vector<std::vector<double>> transpose2D(const std::vector<std::vector<double>>& data)
     {
         size_t rows = data.size();
         size_t cols = data[0].size();
-        std::vector<std::vector<float>> transposed(cols, std::vector<float>(rows, 0.0));
+        std::vector<std::vector<double>> transposed(cols, std::vector<double>(rows, 0.0));
 
         for (size_t i = 0; i < rows; ++i)
         {
@@ -61,3 +61,12 @@ private:
         return transposed;
     }
 };
+std::vector<std::vector<double>>
+make2Darray(size_t nx, size_t ny);
+void
+copy2darray(const std::vector<double>& flatArray, std::vector<std::vector<double>>& data);
+
+std::vector<std::vector<std::vector<double>>>
+make3Darray(size_t nx, size_t ny, size_t nz);
+void
+copy3darray(const std::vector<double>& flatArray, std::vector<std::vector<std::vector<double>>>& data);
