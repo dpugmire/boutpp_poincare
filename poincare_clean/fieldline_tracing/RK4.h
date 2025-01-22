@@ -6,6 +6,12 @@
 #include <cmath>
 #include <iostream>
 
+void
+writeArray1DToFile(std::vector<double>& array, const std::string& fname);
+
+void
+writeArray2DToFile(std::vector<std::vector<double>>& array, const std::string& fname);
+
 std::pair<double, double> RK4_FLT1(
     double xStart, double yStart, double zStart,
     const std::vector<std::vector<std::vector<double>>>& dxdy,

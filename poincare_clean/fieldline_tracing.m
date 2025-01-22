@@ -20,9 +20,9 @@ else
     disp('Running in MATLAB');
 end
 
-trajFID = fopen('traj.m.txt', 'w');
-stepsFID = fopen('steps.m.txt', 'w');
-fprintf(trajFID, 'XI, ITER, X, Y, Z\n');
+trajFID = fopen('/Users/dpn/traj.m.txt', 'w');
+stepsFID = fopen('/Users/dpn/steps.m.txt', 'w');
+fprintf(trajFID, 'ID, X, Y, Z\n');
 
 %%% STEP 0: user setup
 
@@ -264,6 +264,10 @@ yiarray = (1:ny);
     dapardx = zeros(nx,ny,nzG);
     dapardy = zeros(nx,ny,nzG);
     dapardz = zeros(nx,ny,nzG);
+
+    write_array_to_file(xiarray_cfr, 'xiarray_cfr');
+    write_array_to_file(yiarray_cfr, 'yiarray_cfr');
+    write_array_to_file(zs_cfr, 'zs_cfr');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %     % analytical apar model for test purpose -- only for closed flux region
@@ -694,7 +698,7 @@ yiarray = (1:ny);
         fl_x3d(istep) = x3d_tmp*cos(zvalue)-y3d_tmp*sin(zvalue);
         fl_y3d(istep) = x3d_tmp*sin(zvalue)+y3d_tmp*cos(zvalue);
         fl_z3d(istep) = interp1(xiarray,zxy(:,traj(3,istep)),traj(2,istep));
-        fprintf(trajFID, '%d, %d, %.8f, %.8f, %.8f\n', iline-1, istep-1, fl_x3d(istep), fl_y3d(istep), fl_z3d(istep));
+        fprintf(trajFID, '%d, %.8f, %.8f, %.8f\n', istep-1, fl_x3d(istep), fl_y3d(istep), fl_z3d(istep));
     end
     fprintf('All done dumping the file....\n');
 
@@ -725,14 +729,31 @@ yiarray = (1:ny);
 %     plot(fl_x3d(itarray),'-d')
 %     plot(fit,ffl_x3d)
 %     plot(fit(iit),ffl_x3d(iit),'o')
+%     pause
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
       [nc,~]=size(iit); nc=nc-1; ip=0; id=0;
 
+      if (nc > 0)
+        rawPuncFid = fopen('/Users/dpn/rawpunc.m.txt', 'w');
+        fprintf(rawPuncFid, 'ID, X, Y, Z\n');
+        ffl_y3d = spline(itarray,fl_y3d(1:itmax),fit);
+        ffl_z3d = spline(itarray,fl_z3d(1:itmax),fit);
+
+        for i=1:nc
+          iit_i = iit(i);
+          valX = ffl_x3d(iit_i);
+          valY = ffl_y3d(iit_i);
+          valZ = ffl_z3d(iit_i);
+          fprintf(rawPuncFid, '%d, %f, %f, %f\n', i, valX, valY, valZ);
+        endfor
+      endif
+
+
       % only for the field-lines pass x=0 plane, one calculates the
       % corresponding puncture point information
       if (nc > 0)
-        puncFid = fopen('punc.m.txt', 'w');
+        puncFid = fopen('/Users/dpn/punc.m.txt', 'w');
         fprintf(puncFid, 'ID, X, Y, Z\n');
 
         for i=1:nc
@@ -740,12 +761,13 @@ yiarray = (1:ny);
             fit_i = fit(iit_i);
             it=floor(fit(iit(i)));
             a=fit(iit(i))-it; b=1-a;
-            fprintf('iit_i, fit_i, it = %f %f %d\n', iit_i, fit_i, it);
+            %fprintf('iit_i, fit_i, it = %f %f %d\n', iit_i, fit_i, it);
 
             % linear interpolation along field-line
             %traj(2) = xind, traj(3) = yend: pointsXYZ.x, .y
             xtraj = traj(2, it); xtraj1 = traj(2, it+1);
             ytraj = traj(3, it); ytraj1 = traj(3, it+1);
+            ztraj = traj(7, it); ztraj1 = traj(7, it+1);
 
             xind_tmp=b*traj(2,it)+a*traj(2,it+1);
             % default, unless at the branch cut
@@ -779,7 +801,6 @@ yiarray = (1:ny);
                 zxyvalue = interp2(xiarray_cfr,yiarray_cfr,zxy_cfr',xind_tmp,yind_tmp,'spline');
                 zsvalue  = interp2(xiarray_cfr,yiarray_cfr,zs_cfr', xind_tmp,yind_tmp,'spline');
             else
-                shit();
                 rxyvalue = interp2(xiarray,yiarray,rxy',xind_tmp,yind_tmp,'spline');
                 zxyvalue = interp2(xiarray,yiarray,zxy',xind_tmp,yind_tmp,'spline');
                 zsvalue  = interp2(xiarray,yiarray,zShift',xind_tmp,yind_tmp,'spline');
@@ -806,8 +827,10 @@ yiarray = (1:ny);
                 %% this is the right one.
                 %fprintf(puncFid, '%d, %.8f, %.8f, %.8f\n', i, px(ip), py(ip), pz(ip));
                 %%
-                fprintf(puncFid, '%d, %.8f, %.8f, %.8f\n', i, rxyvalue, zxyvalue, zvalue);
+                fprintf(puncFid, '%d, %.8f, %.8f, %.8f\n', i, ipx, ipy, ipz);
                 %end
+            else
+                fprintf('%d: ipy is < 0:  %f \n', i, ipy);
             end
 
       end

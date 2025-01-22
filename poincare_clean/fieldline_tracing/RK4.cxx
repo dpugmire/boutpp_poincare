@@ -244,47 +244,47 @@ std::pair<double, double> RK4_FLT1(
     //SplineInterpolation splineDzdy(xarray, zarray, dzdyp); //[zStart]);
 
     //std::cout<<"RK4 step1: "<<xStart<<" "<<zStart<<" xx: "<<xarray.front()<<" "<<xarray.back()<<std::endl;
-    printf("RK4 step1: %12.10e %12.10e\n", xStart, zStart);
+    //printf("RK4 step1: %12.10e %12.10e\n", xStart, zStart);
     // RK4 Step 1
-    double tmp1 = bilinear_interp2(xarray, zarray, dxdyp, xStart, zStart);
-    double tmp2 = bilinear_interp2(xarray, zarray, dzdyp, xStart, zStart);
+    double tmp1 = interpolate2D(xarray, zarray, dxdyp, xStart, zStart);
+    double tmp2 = interpolate2D(xarray, zarray, dzdyp, xStart, zStart);
 
     double dxdy1 = bilinear_interp2(xarray, zarray, dxdyp, xStart, zStart);
     double dzdy1 = bilinear_interp2(xarray, zarray, dzdyp, xStart, zStart); //splineDzdy.evaluate(xStart);
     double x1 = xStart + direction * hh * dxdy1;
     double z1 = zStart + direction * hh * dzdy1;
-    printf("  RES: %12.10e %12.10e\n", dxdy1, dzdy1);
-    printf("  bi-RES: %12.10e %12.10e\n", tmp1, tmp2);
+    //printf("  RES: %12.10e %12.10e\n", dxdy1, dzdy1);
+    //printf("  bi-RES: %12.10e %12.10e\n", tmp1, tmp2);
     //std::cout<<"   RES= "<<dxdy1<<" "<<dzdy1<<std::endl;
 
     // RK4 Step 2
-    std::cout<<"RK4 step2: "<<x1<<" "<<z1<<" xz: "<<xarray[0]<<" "<<zarray[0]<<std::endl;
+    //std::cout<<"RK4 step2: "<<x1<<" "<<z1<<" xz: "<<xarray[0]<<" "<<zarray[0]<<std::endl;
 
     double dxdy2 = bilinear_interp2(xarray, zarray, dxdyh, x1, double_mod(z1, M_2_PI));
     double dzdy2 = bilinear_interp2(xarray, zarray, dzdyh, x1, double_mod(z1, M_2_PI));
     double x2 = xStart + direction * hh * dxdy2;
     double z2 = zStart + direction * hh * dzdy2;
-    std::cout<<"   RES= "<<dxdy2<<" "<<dzdy2<<std::endl;
+    //std::cout<<"   RES= "<<dxdy2<<" "<<dzdy2<<std::endl;
 
     // RK4 Step 3
-    std::cout<<"RK4 step3: "<<x2<<" "<<z2<<" xz: "<<xarray[0]<<" "<<zarray[0]<<std::endl;
+    //std::cout<<"RK4 step3: "<<x2<<" "<<z2<<" xz: "<<xarray[0]<<" "<<zarray[0]<<std::endl;
     double dxdy3 = bilinear_interp2(xarray, zarray, dxdyh, x2, double_mod(z2, M_2_PI));
     double dzdy3 = bilinear_interp2(xarray, zarray, dzdyh, x2, double_mod(z2, M_2_PI));
     double x3 = xStart + direction * dxdy3;
     double z3 = zStart + direction * dzdy3;
-    std::cout<<"   RES= "<<dxdy3<<" "<<dzdy3<<std::endl;
+    //std::cout<<"   RES= "<<dxdy3<<" "<<dzdy3<<std::endl;
 
     // RK4 Step 4BGHN
-    std::cout<<"RK4 step4: "<<x3<<" "<<z3<<" xz: "<<xarray[0]<<" "<<zarray[0]<<std::endl;
+    //std::cout<<"RK4 step4: "<<x3<<" "<<z3<<" xz: "<<xarray[0]<<" "<<zarray[0]<<std::endl;
     double dxdy4 = bilinear_interp2(xarray, zarray, dxdyn, x3, double_mod(z3, M_2_PI));
     double dzdy4 = bilinear_interp2(xarray, zarray, dzdyn, x3, double_mod(z3, M_2_PI));
-    std::cout<<"   RES= "<<dxdy4<<" "<<dzdy4<<std::endl;
+    //std::cout<<"   RES= "<<dxdy4<<" "<<dzdy4<<std::endl;
 
     // Compute final x and z
     double xEnd = xStart + direction * h6 * (dxdy1 + 2.0f * dxdy2 + 2.0f * dxdy3 + dxdy4);
     double zEnd = zStart + direction * h6 * (dzdy1 + 2.0f * dzdy2 + 2.0f * dzdy3 + dzdy4);
 
-    printf("   STEP= %12.10e %12.10e\n", xEnd, zEnd);
+    //printf("   STEP= %12.10e %12.10e\n", xEnd, zEnd);
 
     return {xEnd, zEnd};
 }

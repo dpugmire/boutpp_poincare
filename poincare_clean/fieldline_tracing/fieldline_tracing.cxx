@@ -5,6 +5,9 @@
 #include <fstream>
 #include <cmath>
 
+std::ofstream traj2("/Users/dpn/trajspline.c.txt", std::ofstream::out);
+std::ofstream punc2("/Users/dpn/punc2.c.txt", std::ofstream::out);
+
 double
 double_mod(double val, double mod_base)
 {
@@ -94,7 +97,11 @@ class Options
         this->init_array(this->xiarray, this->nx);
         this->init_array(this->yiarray, this->ny);
         this->init_array(this->xiarray_cfr, this->ixsep);
-        this->init_array(this->yiarray_cfr, this->nypf1, this->nypf2);
+        this->init_array(this->yiarray_cfr, this->nypf1+1, this->nypf2+2);
+
+        writeArray1DToFile(this->xiarray_cfr, "xiarray_cfr");
+        writeArray1DToFile(this->yiarray_cfr, "yiarray_cfr");
+        writeArray2DToFile(this->zShift_cfr, "zshift_cfr");
 
         //zs_cfr.
         #if 0
@@ -270,6 +277,41 @@ find_zero_crossings(const std::vector<double>& itarray, const std::vector<double
     return std::tuple(fit, crossings, crossing_vals);
 }
 
+void
+dumpTrajSamples(std::vector<std::vector<double>> points)
+{
+    int n = points.size();
+    std::vector<double> tivals, xvals, yvals, zvals;
+    for (int i = 0; i < n; i++)
+    {
+        tivals.push_back(double(i));
+        xvals.push_back(points[i][0]);
+        yvals.push_back(points[i][1]);
+        zvals.push_back(points[i][2]);
+    }
+    SplineInterpolation splineX(tivals, xvals), splineY(tivals, yvals), splineZ(tivals, zvals);
+
+
+    traj2<<"ID, X, Y, Z\n";
+    punc2<<"ID, X, Y, Z\n";
+
+    std::vector<double> tvals;
+    double tmin = 0.0, tmax = double(n-1);
+    int id = 0;
+    double x0 = -1.0;
+    for (double t = tmin; t < tmax; t+= 0.01, id++)
+    {
+        double x = splineX.evaluate(t);
+        double y = splineY.evaluate(t);
+        double z = splineZ.evaluate(t);
+        traj2<<id<<", "<<x<<", "<<y<<", "<<z<<std::endl;
+        if (id > 0 && x * x0 < 0.0 && y > 0.0)
+            punc2<<id<<", "<<x<<", "<<y<<", "<<z<<std::endl;
+        x0 = x;
+    }
+}
+
+
 void processPunctures(
     const std::vector<double>& itarray,
     const std::vector<double>& fl_x3d,
@@ -304,7 +346,7 @@ void processPunctures(
 
     if (nc > 0)
     {
-        std::ofstream puncFid("punc.m.txt");
+        std::ofstream puncFid("/Users/dpn/punc.m.txt");
         puncFid << "ID, X, Y, Z\n";
 
         for (size_t i = 0; i < nc; ++i)
@@ -371,13 +413,21 @@ int main()
     int divertor = 1; //single null
     double xind = 0.0f;
 
-    std::vector<int> LINES = {149};
+    std::vector<int> LINES = {145};
     int nturns = 5;
 
     std::vector<Point> Points;
 
     //std::ofstream trajOut("traj.c.txt", std::ofstream::out);
     //trajOut<<"XI, ITER, X, Y, Z"<<std::endl;
+
+/*
+    double _xStart = -0.135524, _yStart = 55, _zStart = 0;
+    auto step0 = RK4_FLT1(_xStart, _yStart, _zStart, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, 0, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2);
+
+    _yStart--;
+    auto step2 = RK4_FLT1(_xStart, _yStart, _zStart, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, 0, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2);
+*/
 
     for (const auto& iline : LINES)
     {
@@ -389,7 +439,6 @@ int main()
         double xStart = opts.psixy[static_cast<int>(xind)][opts.jyomp];
         int yind = yStart;
         double zind = 0;
-
 
         int region = opts.GetRegion(xind, yStart);
         int iturn = 0, it = 0;
@@ -476,8 +525,9 @@ int main()
         //Convert to XYZ space.
         std::vector<std::vector<double>> PointsXYZ;
 
-        std::ofstream trajOut("traj.c.txt", std::ofstream::out);
-        trajOut<<"XI, ITER, X, Y, Z"<<std::endl;
+        std::ofstream trajOut("/Users/dpn/traj.c.txt", std::ofstream::out);
+        trajOut<<"ID, X, Y, Z"<<std::endl;
+        int id = 0;
         for (const auto& pt : Points)
         {
             //double x = pt.x, y = pt.y, z = pt.z;
@@ -513,9 +563,11 @@ int main()
                 zxy_column[i] = opts.zxy[i][static_cast<size_t>(yi)];
             double z3d = INTERP(opts.xiarray, zxy_column, pt.traj2);
 
-            trajOut<<-1<<", "<<pt.traj1<<", "<<x3d<<", "<<y3d<<", "<<z3d<<std::endl;
+            trajOut<<id<<", "<<x3d<<", "<<y3d<<", "<<z3d<<std::endl;
             PointsXYZ.push_back({x3d, y3d, z3d});
+            id++;
         }
+        dumpTrajSamples(PointsXYZ);
 
         //find the intersections.
         std::vector<double> fl_x3d, fl_y3d, fl_z3d, itarray;
@@ -529,11 +581,23 @@ int main()
             xi = xi+1.0;
         }
 
-        SplineInterpolation ffl_x3d(itarray, fl_x3d);
+        SplineInterpolation ffl_x3d(itarray, fl_x3d), ffl_y3d(itarray, fl_y3d), ffl_z3d(itarray, fl_z3d);
         auto [fit, iit, iit_vals] = find_zero_crossings(itarray, fl_x3d, 0.0001);
         int nc = iit.size();
 
-        std::ofstream puncFid("punc.c.txt", std::ofstream::out);
+        std::ofstream rawPunc("/Users/dpn/rawpunc.c.txt", std::ofstream::out);
+        rawPunc<<"ID, X, Y, Z\n";
+        for (int i = 0; i < nc; i++)
+        {
+            int iit_i = iit[i];
+            double tval = fit[iit_i];
+            double valX = ffl_x3d.evaluate(tval);
+            double valY = ffl_y3d.evaluate(tval);
+            double valZ = ffl_z3d.evaluate(tval);
+            rawPunc<<i<<", "<<valX<<", "<<valY<<", "<<valZ<<std::endl;
+        }
+
+        std::ofstream puncFid("/Users/dpn/punc.c.txt", std::ofstream::out);
         puncFid << "ID, X, Y, Z\n";
         for (int i = 0; i < nc; i++)
         {
@@ -548,6 +612,7 @@ int main()
             auto xind_tmp = b*pt.traj2 + a*pt_1.traj2;
             auto yind_tmp = b*pt.traj3 + a*pt_1.traj3;
             auto zvalue = b*pt.traj7 + a*pt_1.traj7;
+
             auto pt_m1 = Points[_it-1];
             auto _nypf2 = opts.nypf2, _nypf1 = opts.nypf1;
             if (std::abs(pt.traj7 - pt_1.traj7) > 1.0)
@@ -563,9 +628,9 @@ int main()
             double rxyvalue, zxyvalue, zsvalue;
             if (xind_tmp < double(opts.ixsep)+0.5)
             {
-                rxyvalue = interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.rxy_cfr, xind_tmp, yind_tmp);
-                zxyvalue = interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zxy_cfr, xind_tmp, yind_tmp);
-                zsvalue = interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr, xind_tmp, yind_tmp);
+                rxyvalue = interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.rxy_cfr,   xind_tmp, yind_tmp);
+                zxyvalue =   interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zxy_cfr,  xind_tmp, yind_tmp);
+                zsvalue =   interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr, xind_tmp, yind_tmp);
             }
             else
             {
@@ -585,7 +650,7 @@ int main()
                 // do the rxy/zxy interpolation
                 //if (i > 0) puncFid<<iit[i]-1<<", "<<fl_x3d[iit[i]-1]<<", "<<fl_y3d[iit[i]-1]<<", "<<fl_z3d[iit[i]-1]<<std::endl;
                 //puncFid<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
-                puncFid<<i<<", "<<rxyvalue<<", "<<zxyvalue<<", "<<zvalue<<std::endl;
+                puncFid<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
                 //puncFid<<iit[i]+1<<", "<<fl_x3d[iit[i]+1]<<", "<<fl_y3d[iit[i]+1]<<", "<<fl_z3d[iit[i]+1]<<std::endl;
             }
         }
