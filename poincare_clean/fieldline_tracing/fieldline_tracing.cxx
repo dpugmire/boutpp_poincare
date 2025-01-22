@@ -413,7 +413,7 @@ int main()
     int divertor = 1; //single null
     double xind = 0.0f;
 
-    std::vector<int> LINES = {145};
+    std::vector<int> LINES = {149};
     int nturns = 5;
 
     std::vector<Point> Points;
