@@ -23,9 +23,13 @@ end
 trajFID = fopen('/Users/dpn/traj.m.txt', 'w');
 stepsFID = fopen('/Users/dpn/steps.m.txt', 'w');
 trajSplineFID = fopen('/Users/dpn/trajspline.m.txt', 'w');
-fprintf(trajFID, 'ID, X, Y, Z\n');
-fprintf(trajSplineFID, 'ID, X, Y, Z\n');
+rawPuncFid = fopen('/Users/dpn/rawpunc.m.txt', 'w');
+puncFid = fopen('/Users/dpn/punc.m.txt', 'w');
 
+fprintf(trajFID, 'ID, STEP, X, Y, Z\n');
+fprintf(trajSplineFID, 'ID, STEP, X, Y, Z\n');
+fprintf(rawPuncFid, 'ID, STEP, X, Y, Z\n');
+fprintf(puncFid, 'ID, STEP, X, Y, Z\n');
 %%% STEP 0: user setup
 
 % BOUT++ grid file
@@ -413,7 +417,9 @@ yiarray = (1:ny);
     LINES = [150]; %% this stays in region 0 the whole time.
     %LINES = [195]; %% this from region 0 to 1 to 2.
     %LINES = [130, 140, 150, 160, 170, 180];
-    LINES = [150]
+    LINES = [150];
+    LINES = [150];
+    LINES = 1:50:nlines;
 
     YVALS = 1:ny-1;
     %YVALS = [60];
@@ -449,7 +455,7 @@ yiarray = (1:ny);
         yind = yStart;
         zind = interp1(zarray, ziarray, zStart);
 
-        fprintf('\tline %i started at indeices (%f,%f,%f),\n',iline,xind,yind,zind);
+        fprintf('\n\n\n\t**********         line %i started at idx: (%f,%f,%f), (%f %f %f)\n',iline,xind,yind,zind, xStart, yStart, zStart);
 
         % rule out the starting points on the divertor targets and go towards
         % the divertor plates
@@ -697,7 +703,7 @@ yiarray = (1:ny);
       splineY = spline(_xi, yVals, _samples);
       splineZ = spline(_xi, zVals, _samples);
       for _it=1:nsamples
-        fprintf(trajSplineFID, '%d, %f, %f, %f\n', _it, splineX(_it), splineY(_it), splineZ(_it));
+        fprintf(trajSplineFID, '%d, %f, %f, %f, %f\n', iline-1, _samples(_it)-1.0, splineX(_it), splineY(_it), splineZ(_it));
       endfor
 
     endif
@@ -735,7 +741,7 @@ yiarray = (1:ny);
         fl_x3d(istep) = x3d_tmp*cos(zvalue)-y3d_tmp*sin(zvalue);
         fl_y3d(istep) = x3d_tmp*sin(zvalue)+y3d_tmp*cos(zvalue);
         fl_z3d(istep) = interp1(xiarray,zxy(:,traj(3,istep)),traj(2,istep));
-        fprintf(trajFID, '%d, %.8f, %.8f, %.8f\n', istep-1, fl_x3d(istep), fl_y3d(istep), fl_z3d(istep));
+        fprintf(trajFID, '%d, %d, %.8f, %.8f, %.8f\n', iline-1, istep-1, fl_x3d(istep), fl_y3d(istep), fl_z3d(istep));
     end
     fprintf('All done dumping the file....\n');
 
@@ -772,8 +778,6 @@ yiarray = (1:ny);
       [nc,~]=size(iit); nc=nc-1; ip=0; id=0;
 
       if (nc > 0)
-        rawPuncFid = fopen('/Users/dpn/rawpunc.m.txt', 'w');
-        fprintf(rawPuncFid, 'ID, X, Y, Z\n');
         ffl_y3d = spline(itarray,fl_y3d(1:itmax),fit);
         ffl_z3d = spline(itarray,fl_z3d(1:itmax),fit);
 
@@ -782,7 +786,7 @@ yiarray = (1:ny);
           valX = ffl_x3d(iit_i);
           valY = ffl_y3d(iit_i);
           valZ = ffl_z3d(iit_i);
-          fprintf(rawPuncFid, '%d, %f, %f, %f\n', i, valX, valY, valZ);
+          fprintf(rawPuncFid, '%d, %d, %f, %f, %f\n', iline-1, i-1, valX, valY, valZ);
         endfor
       endif
 
@@ -790,8 +794,7 @@ yiarray = (1:ny);
       % only for the field-lines pass x=0 plane, one calculates the
       % corresponding puncture point information
       if (nc > 0)
-        puncFid = fopen('/Users/dpn/punc.m.txt', 'w');
-        fprintf(puncFid, 'ID, X, Y, Z\n');
+
 
         for i=1:nc
             iit_i= iit(i);
@@ -864,7 +867,7 @@ yiarray = (1:ny);
                 %% this is the right one.
                 %fprintf(puncFid, '%d, %.8f, %.8f, %.8f\n', i, px(ip), py(ip), pz(ip));
                 %%
-                fprintf(puncFid, '%d, %.8f, %.8f, %.8f\n', i, ipx, ipy, ipz);
+                fprintf(puncFid, '%d, %d, %.8f, %.8f, %.8f\n', iline-1, i-1, ipx, ipy, ipz);
                 %end
             else
                 fprintf('%d: ipy is < 0:  %f \n', i, ipy);
