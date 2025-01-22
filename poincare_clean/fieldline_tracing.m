@@ -22,7 +22,9 @@ end
 
 trajFID = fopen('/Users/dpn/traj.m.txt', 'w');
 stepsFID = fopen('/Users/dpn/steps.m.txt', 'w');
+trajSplineFID = fopen('/Users/dpn/trajspline.m.txt', 'w');
 fprintf(trajFID, 'ID, X, Y, Z\n');
+fprintf(trajSplineFID, 'ID, X, Y, Z\n');
 
 %%% STEP 0: user setup
 
@@ -48,6 +50,7 @@ np = 1250; % maximum puncture points, rougly nturns*q
 save_traj = 1;  % save trajectory of each field line
 save_pp = 1;    % save puncture point of each field line
 saveFields = 0; % save out computed fields for the python version.
+saveHighResTraj = 1;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%% no user setup in this section %%%%%%%%
@@ -665,6 +668,40 @@ yiarray = (1:ny);
                 'z',num2str(zzz),'_v3lc-01-250','m.mat'),traj);
         end
     end
+
+    %% DRP: Save out high resolution trajectory.
+    if (saveHighResTraj)
+      _xi = 1:itmax;
+      _samples = 1:0.01:itmax;
+      nsamples = length(_samples);
+      xVals = zeros(1, itmax);
+      yVals = zeros(1, itmax);
+      zVals = zeros(1, itmax);
+      for _it=1:itmax
+        xi = traj(2,_it);
+        yi = traj(3,_it);
+        zi = traj(4,_it);
+        %TMP = rxy(:,traj(3,istep))
+        rxyvalue = interp1(xiarray,rxy(:,traj(3,_it)),traj(2,_it));
+        zsvalue  = interp1(xiarray,zShift(:,traj(3,_it)),traj(2,_it));
+        zvalue   = interp1(ziarray,zarray,traj(4,_it));
+        x3d_tmp = rxyvalue*cos(zsvalue);
+        y3d_tmp = rxyvalue*sin(zsvalue);
+
+        xVals(_it) = x3d_tmp*cos(zvalue)-y3d_tmp*sin(zvalue);
+        yVals(_it) = x3d_tmp*sin(zvalue)+y3d_tmp*cos(zvalue);
+        zVals(_it) = interp1(xiarray,zxy(:,traj(3,_it)),traj(2,_it));
+      endfor
+
+      splineX = spline(_xi, xVals, _samples);
+      splineY = spline(_xi, yVals, _samples);
+      splineZ = spline(_xi, zVals, _samples);
+      for _it=1:nsamples
+        fprintf(trajSplineFID, '%d, %f, %f, %f\n', _it, splineX(_it), splineY(_it), splineZ(_it));
+      endfor
+
+    endif
+
 
 % % STEP 3: calculate puncture points and generate Poincare plot and others
 %
