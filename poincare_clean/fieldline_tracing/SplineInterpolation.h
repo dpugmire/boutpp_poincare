@@ -4,11 +4,20 @@
 #include <stdexcept>
 #include <iostream>
 
-double interpolate2D(
+double alglib_spline(const std::vector<double>& x, const std::vector<double>& y, const std::vector<std::vector<double>>& f,
+                     double xi, double yi);
+
+double interpolate2D_WRONG(
     const std::vector<double>& xarray,
     const std::vector<double>& zarray,
     const std::vector<std::vector<double>>& dxdyp,
     double x, double z);
+
+double bilinear_interp2(const std::vector<double>& xarray,
+            const std::vector<double>& zarray,
+            const std::vector<std::vector<double>>& data,
+            double x,
+            double z);
 
 class SplineInterpolation_OLD
 {
@@ -29,8 +38,15 @@ public:
     // Evaluate the spline at a given point
     double evaluate(double t) const
     {
-        if (t < x.front() || t > x.back()) {
-            throw std::out_of_range("Interpolation point is outside the range of input data.");
+        if (t < x.front())
+        {
+            std::cout<<"Interpolation point is outside the range of input data: "<<t<<" < "<<x.front()<<std::endl;
+            return x.front();
+        }
+        if (t > x.back())
+        {
+            std::cout<<"Interpolation point is outside the range of input data: "<<t<<" > "<<x.back()<<std::endl;
+            return x.back();
         }
 
         // Find the interval [x[i], x[i+1]] containing t

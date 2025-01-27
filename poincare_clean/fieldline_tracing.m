@@ -22,14 +22,18 @@ end
 
 trajFID = fopen('/Users/dpn/traj.m.txt', 'w');
 stepsFID = fopen('/Users/dpn/steps.m.txt', 'w');
+rk4FID = fopen('/Users/dpn/rk4.m.txt', 'w');
 trajSplineFID = fopen('/Users/dpn/trajspline.m.txt', 'w');
 rawPuncFid = fopen('/Users/dpn/rawpunc.m.txt', 'w');
 puncFid = fopen('/Users/dpn/punc.m.txt', 'w');
 
-fprintf(trajFID, 'ID, STEP, X, Y, Z\n');
-fprintf(trajSplineFID, 'ID, STEP, X, Y, Z\n');
+fprintf(trajFID, 'ID, STEP, X, Y, Z, REGION\n');
+fprintf(trajSplineFID, 'ID, STEP, X, Y, Z, REGION\n');
 fprintf(rawPuncFid, 'ID, STEP, X, Y, Z\n');
 fprintf(puncFid, 'ID, STEP, X, Y, Z\n');
+fprintf(stepsFID, 'ID, STEP, X, Y, Z\n');
+fprintf(rk4FID, 'ID, STEP, X, Y, Z\n');
+
 %%% STEP 0: user setup
 
 % BOUT++ grid file
@@ -47,7 +51,7 @@ deltaix = 1; ixoffset = 1; % by default, line tracing starts at
 % (Roughly) total poloidal turns
 nturns = 250;
 nturns = 5+1;
-%nturns = 50;
+nturns = 5+1;
 nsteps = nturns*ny;
 np = 1250; % maximum puncture points, rougly nturns*q
 % Output option
@@ -397,6 +401,8 @@ yiarray = (1:ny);
         %n=nx*ny*nz;
         %dxdy = reshape(0:(n-1), nx,ny,nz);
         write_array_to_file(dxdy, 'dxdy_0');
+        write_array_to_file(dzdy, 'dzdy_0');
+
         %tmp = reshape(0:(n-1), nx,ny,nz);
         %printEval(dxdy, 124, 80, 102);
         %printEval(dxdy, 14, 100, 28);
@@ -420,11 +426,14 @@ yiarray = (1:ny);
     LINES = [150];
     LINES = [150];
     LINES = 1:50:nlines;
+    LINES = [150];
 
     YVALS = 1:ny-1;
     %YVALS = [60];
 
     %parfor iline = 1:nlines
+
+    tic; %% Start timer
     for iline = LINES
 
         % pick starting points
@@ -481,12 +490,12 @@ yiarray = (1:ny);
         traj(7,it) = zStart;
 %        traj(:,it)=[1;xind;yStart;zind;region];
 
-        fprintf(stepsFID, 'COUNTER= %d region= %d xyzind= %d %d %d\n', COUNTER, region, xind-1, yind-1, zind-1);
+        %fprintf(stepsFID, 'COUNTER= %d region= %d xyzind= %d %d %d\n', COUNTER, region, xind-1, yind-1, zind-1);
 
         fprintf('region= %d\n', region);
         while (region < 10 && iturn < nturns)
 
-            fprintf(stepsFID, 'COUNTER= %d region= %d iturn= %d\n', COUNTER, region, iturn);
+            %fprintf(stepsFID, 'COUNTER= %d region= %d iturn= %d\n', COUNTER, region, iturn);
 
             if (mod(iturn,50) == 1)
                 fprintf('\t\t line%i, turn %i/%i ...\n',iline,iturn,nturns);
@@ -499,7 +508,7 @@ yiarray = (1:ny);
 
                 %fprintf('meow\n');
                 %fprintf('%d: xi,yi= %d %d region: %d xyzStart= %.8f %.8f %.8f  xyzInd= %.8f %.8f %.8f\n', COUNTER, iline, iy, region, xStart,yStart,zStart, xind,yind,zind);
-                fprintf(stepsFID, 'COUNTER= %d region= %d iy= %d\n   xyzStart= %.8f %.8f %.8f\n   xyzInd= %.8f %.8f %.8f\n', COUNTER, region, iy-1, xStart, yStart-1, zStart, xind-1, yind-1, zind-1);
+                %fprintf(stepsFID, 'COUNTER= %d region= %d iy= %d\n   xyzStart= %.8f %.8f %.8f\n   xyzInd= %.8f %.8f %.8f\n', COUNTER, region, iy-1, xStart, yStart-1, zStart, xind-1, yind-1, zind-1);
                 if (region == 0 && yStart > nypf1 && yStart < nypf2+1) % in CFR
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -515,12 +524,21 @@ yiarray = (1:ny);
                   %fprintf('dxdy: %e\n', dxdy(150, 48, 250));
 
                   if (direction == 1)
-                      [xEnd,zEnd]=RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,region,dxdy_p1,dzdy_p1,1,nypf1,nypf2);
+                      % This is at step 343 where things go wonky in the c++ code.
+                      _x = -0.1347153995965075;
+                      _y = 109;
+                      _z = 1.8397953412950676;
+
+                      [xTMP,zTMP] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,region,dxdy_p1,dzdy_p1,1,nypf1,nypf2, rk4FID, iline, it, true);
+                      shit();
+
+                      [xEnd,zEnd]=RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,region,dxdy_p1,dzdy_p1,1,nypf1,nypf2, rk4FID, iline, it, false);
                       yEnd = yStart+1;
                   elseif (direction == -1)
-                      [xEnd,zEnd]=RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,region,dxdy_m1,dzdy_m1,-1,nypf1,nypf2);
+                      [xEnd,zEnd]=RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,region,dxdy_m1,dzdy_m1,-1,nypf1,nypf2, rk4FID, iline, it, false);
                       yEnd = yStart-1;
                   end
+                  fprintf(stepsFID, '%d, %d, %f, %d, %f\n', iline-1, it-1, xEnd, yEnd-1, zEnd);
 
                   % zEnd info is needed for better interpolation of puncture point
                   traj(7,it+1)=zEnd;
@@ -663,6 +681,8 @@ yiarray = (1:ny);
 
     % record the maximum valid steps
     itmax=it;
+    elapsedTime = toc;
+    fprintf('*************** time= %.5f s\n', elapsedTime);
 
     traj=traj(:,1:itmax);
     if (save_traj)
@@ -703,7 +723,7 @@ yiarray = (1:ny);
       splineY = spline(_xi, yVals, _samples);
       splineZ = spline(_xi, zVals, _samples);
       for _it=1:nsamples
-        fprintf(trajSplineFID, '%d, %f, %f, %f, %f\n', iline-1, _samples(_it)-1.0, splineX(_it), splineY(_it), splineZ(_it));
+        fprintf(trajSplineFID, '%d, %f, %f, %f, %f, %d\n', iline-1, _samples(_it)-1.0, splineX(_it), splineY(_it), splineZ(_it), region);
       endfor
 
     endif
@@ -741,7 +761,7 @@ yiarray = (1:ny);
         fl_x3d(istep) = x3d_tmp*cos(zvalue)-y3d_tmp*sin(zvalue);
         fl_y3d(istep) = x3d_tmp*sin(zvalue)+y3d_tmp*cos(zvalue);
         fl_z3d(istep) = interp1(xiarray,zxy(:,traj(3,istep)),traj(2,istep));
-        fprintf(trajFID, '%d, %d, %.8f, %.8f, %.8f\n', iline-1, istep-1, fl_x3d(istep), fl_y3d(istep), fl_z3d(istep));
+        fprintf(trajFID, '%d, %d, %.8f, %.8f, %.8f, %d\n', iline-1, istep-1, fl_x3d(istep), fl_y3d(istep), fl_z3d(istep), region);
     end
     fprintf('All done dumping the file....\n');
 

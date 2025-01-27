@@ -7,7 +7,7 @@ function write_array_to_file(array, filename)
     %     filename: Name of the output text file.
 
     % Open the file for writing
-    filename = [filename, '.m.txt']
+    filename = ['/Users/dpn/', filename, '.m.txt']
     fid = fopen(filename, 'w');
     if fid == -1
         error('Could not open the file for writing.');
@@ -19,20 +19,22 @@ function write_array_to_file(array, filename)
     numDims = ndims(tmpArray);
     arraySize = size(tmpArray);
     sizeStr = mat2str(arraySize);
-    fprintf(fid, '%s\n', sizeStr);
     if numDims == 2
         tmpArray = transpose(tmpArray);
     elseif numDims == 3
-        %tmpArray = permute(tmpArray, [2 1 3]);
-        fprintf('skipping...\n');
+        tmpArray = permute(tmpArray, [2 1 3]);
+        #fprintf('skipping...\n');
     end
+    fprintf(fid, '(');
+    fprintf(fid, '%d,', arraySize);
+    fprintf(fid, ')\n');
 
     tmpArray = tmpArray(:); % Flatten the array into a column vector
     cnt = 0;
     for i = 1:numel(tmpArray)
         fprintf(fid, '%12.10e\n', tmpArray(i)); % Write each element on a new line
         cnt = cnt+1;
-        if cnt > 10000
+        if cnt > 1000
             break;
         end
     end

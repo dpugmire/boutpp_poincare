@@ -1,7 +1,34 @@
 #include <vector>
 #include "SplineInterpolation.h"
+#include "alglib/src/interpolation.h"
 
-double interpolate2D(
+double alglib_spline(const std::vector<double>& x, const std::vector<double>& y, const std::vector<std::vector<double>>& f,
+                     double xi, double yi)
+{
+    // Flatten the f array into a single vector for alglib
+    std::vector<double> f_flat;
+    for (const auto& row : f)
+        f_flat.insert(f_flat.end(), row.begin(), row.end());
+
+    // Create an alglib spline2dinterpolant object
+    alglib::spline2dinterpolant spline;
+
+    // Initialize the 2D spline interpolant
+    alglib::real_1d_array x_arr, y_arr, f_arr;
+    x_arr.setcontent(x.size(), x.data());
+    y_arr.setcontent(y.size(), y.data());
+    f_arr.setcontent(f_flat.size(), f_flat.data());
+
+    alglib::spline2dbuildbicubicv(x_arr, x.size(), y_arr, y.size(), f_arr, 1, spline);
+
+    // Evaluate the spline at a specific point (x = 2.5, y = 2.5)
+    double x_eval = 3.92984; //2.5;
+    double y_eval = 2.019384; //2.5;
+    double f_eval = alglib::spline2dcalc(spline, xi, yi);
+    return f_eval;
+}
+
+double interpolate2D_WRONG(
     const std::vector<double>& xarray,
     const std::vector<double>& zarray,
     const std::vector<std::vector<double>>& dxdyp,

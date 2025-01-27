@@ -8,9 +8,9 @@
 extern double double_mod(double val, double mod_base);
 
 double bilinear_interp2(const std::vector<double>& xarray,
-              const std::vector<double>& zarray, 
-              const std::vector<std::vector<double>>& data, 
-              double x, 
+              const std::vector<double>& zarray,
+              const std::vector<std::vector<double>>& data,
+              double x,
               double z)
 {
     // Validate inputs
@@ -25,7 +25,13 @@ double bilinear_interp2(const std::vector<double>& xarray,
     auto z_it = std::lower_bound(zarray.begin(), zarray.end(), z);
 
     if (x_it == xarray.end() || z_it == zarray.end())
-        throw std::out_of_range("Interpolation point is out of bounds.");
+    {
+        std::cout<<"Interpolation point is out of bounds: "<<x<<" "<<xarray[0]<<" "<<xarray[xarray.size()-1]<<" "<<z<<" "<<zarray[0]<<" "<<zarray[zarray.size()-1]<<std::endl;
+
+        if (x_it == xarray.end()) return xarray[xarray.size()-1];
+        if (z_it == zarray.end()) return zarray[zarray.size()-1];
+        //throw std::out_of_range("Interpolation point is out of bounds.");
+    }
 
     int i1 = std::max(0, static_cast<int>(x_it - xarray.begin() - 1));
     int j1 = std::max(0, static_cast<int>(z_it - zarray.begin() - 1));
@@ -59,10 +65,29 @@ flatten(std::vector<std::vector<double>>& input)
     }
     return flattened;
 }
+
+std::vector<double>
+flatten(const std::vector<std::vector<std::vector<double>>>& input)
+{
+    std::vector<double> flattened;
+    auto n0 = input.size();
+    auto n1 = input[0].size();
+    auto n2 = input[0][0].size();
+
+    flattened.resize(n0*n1*n2);
+    size_t cnt = 0;
+    for (auto k = 0; k < n2; k++)
+        for (auto j = 0; j < n1; j++)
+            for (auto i = 0; i < n0; i++)
+                flattened[cnt++] = input[i][j][k];
+
+    return flattened;
+}
+
 void
 writeArray1DToFile(std::vector<double>& array, const std::string& fname, std::vector<std::size_t> dims)
 {
-    auto fname2 = fname + ".c.txt";
+    auto fname2 = "/Users/dpn/" + fname + ".c.txt";
     std::ofstream out(fname2, std::ofstream::out);
     out<<"(";
     for (const auto& d : dims)
@@ -75,7 +100,7 @@ writeArray1DToFile(std::vector<double>& array, const std::string& fname, std::ve
     {
         out<<v<<std::endl;
         cnt++;
-        if (cnt > 10000) break;
+        if (cnt > 1000) break;
     }
 
     out.close();
@@ -93,6 +118,14 @@ writeArray2DToFile(std::vector<std::vector<double>>& array, const std::string& f
 {
     auto flatArray = flatten(array);
     std::vector<std::size_t> dims = {array.size(), array[0].size()};
+    writeArray1DToFile(flatArray, fname, dims);
+}
+
+void
+writeArray3DToFile(const std::vector<std::vector<std::vector<double>>>& array, const std::string& fname)
+{
+    auto flatArray = flatten(array);
+    std::vector<std::size_t> dims = {array.size(), array[0].size(), array[0][0].size()};
     writeArray1DToFile(flatArray, fname, dims);
 }
 
@@ -168,12 +201,17 @@ std::pair<double, double> RK4_FLT1(
     int region,
     const std::vector<std::vector<double>>& dxdy_pm1,
     const std::vector<std::vector<double>>& dzdy_pm1,
-    int direction, int nypf1, int nypf2)
+    int direction, int nypf1, int nypf2,
+    std::ofstream& rk4Out, int iline, int it, bool dumpFiles)
 {
     double hh = 0.5f;
     double h6 = 1.0f / 6.0f;
 
-    bool dumpFiles = false;
+    if (dumpFiles)
+    {
+        writeArray3DToFile(dxdy, "dxdy");
+        writeArray3DToFile(dzdy, "dzdy");
+    }
 
     if (direction != 1 && direction != -1)
         throw std::invalid_argument("Direction parameter must be 1 or -1.");
@@ -239,6 +277,8 @@ std::pair<double, double> RK4_FLT1(
         writeArray2DToFile(dzdyh, "dzdyh_");
     }
 
+    bool useSplineInterp = false;
+
     // Interpolation using the SplineInterpolation class
     //SplineInterpolation splineDxdy(xarray, zarray, dxdyp); //[zStart]);
     //SplineInterpolation splineDzdy(xarray, zarray, dzdyp); //[zStart]);
@@ -246,43 +286,86 @@ std::pair<double, double> RK4_FLT1(
     //std::cout<<"RK4 step1: "<<xStart<<" "<<zStart<<" xx: "<<xarray.front()<<" "<<xarray.back()<<std::endl;
     //printf("RK4 step1: %12.10e %12.10e\n", xStart, zStart);
     // RK4 Step 1
-    double tmp1 = interpolate2D(xarray, zarray, dxdyp, xStart, zStart);
-    double tmp2 = interpolate2D(xarray, zarray, dzdyp, xStart, zStart);
-
-    double dxdy1 = bilinear_interp2(xarray, zarray, dxdyp, xStart, zStart);
-    double dzdy1 = bilinear_interp2(xarray, zarray, dzdyp, xStart, zStart); //splineDzdy.evaluate(xStart);
+    double dxdy1, dzdy1;
+    if (useSplineInterp)
+    {
+        double tmp1 = alglib_spline(xarray, zarray, dxdyp, xStart, zStart);
+        double tmp2 = alglib_spline(xarray, zarray, dzdyp, xStart, zStart);
+        SplineInterpolation spline1dx(xarray, zarray, dxdyp), spline1dz(xarray, zarray, dzdyp);
+        dxdy1 = spline1dx.evaluate(xStart, zStart);
+        dzdy1 = spline1dz.evaluate(xStart, zStart);
+    }
+    else
+    {
+        double tmp1 = alglib_spline(xarray, zarray, dxdyp, xStart, zStart);
+        double tmp2 = alglib_spline(xarray, zarray, dzdyp, xStart, zStart);
+        dxdy1 = bilinear_interp2(xarray, zarray, dxdyp, xStart, zStart);
+        dzdy1 = bilinear_interp2(xarray, zarray, dzdyp, xStart, zStart);
+    }
     double x1 = xStart + direction * hh * dxdy1;
     double z1 = zStart + direction * hh * dzdy1;
+    rk4Out<<iline<<", "<<double(it)<<", "<<0<<", "<<dxdy1<<", "<<dzdy1<<std::endl;
     //printf("  RES: %12.10e %12.10e\n", dxdy1, dzdy1);
     //printf("  bi-RES: %12.10e %12.10e\n", tmp1, tmp2);
     //std::cout<<"   RES= "<<dxdy1<<" "<<dzdy1<<std::endl;
 
     // RK4 Step 2
-    //std::cout<<"RK4 step2: "<<x1<<" "<<z1<<" xz: "<<xarray[0]<<" "<<zarray[0]<<std::endl;
-
-    double dxdy2 = bilinear_interp2(xarray, zarray, dxdyh, x1, double_mod(z1, M_2_PI));
-    double dzdy2 = bilinear_interp2(xarray, zarray, dzdyh, x1, double_mod(z1, M_2_PI));
+    double dxdy2, dzdy2;
+    if (useSplineInterp)
+    {
+        SplineInterpolation spline2dx(xarray, zarray, dxdyh), spline2dz(xarray, zarray, dzdyh);
+        dxdy2 = spline2dx.evaluate(x1, double_mod(z1, M_2_PI));
+        dzdy2 = spline2dz.evaluate(x1, double_mod(z1, M_2_PI));
+    }
+    else
+    {
+        dxdy2 = bilinear_interp2(xarray, zarray, dxdyh, x1, double_mod(z1, M_2_PI));
+        dzdy2 = bilinear_interp2(xarray, zarray, dzdyh, x1, double_mod(z1, M_2_PI));
+    }
     double x2 = xStart + direction * hh * dxdy2;
     double z2 = zStart + direction * hh * dzdy2;
+    rk4Out<<iline<<", "<<it+0.25<<", "<<0<<", "<<dxdy2<<", "<<dzdy2<<std::endl;
+
     //std::cout<<"   RES= "<<dxdy2<<" "<<dzdy2<<std::endl;
 
     // RK4 Step 3
-    //std::cout<<"RK4 step3: "<<x2<<" "<<z2<<" xz: "<<xarray[0]<<" "<<zarray[0]<<std::endl;
-    double dxdy3 = bilinear_interp2(xarray, zarray, dxdyh, x2, double_mod(z2, M_2_PI));
-    double dzdy3 = bilinear_interp2(xarray, zarray, dzdyh, x2, double_mod(z2, M_2_PI));
+    double dxdy3, dzdy3;
+    if (useSplineInterp)
+    {
+        SplineInterpolation spline3dx(xarray, zarray, dxdyh), spline3dz(xarray, zarray, dzdyh);
+        dxdy3 = spline3dx.evaluate(x2, double_mod(z2, M_2_PI));
+        dzdy3 = spline3dz.evaluate(x2, double_mod(z2, M_2_PI));
+    }
+    else
+    {
+        dxdy3 = bilinear_interp2(xarray, zarray, dxdyh, x2, double_mod(z2, M_2_PI));
+        dzdy3 = bilinear_interp2(xarray, zarray, dzdyh, x2, double_mod(z2, M_2_PI));
+    }
+
     double x3 = xStart + direction * dxdy3;
     double z3 = zStart + direction * dzdy3;
-    //std::cout<<"   RES= "<<dxdy3<<" "<<dzdy3<<std::endl;
+    rk4Out<<iline<<", "<<it+0.5<<", "<<0<<", "<<dxdy3<<", "<<dzdy3<<std::endl;
 
-    // RK4 Step 4BGHN
-    //std::cout<<"RK4 step4: "<<x3<<" "<<z3<<" xz: "<<xarray[0]<<" "<<zarray[0]<<std::endl;
-    double dxdy4 = bilinear_interp2(xarray, zarray, dxdyn, x3, double_mod(z3, M_2_PI));
-    double dzdy4 = bilinear_interp2(xarray, zarray, dzdyn, x3, double_mod(z3, M_2_PI));
-    //std::cout<<"   RES= "<<dxdy4<<" "<<dzdy4<<std::endl;
+    // RK4 Step 4
+    double dxdy4, dzdy4;
+    if (useSplineInterp)
+    {
+        SplineInterpolation spline4dx(xarray, zarray, dxdyn), spline4dz(xarray, zarray, dzdyn);
+        dxdy4 = spline4dx.evaluate(x3, double_mod(z3, M_2_PI));
+        dzdy4 = spline4dx.evaluate(x3, double_mod(z3, M_2_PI));
+    }
+    else
+    {
+        dxdy4 = bilinear_interp2(xarray, zarray, dxdyn, x3, double_mod(z3, M_2_PI));
+        dzdy4 = bilinear_interp2(xarray, zarray, dzdyn, x3, double_mod(z3, M_2_PI));
+    }
+
+    rk4Out<<iline<<", "<<it+0.75<<", "<<0<<", "<<dxdy4<<", "<<dzdy4<<std::endl;
 
     // Compute final x and z
     double xEnd = xStart + direction * h6 * (dxdy1 + 2.0f * dxdy2 + 2.0f * dxdy3 + dxdy4);
     double zEnd = zStart + direction * h6 * (dzdy1 + 2.0f * dzdy2 + 2.0f * dzdy3 + dzdy4);
+    rk4Out<<iline<<", "<<it+0.99<<", "<<0<<", "<<xEnd<<", "<<zEnd<<std::endl;
 
     //printf("   STEP= %12.10e %12.10e\n", xEnd, zEnd);
 

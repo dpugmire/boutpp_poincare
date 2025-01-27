@@ -7,25 +7,28 @@
 %       k4=hf(xn+h,yn+k3)
 %       yn+1=yn+(k1+2k2+2k3+k4)/6
 %
-function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,region,dxdy_pm1,dzdy_pm1,dir,nypf1,nypf2)
+function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,region,dxdy_pm1,dzdy_pm1,dir,nypf1,nypf2, rk4FID, iline, it, dumpFiles)
     hh=1/2.; h6=1/6.;
 
-    dumpFiles = 0;
+    if dumpFiles == 1
+      write_array_to_file(dxdy, 'dxdy');
+      write_array_to_file(dzdy, 'dzdy');
+    endif
+
     % need half step and full step info
     if (dir == 1)
         dxdyp=squeeze(dxdy(:,yStart,:)); dzdyp=squeeze(dzdy(:,yStart,:));
-        %write_array_to_file(dxdyp, 'dxdyp_1');
-        %write_array_to_file(dzdyp, 'dzdyn_1');
-
+        if dumpFiles == 1
+          write_array_to_file(dxdyp, 'dxdyp_1');
+          write_array_to_file(dzdyp, 'dzdyn_1');
+        endif
 
         if (region ==0 && yStart==nypf2)
-            dumpFiles = 0;
             dxdyn=dxdy_pm1;
             dxdyh=0.5*(dxdyp+dxdyn);
             dzdyn=dzdy_pm1;
             dzdyh=0.5*(dzdyp+dzdyn);
         else
-            dumpFiles = 0;
             dxdyn=squeeze(dxdy(:,yStart+1,:));
             dxdyh=0.5*squeeze(dxdy(:,yStart,:)+dxdy(:,yStart+1,:));
             dzdyn=squeeze(dzdy(:,yStart+1,:));
@@ -78,6 +81,7 @@ function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,reg
     dzdy1=interp2(xarray,zarray,dzdyp',xStart,zStart,'spline');
     x1=xStart+dir*hh*dxdy1;
     z1=zStart+dir*hh*dzdy1;
+    fprintf(rk4FID, '%d, %.6e, %d, %.6e, %.6e\n', iline-1, it-1, 0, dxdy1, dzdy1);
     %fprintf('dxdy1/dzdy1= %12.10e %12.10e xz= %12.10e %12.10e\n', dxdy1, dzdy1, x1,z1);
 
     % second step
@@ -85,6 +89,8 @@ function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,reg
     dzdy2=interp2(xarray,zarray,dzdyh',x1,mod(z1,2*pi),'spline');
     x2=xStart+dir*hh*dxdy2;
     z2=zStart+dir*hh*dzdy2;
+    fprintf(rk4FID, '%d, %.6e, %d, %.6e, %.6e\n', iline-1, it-1 + 0.25, 0, dxdy2, dzdy2);
+
     %fprintf('dxdy2/dzdy2= %12.10e %12.10e xz= %12.10e %12.10e\n', dxdy2, dzdy2, x2,z2);
 
     % third step
@@ -92,15 +98,20 @@ function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,reg
     dzdy3=interp2(xarray,zarray,dzdyh',x2,mod(z2,2*pi),'spline');
     x3=xStart+dir*dxdy3;
     z3=zStart+dir*dzdy3;
+    fprintf(rk4FID, '%d, %.6e, %d, %.6e, %.6e\n', iline-1, it-1 + 0.5, 0, dxdy3, dzdy3);
+
     %fprintf('dxdy3/dzdy3= %12.10e %12.10e xz= %12.10e %12.10e\n', dxdy3, dzdy3, x3,z3);
-    
+
     % forth step
     dxdy4=interp2(xarray,zarray,dxdyn',x3,mod(z3,2*pi),'spline');
     dzdy4=interp2(xarray,zarray,dzdyn',x3,mod(z3,2*pi),'spline');
+    fprintf(rk4FID, '%d, %.6e, %d, %.6e, %.6e\n', iline-1, it-1 + 0.75, 0, dxdy4, dzdy4);
 
-    % accumulate increments with proper weights 
+    % accumulate increments with proper weights
     xEnd = xStart+dir*h6*(dxdy1+2*dxdy2+2*dxdy3+dxdy4);
     zEnd = zStart+dir*h6*(dzdy1+2*dzdy2+2*dzdy3+dzdy4);
+    fprintf(rk4FID, '%d, %.6e, %d, %.6e, %.6e\n', iline-1, it-1 + 0.99, 0, xEnd, zEnd);
+
     %fprintf('dxdy4/dzdy4= %12.10e %12.10e xz= %12.10e %12.10e\n', dxdy4, dzdy4,xEnd,zEnd);
 
 end

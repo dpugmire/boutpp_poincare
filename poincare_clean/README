@@ -1,2 +1,32 @@
 diff --speed-large-files --suppress-common-lines <(cut -c 1-5 A3.m.txt) <(cut -c 1-5 A3.p.txt)
 
+
+Random point debug:
+matlab:
+iline = 51 (50 in C)
+region = 0
+xind = 51
+yStart = 55
+zind = 1
+zStart = 0
+xStart = -0.1466078609228134
+
+step1:
+matlab
+dxdy1= -2.3268791e-05
+dzdy1= 2.0597708e-05
+c++ (using interpoloate2D) -- wrong.
+c++ (using bilinear_interp2
+dxdy1= -2.32687908e-05
+dzdy1= 2.05977085e-05
+
+RK4 end step:
+matlab
+xEnd -0.14662214
+zEnd 0.0001039176
+
+c++
+xEnd -0.14662214260061401
+zEnd 0.00010390565638671831
+
+
