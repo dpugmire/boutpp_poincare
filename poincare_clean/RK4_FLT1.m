@@ -11,13 +11,20 @@ function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,reg
     hh=1/2.; h6=1/6.;
 
     if dumpFiles == 1
+      write_array_to_file(xarray, 'xarray');
+      write_array_to_file(zarray, 'zarray');
       write_array_to_file(dxdy, 'dxdy');
       write_array_to_file(dzdy, 'dzdy');
     endif
+    _idx0 = [124, 102]; _idx1 = [193, 201];
 
     % need half step and full step info
     if (dir == 1)
+        tmp0 = dxdy(124, yStart, 102);
+        tmp1 = dxdy(193, yStart, 201);
         dxdyp=squeeze(dxdy(:,yStart,:)); dzdyp=squeeze(dzdy(:,yStart,:));
+        tmp0 = dxdyp(124, 102);
+        tmp1 = dxdyp(193, 201);
         if dumpFiles == 1
           write_array_to_file(dxdyp, 'dxdyp_1');
           write_array_to_file(dzdyp, 'dzdyn_1');
@@ -51,11 +58,22 @@ function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,reg
         fprintf('\tCheck direction parameter setting!! \n');
     end
     if dumpFiles == 1
+        write_array_to_file(dxdyp, 'dxdyp');
         write_array_to_file(dxdyn, 'dxdyn');
         write_array_to_file(dxdyh, 'dxdyh');
         write_array_to_file(dzdyn, 'dzdyn');
         write_array_to_file(dzdyh, 'dzdyh');
+        write_array_to_file(dzdyp, 'dzdyp');
     end
+
+    __idx0 = 124; __idx1 = 102;
+    _val00 = dxdyn(__idx0, __idx1);
+    _val01 = dxdyp(__idx0, __idx1);
+    _val02 = dxdyh(__idx0, __idx1);
+    __idx0 = 193; __idx1 = 201;
+    _val10 = dxdyn(__idx0, __idx1);
+    _val11 = dxdyp(__idx0, __idx1);
+    _val12 = dxdyh(__idx0, __idx1);
 
     % pathing last z point
     dxdyp(:,end+1)=dxdyp(:,end);
@@ -64,6 +82,15 @@ function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,reg
     dzdyp(:,end+1)=dzdyp(:,end);
     dzdyn(:,end+1)=dzdyn(:,end);
     dzdyh(:,end+1)=dzdyh(:,end);
+    __idx0 = 124; __idx1 = 102;
+
+    _val00 = dxdyn(__idx0, __idx1);
+    _val01 = dxdyp(__idx0, __idx1);
+    _val02 = dxdyh(__idx0, __idx1);
+    __idx0 = 193; __idx1 = 201;
+    _val10 = dxdyn(__idx0, __idx1);
+    _val11 = dxdyp(__idx0, __idx1);
+    _val12 = dxdyh(__idx0, __idx1);
 
     if dumpFiles == 1
         write_array_to_file(dxdyp, 'dxdyp_');

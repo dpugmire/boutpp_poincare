@@ -409,11 +409,13 @@ void processPunctures(
 int main()
 {
     trajspline  <<"ID, STEP, X, Y, Z, REGION\n";
-    trajOut<<"ID, STEP, X, Y, Z, REGION\n";
+    trajOut<<"ID, STEP, X, Y, Z, REGION, YI, ZSVALUE, ZVALUE"<<std::endl;
     rawPunc<<"ID, STEP, X, Y, Z\n";
     puncFid<<"ID, STEP, X, Y, Z\n";
     stepOut<<"ID, STEP, X, Y, Z\n";
     rk4Out<<"ID, STEP, X, Y, Z\n"<<std::scientific<<std::setprecision(6);
+    auto TRAJ_FID = fopen("/Users/dpn/pt_traj.c.txt", "w");
+    fprintf(TRAJ_FID, "IT, xind, yEnd, zind, REG, zEnd\n");
 
     std::string fname = "/Users/dpn/proj/bout++/poincare/boutpp_poincare/poincare_clean/stuff.nc";
     Options opts(fname);
@@ -450,11 +452,13 @@ int main()
         auto zStart = opts.zarray[zzz];
         double xStart = opts.psixy[static_cast<int>(xind)][opts.jyomp];
         int yind = yStart;
-        double zind = 0;
+        double zind = INTERP(opts.zarray, opts.ziarray, zStart);
+
 
         int region = opts.GetRegion(xind, yStart);
         int iturn = 0, it = 0;
 
+        auto zindFID = fopen("/Users/dpn/zind.c.txt", "w");
         std::cout<<"Region= "<<region<<std::endl;
         while (region < 10 && iturn < nturns)
         {
@@ -467,6 +471,7 @@ int main()
                     Point _p;
                     _p.traj1 = it; _p.traj2 = xind; _p.traj3 = yStart;
                     _p.traj4 = zind; _p.traj5 = region; _p.traj7 = zStart;
+                    fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", _p.traj1, _p.traj2, (int)_p.traj3, _p.traj4, (int)_p.traj5, _p.traj7);
                     Points.push_back(_p);
                     //Points.push_back({xind, yStart, zind, iline, iy, it});
                 }
@@ -481,10 +486,21 @@ int main()
                 if (region == 0 && yStart >= opts.nypf1 && yStart < opts.nypf2+1)
                 {
                     bool dumpFiles = false;
-                    if (it == 343)
+                    if (it == 14)
                     {
+                        /*
                         std::cout<<"Problem coming...."<<std::endl;
                         dumpFiles = true;
+                        double _x = -0.13563341;
+                        double _y = 69-1;
+                        double _z = 6.2770085;
+                        auto step = RK4_FLT1(_x, _y, _z, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
+                        _x = step.first;
+                        _z = step.second;
+                        _y = _y+1;
+                        step = RK4_FLT1(_x, _y, _z, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
+                        dumpFiles = false;
+                        */
                     }
                     auto step = RK4_FLT1(xStart, yStart, zStart, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
                     xEnd = step.first;
@@ -523,14 +539,17 @@ int main()
                 }
 
                 //Relabel toroidal location.
+                std::cout<<"********** it= "<<it<<" pt0= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<std::endl;
                 if (zEnd < opts.zmin || zEnd > opts.zmax)
                     zEnd = double_mod(zEnd, opts.zmax);
+                std::cout<<"********** it= "<<it<<" pt1= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<" zind "<<zind<<std::endl;
                 zind = INTERP(opts.zarray, opts.ziarray, zEnd);
-
+                fprintf(zindFID, "%d %12.10f --> %12.10f\n", it, zEnd, zind);
                 //Points.push_back({xind, yEnd, zind, iline, iy, it});
                 Point _p;
                 _p.traj1 = it; _p.traj2 = xind; _p.traj3 = yEnd; _p.traj4 = zind;
                 _p.traj5 = region; _p.traj7 = zEnd;
+                fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", _p.traj1, _p.traj2, (int)_p.traj3, _p.traj4, (int)_p.traj5, _p.traj7);
                 Points.push_back(_p);
 
                 it = it+1;
@@ -548,8 +567,14 @@ int main()
         std::vector<std::vector<double>> PointsXYZ;
 
         int id = 0;
+        auto _fid = fopen("/Users/dpn/problem.c.txt", "w");
+        auto trajvals_fid = fopen("/Users/dpn/trajvals.c.txt", "w");
+        fprintf(trajvals_fid, "iter, xind, yend, zind, zend, x3d, y3d, z3d\n");
+
         for (const auto& pt : Points)
         {
+            if (id == 13)
+                std::cout<<"Begin debugging"<<std::endl;
             //double x = pt.x, y = pt.y, z = pt.z;
             //int xi = static_cast<int>(x), yi = static_cast<int>(y), zi = static_cast<int>(z);
             int yi = int(pt.traj3);
@@ -565,7 +590,8 @@ int main()
             std::vector<double> zShift_column(opts.zShift.size());
             for (size_t i = 0; i < opts.zShift.size(); ++i)
                 zShift_column[i] = opts.zShift[i][yi];
-            double zsvalue = INTERP(opts.xiarray, zShift_column, pt.traj4);
+            const auto& __xi = opts.xiarray;
+            double zsvalue = INTERP(opts.xiarray, zShift_column, pt.traj2);
 
             double zvalue = INTERP(opts.ziarray, opts.zarray, pt.traj4);
 
@@ -583,10 +609,17 @@ int main()
                 zxy_column[i] = opts.zxy[i][static_cast<size_t>(yi)];
             double z3d = INTERP(opts.xiarray, zxy_column, pt.traj2);
 
-            trajOut<<iline<<", "<<id<<", "<<x3d<<", "<<y3d<<", "<<z3d<<", "<<region<<std::endl;
+            trajOut<<iline<<", "<<id<<", "<<x3d<<", "<<y3d<<", "<<z3d<<", "<<region<<", "<<yi<<", "<<zsvalue<<", "<<zvalue<<std::endl;
+            //fprintf(_fid, "*** istep= %d traj= %d %12.10e %d %12.10e\n", id, (int)pt.traj1, pt.traj2, (int)pt.traj3, pt.traj4);
+            fprintf(_fid, "%d  traj4, zvalue= %12.10e %12.10e\n", id, pt.traj4, zvalue);
+            //printf("*** istep= %d r= %12.10e zs= %12.10e z= %12.10e t23= %12.10e %d\n", id, rxyvalue, zsvalue, zvalue, pt.traj2, int(pt.traj3));
             PointsXYZ.push_back({x3d, y3d, z3d});
+
+            fprintf(trajvals_fid, "%d, %10.8f, %d, %10.8f, %10.8f, %10.8f, %10.8f, %10.8f\n", id, pt.traj2, (int)pt.traj3, pt.traj4, pt.traj7, x3d, y3d, z3d);
+
             id++;
         }
+        fclose(trajvals_fid);
         dumpTrajSamples(iline, PointsXYZ);
 
         //find the intersections.

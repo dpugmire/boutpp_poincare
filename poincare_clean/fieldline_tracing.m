@@ -26,13 +26,15 @@ rk4FID = fopen('/Users/dpn/rk4.m.txt', 'w');
 trajSplineFID = fopen('/Users/dpn/trajspline.m.txt', 'w');
 rawPuncFid = fopen('/Users/dpn/rawpunc.m.txt', 'w');
 puncFid = fopen('/Users/dpn/punc.m.txt', 'w');
+TRAJ_FID = fopen('/Users/dpn/pt_traj.m.txt', 'w');
 
-fprintf(trajFID, 'ID, STEP, X, Y, Z, REGION\n');
+fprintf(trajFID, 'ID, STEP, X, Y, Z, REGION, YI, ZSVALUE, ZVALUE\n');
 fprintf(trajSplineFID, 'ID, STEP, X, Y, Z, REGION\n');
 fprintf(rawPuncFid, 'ID, STEP, X, Y, Z\n');
 fprintf(puncFid, 'ID, STEP, X, Y, Z\n');
 fprintf(stepsFID, 'ID, STEP, X, Y, Z\n');
 fprintf(rk4FID, 'ID, STEP, X, Y, Z\n');
+fprintf(TRAJ_FID, "IT, xind, yEnd, zind, REG, zEnd\n");
 
 %%% STEP 0: user setup
 
@@ -400,6 +402,8 @@ yiarray = (1:ny);
         %dxdy = rand(nx,ny,nz);
         %n=nx*ny*nz;
         %dxdy = reshape(0:(n-1), nx,ny,nz);
+        val0 = dxdy(124,80,102);
+        val1 = dxdy(193, 48, 201);
         write_array_to_file(dxdy, 'dxdy_0');
         write_array_to_file(dzdy, 'dzdy_0');
 
@@ -432,8 +436,10 @@ yiarray = (1:ny);
     %YVALS = [60];
 
     %parfor iline = 1:nlines
+    zindFID = fopen('/Users/dpn/zind.m.txt', 'w');
 
     tic; %% Start timer
+    rk4_cnt = 0;
     for iline = LINES
 
         % pick starting points
@@ -489,6 +495,7 @@ yiarray = (1:ny);
         % zStart info is stored for better interpolation of puncture point
         traj(7,it) = zStart;
 %        traj(:,it)=[1;xind;yStart;zind;region];
+        fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", traj(1,it)-1, traj(2,it)-1, traj(3,it)-1, traj(4,it)-1, traj(5,it), traj(7,it));
 
         %fprintf(stepsFID, 'COUNTER= %d region= %d xyzind= %d %d %d\n', COUNTER, region, xind-1, yind-1, zind-1);
 
@@ -525,15 +532,20 @@ yiarray = (1:ny);
 
                   if (direction == 1)
                       % This is at step 343 where things go wonky in the c++ code.
-                      _x = -0.1347153995965075;
-                      _y = 109;
-                      _z = 1.8397953412950676;
+                      _x = -0.13563311719504134;
+                      _y = 69;
+                      _z = 6.2769540966961062;
 
-                      [xTMP,zTMP] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,region,dxdy_p1,dzdy_p1,1,nypf1,nypf2, rk4FID, iline, it, true);
-                      shit();
+                      %[xTMP,zTMP] = RK4_FLT1(_x,_y,_z,dxdy,dzdy,xarray,zarray,region,dxdy_p1,dzdy_p1,1,nypf1,nypf2, rk4FID, iline, it, true);
+                      %shit();
+
+                      if rk4_cnt == 14
+                        fprintf('here we are at 14.\n');
+                      endif
 
                       [xEnd,zEnd]=RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,region,dxdy_p1,dzdy_p1,1,nypf1,nypf2, rk4FID, iline, it, false);
                       yEnd = yStart+1;
+                      rk4_cnt = rk4_cnt+1;
                   elseif (direction == -1)
                       [xEnd,zEnd]=RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,region,dxdy_m1,dzdy_m1,-1,nypf1,nypf2, rk4FID, iline, it, false);
                       yEnd = yStart-1;
@@ -571,11 +583,14 @@ yiarray = (1:ny);
                       yEnd = nypf2;
                   end
 
-                  % re-label toroidal location (zEnd) if necessary
+                  % re-label toroidal location (zEtnd) if necessary
+                  fprintf('********** it= %d pt0= %f %f %f\n', it-1, xEnd, yEnd-1, zEnd);
                   if (zEnd < zmin || zEnd > zmax)
                       zEnd = mod(zEnd,zmax);
                   end
                   zind = interp1(zarray, ziarray, zEnd);
+                  fprintf(zindFID, '%d %12.10f --> %12.10f\n', it-1, zEnd, zind-1);
+                  fprintf('********** it= %d pt1= %f %d %f zind %f\n', it-1, xEnd, yEnd-1, zEnd, zind);
 
                   it = it+1;
                   traj(1,it) = iturn;
@@ -586,6 +601,7 @@ yiarray = (1:ny);
                   % approximate field-line segment length
                   traj(6,it) = hthe(round(xind),yEnd);
   %                traj(:,it)=[iturn;xind;yEnd;zind;region];
+                  fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", traj(1,it)-1, traj(2,it)-1, traj(3,it)-1, traj(4,it)-1, traj(5,it), traj(7,it));
 
                   % now the end-point becomes new start-point
                   xStart = xEnd;
@@ -663,6 +679,7 @@ yiarray = (1:ny);
                 traj(5,it) = region;
                 traj(6,it) = hthe(round(xind),yStart);
 %                traj(:,it)=[iturn;xind;yEnd;zind;region];
+                fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", traj(1,it)-1, traj(2,it)-1, traj(3,it)-1, traj(4,it)-1, traj(5,it), traj(7,it));
 
                 % now the end-point becomes new start-point
                 xStart = xEnd;
@@ -694,6 +711,7 @@ yiarray = (1:ny);
                 'z',num2str(zzz),'_v3lc-01-250','m.mat'),traj);
         end
     end
+
 
     %% DRP: Save out high resolution trajectory.
     if (saveHighResTraj)
@@ -748,11 +766,20 @@ yiarray = (1:ny);
     % clear fl_x3d fl_y3d fl_z3d ffl_x3d iit px py pz ptheta ppsi
 
     %DRP
+    _fid = fopen("/Users/dpn/problem.m.txt", "w");
+    trajvals_fid = fopen("/Users/dpn/trajvals.m.txt", "w");
+    fprintf(trajvals_fid, "iter, xind, yend, zind, zend, x3d, y3d, z3d\n");
+
     for istep=1:itmax
+        if istep == 14
+          fprintf('begin debugging.\n');
+        endif
+        _t1 = traj(1,istep); _t2 = traj(2,istep); _t3 = traj(3,istep); _t4 = traj(4,istep); _t7 = traj(7,istep);
         xi = traj(2,istep);
         yi = traj(3,istep);
         zi = traj(4,istep);
         %TMP = rxy(:,traj(3,istep))
+        __zshift = zShift(:, traj(3,istep));
         rxyvalue = interp1(xiarray,rxy(:,traj(3,istep)),traj(2,istep));
         zsvalue  = interp1(xiarray,zShift(:,traj(3,istep)),traj(2,istep));
         zvalue   = interp1(ziarray,zarray,traj(4,istep));
@@ -761,8 +788,20 @@ yiarray = (1:ny);
         fl_x3d(istep) = x3d_tmp*cos(zvalue)-y3d_tmp*sin(zvalue);
         fl_y3d(istep) = x3d_tmp*sin(zvalue)+y3d_tmp*cos(zvalue);
         fl_z3d(istep) = interp1(xiarray,zxy(:,traj(3,istep)),traj(2,istep));
-        fprintf(trajFID, '%d, %d, %.8f, %.8f, %.8f, %d\n', iline-1, istep-1, fl_x3d(istep), fl_y3d(istep), fl_z3d(istep), region);
+        fprintf(trajFID, '%d, %d, %.8f, %.8f, %.8f, %d, %d, %f, %f\n', iline-1, istep-1, fl_x3d(istep), fl_y3d(istep), fl_z3d(istep), region, yi-1, zsvalue, zvalue);
+        _t3 = traj(3,istep);
+        _t2 = traj(2,istep);
+        fprintf('*** istep= %d r= %12.10e zs= %12.10e z= %12.10e t23= %12.10e %d\n', istep-1, rxyvalue, zsvalue, zvalue, _t2, _t3-1);
+        %fprintf(_fid, '*** istep= %d traj= %d %12.10e %d %12.10e\n', istep-1, int32(traj(1,istep)-1), traj(2,istep), int32(traj(3,istep)-1), traj(4,istep));
+        fprintf(_fid, '%d  traj4, zvalue= %12.10e %12.10e\n', istep-1, traj(4,istep), zvalue);
+
+        if istep < 51
+          fprintf(trajvals_fid, "%d, %10.8f, %d, %10.8f, %10.8f, %10.8f, %10.8f, %10.8f\n", istep-1, traj(2,istep)-1, floor(traj(3,istep))-1, traj(4,istep)-1, traj(7,istep), fl_x3d(istep), fl_y3d(istep),fl_z3d(istep));
+        end
     end
+    fclose(_fid);
+    fclose(trajvals_fid);
+
     fprintf('All done dumping the file....\n');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

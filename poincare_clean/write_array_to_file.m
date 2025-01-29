@@ -7,38 +7,63 @@ function write_array_to_file(array, filename)
     %     filename: Name of the output text file.
 
     % Open the file for writing
-    filename = ['/Users/dpn/', filename, '.m.txt']
+    filename = ['/Users/dpn/', filename, '.m.txt'];
     fid = fopen(filename, 'w');
     if fid == -1
         error('Could not open the file for writing.');
     end
 
-    % Flatten the array and write each element to the file
-    tmpArray = array;
-
-    numDims = ndims(tmpArray);
-    arraySize = size(tmpArray);
+    maxCnt = 5000;
+    maxCnt = -1;
+    numDims = ndims(array);
+    arraySize = size(array);
     sizeStr = mat2str(arraySize);
-    if numDims == 2
-        tmpArray = transpose(tmpArray);
-    elseif numDims == 3
-        tmpArray = permute(tmpArray, [2 1 3]);
-        #fprintf('skipping...\n');
-    end
-    fprintf(fid, '(');
-    fprintf(fid, '%d,', arraySize);
-    fprintf(fid, ')\n');
 
-    tmpArray = tmpArray(:); % Flatten the array into a column vector
     cnt = 0;
-    for i = 1:numel(tmpArray)
-        fprintf(fid, '%12.10e\n', tmpArray(i)); % Write each element on a new line
+    if numDims == 1
+      nx = arraySize(1);
+      fprintf(fid, '(%d)\n', nx);
+      for i = 1 : nx
+        if maxCnt > 0 && cnt > maxCnt
+          break;
+        endif
+        fprintf(fid, '%d, %12.10e\n', i-1, array(i));
         cnt = cnt+1;
-        if cnt > 1000
+      end
+    elseif numDims == 2
+      [nx, ny] = size(array);
+      fprintf(fid, '(%d, %d)\n', nx, ny);
+      x0 = 1; x1 = nx; y0 = 1; y1 = ny;
+
+      for i = x0 : x1
+        for j = y0 : y1
+          if maxCnt > 0 && cnt > maxCnt
             break;
+          endif
+          fprintf(fid, '%d, %d, %12.10e\n', i-1,j-1, array(i,j));
+          cnt = cnt+1;
         end
+      end
+    elseif numDims == 3
+     [nx, ny, nz] = size(array);
+     fprintf(fid, '(%d, %d, %d)\n', nx, ny, nz);
+     x0 = 1; x1 = nx; y0 = 1; y1 = ny; z0 = 1; z1 = nz;
+     x1 = x1 / 2;
+     y1 = y1 / 2;
+     z1 = z1 / 2;
+
+     for i = x0 : x1
+       for j = y0 : y1
+          for k = z0 : z1
+            if maxCnt > 0 && cnt > maxCnt
+              break;
+            endif
+            fprintf(fid, '%d, %d, %d, %12.10e\n', i-1,j-1,k-1,array(i,j,k));
+            cnt = cnt+1;
+          end
+        end
+     end
     end
 
-    % Close the file
     fclose(fid);
 end

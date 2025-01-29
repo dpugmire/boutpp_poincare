@@ -76,57 +76,92 @@ flatten(const std::vector<std::vector<std::vector<double>>>& input)
 
     flattened.resize(n0*n1*n2);
     size_t cnt = 0;
-    for (auto k = 0; k < n2; k++)
+    for (auto i = 0; i < n0; i++)
         for (auto j = 0; j < n1; j++)
-            for (auto i = 0; i < n0; i++)
+            for (auto k = 0; k < n2; k++)
                 flattened[cnt++] = input[i][j][k];
 
     return flattened;
 }
 
 void
-writeArray1DToFile(std::vector<double>& array, const std::string& fname, std::vector<std::size_t> dims)
+writeArray1DToFile(std::vector<double>& array, const std::string& fname)
 {
     auto fname2 = "/Users/dpn/" + fname + ".c.txt";
     std::ofstream out(fname2, std::ofstream::out);
-    out<<"(";
-    for (const auto& d : dims)
-        out<<d<<",";
-    out<<")"<<std::endl;
+    auto nx = array.size();
+    out<<"("<<nx<<")"<<std::endl;
 
     out<<std::scientific<<std::setprecision(10);
     int cnt = 0;
-    for (const auto& v : array)
+    for (size_t i = 0; i < nx; i++)
     {
-        out<<v<<std::endl;
+        if (cnt > 5000) break;
+        out<<i<<", "<<array[i]<<std::endl;
         cnt++;
-        if (cnt > 1000) break;
     }
 
     out.close();
 }
 
 void
-writeArray1DToFile(std::vector<double>& array, const std::string& fname)
-{
-    std::vector<std::size_t> dims = {array.size()};
-    writeArray1DToFile(array, fname, dims);
-}
-
-void
 writeArray2DToFile(std::vector<std::vector<double>>& array, const std::string& fname)
 {
-    auto flatArray = flatten(array);
-    std::vector<std::size_t> dims = {array.size(), array[0].size()};
-    writeArray1DToFile(flatArray, fname, dims);
+    auto fname2 = "/Users/dpn/" + fname + ".c.txt";
+    std::ofstream out(fname2, std::ofstream::out);
+    auto nx = array.size();
+    auto ny = array[0].size();
+    out<<"("<<nx<<", "<<ny<<")"<<std::endl;
+
+    out<<std::scientific<<std::setprecision(10);
+    size_t x0 = 0, x1 = nx, y0 = 0, y1 = ny;
+    int cnt = 0;
+    int maxCnt = 5000;
+    maxCnt = -1;
+
+    //x1 /= 2;
+    //y1 /= 2;
+
+    for (size_t i = x0; i < x1; i++)
+        for (size_t j = y0; j < y1; j++)
+        {
+            if (maxCnt > 0 && cnt > maxCnt) break;
+            out<<i<<", "<<j<<", "<<array[i][j]<<std::endl;
+            cnt++;
+        }
+    out.close();
 }
 
 void
 writeArray3DToFile(const std::vector<std::vector<std::vector<double>>>& array, const std::string& fname)
 {
-    auto flatArray = flatten(array);
-    std::vector<std::size_t> dims = {array.size(), array[0].size(), array[0][0].size()};
-    writeArray1DToFile(flatArray, fname, dims);
+    auto val0 = array[123][79][101];
+    auto val1 = array[192][47][200];
+
+    auto fname2 = "/Users/dpn/" + fname + ".c.txt";
+    std::ofstream out(fname2, std::ofstream::out);
+    auto nx = array.size();
+    auto ny = array[0].size();
+    auto nz = array[0][0].size();
+    out<<"("<<nx<<", "<<ny<<", "<<nz<<")"<<std::endl;
+
+    out<<std::scientific<<std::setprecision(10);
+    size_t x0 = 0, x1 = nx, y0 = 0, y1 = ny, z0 = 0, z1 = nz;
+
+    x1 /= 2;
+    y1 /= 2;
+    z1 /= 2;
+
+    int cnt = 0;
+    for (size_t i = x0; i < x1; i++)
+        for (size_t j = y0; j < y1; j++)
+            for (size_t k = z0; k < z1; k++)
+            {
+                if (cnt > 5000) break;
+                out<<i<<", "<<j<<", "<<k<<", "<<array[i][j][k]<<std::endl;
+                cnt++;
+            }
+    out.close();
 }
 
 static std::vector<std::vector<double>>
@@ -188,7 +223,7 @@ avgArrays(const std::vector<std::vector<double>>& x,
     std::vector<std::vector<double>> result(x.size(), std::vector<double>(x[0].size(), 0.0f));
     for (size_t i = 0; i < x.size(); ++i)
         for (size_t j = 0; j < x[i].size(); ++j)
-            result[i][j] = 0.5f * (x[i][j] + y[i][j]);
+            result[i][j] = (x[i][j] + y[i][j]) / 2.0;
 
     return result;
 }
@@ -204,8 +239,13 @@ std::pair<double, double> RK4_FLT1(
     int direction, int nypf1, int nypf2,
     std::ofstream& rk4Out, int iline, int it, bool dumpFiles)
 {
-    double hh = 0.5f;
-    double h6 = 1.0f / 6.0f;
+    const double twoPi = 2.0 * M_PI;
+    double h = 1.0;
+    double hh = h / 2.0;
+    double h6 = h / 6.0;
+
+    double val0 = dxdy[123][79][101];
+    double val1 = dxdy[192][47][200];
 
     if (dumpFiles)
     {
@@ -217,6 +257,8 @@ std::pair<double, double> RK4_FLT1(
         throw std::invalid_argument("Direction parameter must be 1 or -1.");
 
     std::vector<std::vector<double>> dxdyp = Slice(dxdy, yStart);
+    double val00 = dxdyp[123][101];
+    double val01 = dxdyp[192][200];
     std::vector<std::vector<double>> dzdyp = Slice(dzdy, yStart);
     std::vector<std::vector<double>> dxdyn, dzdyn, dxdyh, dzdyh;
 
@@ -249,6 +291,17 @@ std::pair<double, double> RK4_FLT1(
         throw std::invalid_argument("Backwards RK4 not supported yet.");
     }
 
+    std::vector<int> _idx0 = { 124-1, 102-1}, _idx1 = {193-1, 201-1};
+
+
+    double _val00, _val01, _val02, _val10, _val11, _val12;
+    _val00 = dxdyn[_idx0[0]][_idx0[1]];
+    _val01 = dxdyp[_idx0[0]][_idx0[1]];
+    _val02 = dxdyh[_idx0[0]][_idx0[1]];
+    _val10 = dxdyn[_idx1[0]][_idx1[1]];
+    _val11 = dxdyp[_idx1[0]][_idx1[1]];
+    _val12 = dxdyh[_idx1[0]][_idx1[1]];
+
     if (dumpFiles)
     {
         writeArray1DToFile(xarray, "xarray");
@@ -267,6 +320,14 @@ std::pair<double, double> RK4_FLT1(
     dzdyp = pad2DEdge(dzdyp);
     dzdyn = pad2DEdge(dzdyn);
     dzdyh = pad2DEdge(dzdyh);
+
+    _val00 = dxdyn[_idx0[0]][_idx0[1]];
+    _val01 = dxdyp[_idx0[0]][_idx0[1]];
+    _val02 = dxdyh[_idx0[0]][_idx0[1]];
+    _val10 = dxdyn[_idx1[0]][_idx1[1]];
+    _val11 = dxdyp[_idx1[0]][_idx1[1]];
+    _val12 = dxdyh[_idx1[0]][_idx1[1]];
+
     if (dumpFiles)
     {
         writeArray2DToFile(dxdyp, "dxdyp_");
@@ -304,6 +365,7 @@ std::pair<double, double> RK4_FLT1(
     }
     double x1 = xStart + direction * hh * dxdy1;
     double z1 = zStart + direction * hh * dzdy1;
+    z1 = double_mod(z1, twoPi);
     rk4Out<<iline<<", "<<double(it)<<", "<<0<<", "<<dxdy1<<", "<<dzdy1<<std::endl;
     //printf("  RES: %12.10e %12.10e\n", dxdy1, dzdy1);
     //printf("  bi-RES: %12.10e %12.10e\n", tmp1, tmp2);
@@ -311,19 +373,21 @@ std::pair<double, double> RK4_FLT1(
 
     // RK4 Step 2
     double dxdy2, dzdy2;
+    double _z1 = double_mod(z1, twoPi);
     if (useSplineInterp)
     {
         SplineInterpolation spline2dx(xarray, zarray, dxdyh), spline2dz(xarray, zarray, dzdyh);
-        dxdy2 = spline2dx.evaluate(x1, double_mod(z1, M_2_PI));
-        dzdy2 = spline2dz.evaluate(x1, double_mod(z1, M_2_PI));
+        dxdy2 = spline2dx.evaluate(x1, double_mod(z1, twoPi));
+        dzdy2 = spline2dz.evaluate(x1, double_mod(z1, twoPi));
     }
     else
     {
-        dxdy2 = bilinear_interp2(xarray, zarray, dxdyh, x1, double_mod(z1, M_2_PI));
-        dzdy2 = bilinear_interp2(xarray, zarray, dzdyh, x1, double_mod(z1, M_2_PI));
+        dxdy2 = bilinear_interp2(xarray, zarray, dxdyh, x1, double_mod(z1, twoPi));
+        dzdy2 = bilinear_interp2(xarray, zarray, dzdyh, x1, double_mod(z1, twoPi));
     }
     double x2 = xStart + direction * hh * dxdy2;
     double z2 = zStart + direction * hh * dzdy2;
+    z2 = double_mod(z2, twoPi);
     rk4Out<<iline<<", "<<it+0.25<<", "<<0<<", "<<dxdy2<<", "<<dzdy2<<std::endl;
 
     //std::cout<<"   RES= "<<dxdy2<<" "<<dzdy2<<std::endl;
@@ -333,17 +397,18 @@ std::pair<double, double> RK4_FLT1(
     if (useSplineInterp)
     {
         SplineInterpolation spline3dx(xarray, zarray, dxdyh), spline3dz(xarray, zarray, dzdyh);
-        dxdy3 = spline3dx.evaluate(x2, double_mod(z2, M_2_PI));
-        dzdy3 = spline3dz.evaluate(x2, double_mod(z2, M_2_PI));
+        dxdy3 = spline3dx.evaluate(x2, double_mod(z2, twoPi));
+        dzdy3 = spline3dz.evaluate(x2, double_mod(z2, twoPi));
     }
     else
     {
-        dxdy3 = bilinear_interp2(xarray, zarray, dxdyh, x2, double_mod(z2, M_2_PI));
-        dzdy3 = bilinear_interp2(xarray, zarray, dzdyh, x2, double_mod(z2, M_2_PI));
+        dxdy3 = bilinear_interp2(xarray, zarray, dxdyh, x2, double_mod(z2, twoPi));
+        dzdy3 = bilinear_interp2(xarray, zarray, dzdyh, x2, double_mod(z2, twoPi));
     }
 
     double x3 = xStart + direction * dxdy3;
     double z3 = zStart + direction * dzdy3;
+    z3 = double_mod(z3, twoPi);
     rk4Out<<iline<<", "<<it+0.5<<", "<<0<<", "<<dxdy3<<", "<<dzdy3<<std::endl;
 
     // RK4 Step 4
@@ -351,20 +416,22 @@ std::pair<double, double> RK4_FLT1(
     if (useSplineInterp)
     {
         SplineInterpolation spline4dx(xarray, zarray, dxdyn), spline4dz(xarray, zarray, dzdyn);
-        dxdy4 = spline4dx.evaluate(x3, double_mod(z3, M_2_PI));
-        dzdy4 = spline4dx.evaluate(x3, double_mod(z3, M_2_PI));
+        dxdy4 = spline4dx.evaluate(x3, double_mod(z3, twoPi));
+        dzdy4 = spline4dx.evaluate(x3, double_mod(z3, twoPi));
     }
     else
     {
-        dxdy4 = bilinear_interp2(xarray, zarray, dxdyn, x3, double_mod(z3, M_2_PI));
-        dzdy4 = bilinear_interp2(xarray, zarray, dzdyn, x3, double_mod(z3, M_2_PI));
+        dxdy4 = bilinear_interp2(xarray, zarray, dxdyn, x3, double_mod(z3, twoPi));
+        dzdy4 = bilinear_interp2(xarray, zarray, dzdyn, x3, double_mod(z3, twoPi));
     }
 
     rk4Out<<iline<<", "<<it+0.75<<", "<<0<<", "<<dxdy4<<", "<<dzdy4<<std::endl;
 
     // Compute final x and z
-    double xEnd = xStart + direction * h6 * (dxdy1 + 2.0f * dxdy2 + 2.0f * dxdy3 + dxdy4);
-    double zEnd = zStart + direction * h6 * (dzdy1 + 2.0f * dzdy2 + 2.0f * dzdy3 + dzdy4);
+    double xEnd = xStart + direction * h6 * (dxdy1 + 2.0 * dxdy2 + 2.0 * dxdy3 + dxdy4);
+    double zEnd = zStart + direction * h6 * (dzdy1 + 2.0 * dzdy2 + 2.0 * dzdy3 + dzdy4);
+    //zEnd = double_mod(zEnd, twoPi);
+
     rk4Out<<iline<<", "<<it+0.99<<", "<<0<<", "<<xEnd<<", "<<zEnd<<std::endl;
 
     //printf("   STEP= %12.10e %12.10e\n", xEnd, zEnd);

@@ -201,6 +201,8 @@ NetCDFLoader::read1DVariable(const std::string& varName)
 
         // Allocate the 3D vector
         auto data = make3Darray(dimSizes[0], dimSizes[1], dimSizes[2]);
+        double val0 = data[123][79][101];
+        double val1 = data[192][47][200];
 
         // Read the variable data
         if (varType == NC_DOUBLE)
@@ -231,9 +233,12 @@ NetCDFLoader::read1DVariable(const std::string& varName)
             }
             data = tmp;
         }
+        val0 = data[123][79][101];
+        val1 = data[192][47][200];
+
         std::cout<<"Read: "<<varName<<" ("<<dimSizes[0]<<" "<<dimSizes[1]<<" "<<dimSizes[2]<<")";
         std::cout<<" --> "<<data.size()<<" "<<data[0].size()<<" "<<" "<<data[0][0].size()<<std::endl;
-        std::cout<<" val= "<<data[49][99][49]<<std::endl;
-        std::cout<<" val= "<<data[149][47][249]<<std::endl;
+        std::cout<<" val= "<<val0<<std::endl;
+        std::cout<<" val= "<<val1<<std::endl;
         return data;
     }
