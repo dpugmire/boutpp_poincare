@@ -27,10 +27,10 @@ double bilinear_interp2(const std::vector<double>& xarray,
     if (x_it == xarray.end() || z_it == zarray.end())
     {
         std::cout<<"Interpolation point is out of bounds: "<<x<<" "<<xarray[0]<<" "<<xarray[xarray.size()-1]<<" "<<z<<" "<<zarray[0]<<" "<<zarray[zarray.size()-1]<<std::endl;
+        throw std::out_of_range("Interpolation point is out of bounds.");
 
         if (x_it == xarray.end()) return xarray[xarray.size()-1];
         if (z_it == zarray.end()) return zarray[zarray.size()-1];
-        //throw std::out_of_range("Interpolation point is out of bounds.");
     }
 
     int i1 = std::max(0, static_cast<int>(x_it - xarray.begin() - 1));
@@ -45,12 +45,16 @@ double bilinear_interp2(const std::vector<double>& xarray,
     double q11 = data[i1][j1], q21 = data[i2][j1];
     double q12 = data[i1][j2], q22 = data[i2][j2];
 
+    // Calculate the denominator and check for division by zero
+    double denom = (x2 - x1) * (z2 - z1);
+    if (denom == 0.0)
+        throw std::runtime_error("Division by zero in bilinear interpolation: check grid spacing.");
+
     // Perform bilinear interpolation
     double interp = (q11 * (x2 - x) * (z2 - z) +
                     q21 * (x - x1) * (z2 - z) +
                     q12 * (x2 - x) * (z - z1) +
-                    q22 * (x - x1) * (z - z1)) /
-                   ((x2 - x1) * (z2 - z1));
+                    q22 * (x - x1) * (z - z1)) / denom;
 
     return interp;
 }
@@ -358,13 +362,27 @@ std::pair<double, double> RK4_FLT1(
     }
     else
     {
-        double tmp1 = alglib_spline(xarray, zarray, dxdyp, xStart, zStart);
-        double tmp2 = alglib_spline(xarray, zarray, dzdyp, xStart, zStart);
+        //double tmp1 = alglib_spline(xarray, zarray, dxdyp, xStart, zStart);
+        //double tmp2 = alglib_spline(xarray, zarray, dzdyp, xStart, zStart);
         dxdy1 = bilinear_interp2(xarray, zarray, dxdyp, xStart, zStart);
         dzdy1 = bilinear_interp2(xarray, zarray, dzdyp, xStart, zStart);
+
+#if 0
+        SplineInterpolation spline1dx(xarray, zarray, dxdyp);
+        SplineInterpolation spline1dz(xarray, zarray, dzdyp);
+        auto sdzdy1 = spline1dz.evaluate(xStart, zStart);
+        auto sdxdy1 = spline1dx.evaluate(xStart, zStart);
+        auto dx = std::fabs(dxdy1 - sdxdy1), dz = std::fabs(dzdy1 - sdzdy1);
+        //auto dx2 = std::fabs(dxdy1 - tmp1), dz2 = std::fabs(dzdy1 - tmp2);
+        if (dx > 1e-9 || dz > 1e-9)
+            std::cout<<" Error_sp: "<<dx<<" "<<dz<<std::endl;
+        //if (dx2 > 1e-5 || dz2 > 1e-5)
+        //    std::cout<<" Error_al: "<<dx2<<" "<<dz2<<std::endl;
+#endif
     }
     double x1 = xStart + direction * hh * dxdy1;
     double z1 = zStart + direction * hh * dzdy1;
+    double _z1 = z1;
     z1 = double_mod(z1, twoPi);
     rk4Out<<iline<<", "<<double(it)<<", "<<0<<", "<<dxdy1<<", "<<dzdy1<<std::endl;
     //printf("  RES: %12.10e %12.10e\n", dxdy1, dzdy1);
@@ -373,20 +391,20 @@ std::pair<double, double> RK4_FLT1(
 
     // RK4 Step 2
     double dxdy2, dzdy2;
-    double _z1 = double_mod(z1, twoPi);
     if (useSplineInterp)
     {
         SplineInterpolation spline2dx(xarray, zarray, dxdyh), spline2dz(xarray, zarray, dzdyh);
-        dxdy2 = spline2dx.evaluate(x1, double_mod(z1, twoPi));
-        dzdy2 = spline2dz.evaluate(x1, double_mod(z1, twoPi));
+        dxdy2 = spline2dx.evaluate(x1, z1);
+        dzdy2 = spline2dz.evaluate(x1, z1);
     }
     else
     {
-        dxdy2 = bilinear_interp2(xarray, zarray, dxdyh, x1, double_mod(z1, twoPi));
-        dzdy2 = bilinear_interp2(xarray, zarray, dzdyh, x1, double_mod(z1, twoPi));
+        dxdy2 = bilinear_interp2(xarray, zarray, dxdyh, x1, z1);
+        dzdy2 = bilinear_interp2(xarray, zarray, dzdyh, x1, z1);
     }
     double x2 = xStart + direction * hh * dxdy2;
     double z2 = zStart + direction * hh * dzdy2;
+    double _z2 = z2;
     z2 = double_mod(z2, twoPi);
     rk4Out<<iline<<", "<<it+0.25<<", "<<0<<", "<<dxdy2<<", "<<dzdy2<<std::endl;
 
@@ -397,17 +415,18 @@ std::pair<double, double> RK4_FLT1(
     if (useSplineInterp)
     {
         SplineInterpolation spline3dx(xarray, zarray, dxdyh), spline3dz(xarray, zarray, dzdyh);
-        dxdy3 = spline3dx.evaluate(x2, double_mod(z2, twoPi));
-        dzdy3 = spline3dz.evaluate(x2, double_mod(z2, twoPi));
+        dxdy3 = spline3dx.evaluate(x2, z2);
+        dzdy3 = spline3dz.evaluate(x2, z2);
     }
     else
     {
-        dxdy3 = bilinear_interp2(xarray, zarray, dxdyh, x2, double_mod(z2, twoPi));
-        dzdy3 = bilinear_interp2(xarray, zarray, dzdyh, x2, double_mod(z2, twoPi));
+        dxdy3 = bilinear_interp2(xarray, zarray, dxdyh, x2, z2);
+        dzdy3 = bilinear_interp2(xarray, zarray, dzdyh, x2, z2);
     }
 
     double x3 = xStart + direction * dxdy3;
     double z3 = zStart + direction * dzdy3;
+    double _z3 = z3;
     z3 = double_mod(z3, twoPi);
     rk4Out<<iline<<", "<<it+0.5<<", "<<0<<", "<<dxdy3<<", "<<dzdy3<<std::endl;
 
@@ -416,13 +435,13 @@ std::pair<double, double> RK4_FLT1(
     if (useSplineInterp)
     {
         SplineInterpolation spline4dx(xarray, zarray, dxdyn), spline4dz(xarray, zarray, dzdyn);
-        dxdy4 = spline4dx.evaluate(x3, double_mod(z3, twoPi));
-        dzdy4 = spline4dx.evaluate(x3, double_mod(z3, twoPi));
+        dxdy4 = spline4dx.evaluate(x3, z3);
+        dzdy4 = spline4dx.evaluate(x3, z3);
     }
     else
     {
-        dxdy4 = bilinear_interp2(xarray, zarray, dxdyn, x3, double_mod(z3, twoPi));
-        dzdy4 = bilinear_interp2(xarray, zarray, dzdyn, x3, double_mod(z3, twoPi));
+        dxdy4 = bilinear_interp2(xarray, zarray, dxdyn, x3, z3);
+        dzdy4 = bilinear_interp2(xarray, zarray, dzdyn, x3, z3);
     }
 
     rk4Out<<iline<<", "<<it+0.75<<", "<<0<<", "<<dxdy4<<", "<<dzdy4<<std::endl;

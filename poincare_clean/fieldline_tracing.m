@@ -26,12 +26,14 @@ rk4FID = fopen('/Users/dpn/rk4.m.txt', 'w');
 trajSplineFID = fopen('/Users/dpn/trajspline.m.txt', 'w');
 rawPuncFid = fopen('/Users/dpn/rawpunc.m.txt', 'w');
 puncFid = fopen('/Users/dpn/punc.m.txt', 'w');
+punc_ip_Fid = fopen('/Users/dpn/punc_ip.m.txt', 'w');
 TRAJ_FID = fopen('/Users/dpn/pt_traj.m.txt', 'w');
 
 fprintf(trajFID, 'ID, STEP, X, Y, Z, REGION, YI, ZSVALUE, ZVALUE\n');
 fprintf(trajSplineFID, 'ID, STEP, X, Y, Z, REGION\n');
 fprintf(rawPuncFid, 'ID, STEP, X, Y, Z\n');
 fprintf(puncFid, 'ID, STEP, X, Y, Z\n');
+fprintf(punc_ip_Fid, 'ID, STEP, X, Y, Z\n');
 fprintf(stepsFID, 'ID, STEP, X, Y, Z\n');
 fprintf(rk4FID, 'ID, STEP, X, Y, Z\n');
 fprintf(TRAJ_FID, "IT, xind, yEnd, zind, REG, zEnd\n");
@@ -53,7 +55,7 @@ deltaix = 1; ixoffset = 1; % by default, line tracing starts at
 % (Roughly) total poloidal turns
 nturns = 250;
 nturns = 5+1;
-nturns = 5+1;
+nturns = 15+1;
 nsteps = nturns*ny;
 np = 1250; % maximum puncture points, rougly nturns*q
 % Output option
@@ -406,6 +408,10 @@ yiarray = (1:ny);
         val1 = dxdy(193, 48, 201);
         write_array_to_file(dxdy, 'dxdy_0');
         write_array_to_file(dzdy, 'dzdy_0');
+        write_array_to_file(rxy, 'rxy');
+        write_array_to_file(zxy, 'zxy');
+        write_array_to_file(rxy_cfr, 'rxy_cfr');
+        write_array_to_file(zxy_cfr, 'zxy_cfr');
 
         %tmp = reshape(0:(n-1), nx,ny,nz);
         %printEval(dxdy, 124, 80, 102);
@@ -431,6 +437,7 @@ yiarray = (1:ny);
     LINES = [150];
     LINES = 1:50:nlines;
     LINES = [150];
+    %LINES = [1,51, 101, 151, 201, 251];
 
     YVALS = 1:ny-1;
     %YVALS = [60];
@@ -512,8 +519,11 @@ yiarray = (1:ny);
             for iy = YVALS
                 %fprintf(trajFID, '%d, %d, %d, %d, %.8f, %d, %.8f\n', iline-1, iy-1, it-1, iturn-1, xStart, yStart-1, zStart);
 
+                if it == 7
+                  printf('****** start debugging.\n');
+                  printf('\n');
+                endif
 
-                %fprintf('meow\n');
                 %fprintf('%d: xi,yi= %d %d region: %d xyzStart= %.8f %.8f %.8f  xyzInd= %.8f %.8f %.8f\n', COUNTER, iline, iy, region, xStart,yStart,zStart, xind,yind,zind);
                 %fprintf(stepsFID, 'COUNTER= %d region= %d iy= %d\n   xyzStart= %.8f %.8f %.8f\n   xyzInd= %.8f %.8f %.8f\n', COUNTER, region, iy-1, xStart, yStart-1, zStart, xind-1, yind-1, zind-1);
                 if (region == 0 && yStart > nypf1 && yStart < nypf2+1) % in CFR
@@ -553,6 +563,11 @@ yiarray = (1:ny);
                   fprintf(stepsFID, '%d, %d, %f, %d, %f\n', iline-1, it-1, xEnd, yEnd-1, zEnd);
 
                   % zEnd info is needed for better interpolation of puncture point
+                  if it+1 == 8
+                    printf('need to look at this difference.....\n');
+                    printf('stop now\n');
+
+                  endif
                   traj(7,it+1)=zEnd;
 
                   % check the where is the end of the fieldline
@@ -584,13 +599,13 @@ yiarray = (1:ny);
                   end
 
                   % re-label toroidal location (zEtnd) if necessary
-                  fprintf('********** it= %d pt0= %f %f %f\n', it-1, xEnd, yEnd-1, zEnd);
+                  %fprintf('********** it= %d pt0= %f %f %f\n', it-1, xEnd, yEnd-1, zEnd);
                   if (zEnd < zmin || zEnd > zmax)
                       zEnd = mod(zEnd,zmax);
                   end
                   zind = interp1(zarray, ziarray, zEnd);
                   fprintf(zindFID, '%d %12.10f --> %12.10f\n', it-1, zEnd, zind-1);
-                  fprintf('********** it= %d pt1= %f %d %f zind %f\n', it-1, xEnd, yEnd-1, zEnd, zind);
+                  %fprintf('********** it= %d pt1= %f %d %f zind %f\n', it-1, xEnd, yEnd-1, zEnd, zind);
 
                   it = it+1;
                   traj(1,it) = iturn;
@@ -791,9 +806,9 @@ yiarray = (1:ny);
         fprintf(trajFID, '%d, %d, %.8f, %.8f, %.8f, %d, %d, %f, %f\n', iline-1, istep-1, fl_x3d(istep), fl_y3d(istep), fl_z3d(istep), region, yi-1, zsvalue, zvalue);
         _t3 = traj(3,istep);
         _t2 = traj(2,istep);
-        fprintf('*** istep= %d r= %12.10e zs= %12.10e z= %12.10e t23= %12.10e %d\n', istep-1, rxyvalue, zsvalue, zvalue, _t2, _t3-1);
+        %fprintf('*** istep= %d r= %12.10e zs= %12.10e z= %12.10e t23= %12.10e %d\n', istep-1, rxyvalue, zsvalue, zvalue, _t2, _t3-1);
         %fprintf(_fid, '*** istep= %d traj= %d %12.10e %d %12.10e\n', istep-1, int32(traj(1,istep)-1), traj(2,istep), int32(traj(3,istep)-1), traj(4,istep));
-        fprintf(_fid, '%d  traj4, zvalue= %12.10e %12.10e\n', istep-1, traj(4,istep), zvalue);
+        %fprintf(_fid, '%d  traj4, zvalue= %12.10e %12.10e\n', istep-1, traj(4,istep), zvalue);
 
         if istep < 51
           fprintf(trajvals_fid, "%d, %10.8f, %d, %10.8f, %10.8f, %10.8f, %10.8f, %10.8f\n", istep-1, traj(2,istep)-1, floor(traj(3,istep))-1, traj(4,istep)-1, traj(7,istep), fl_x3d(istep), fl_y3d(istep),fl_z3d(istep));
@@ -831,7 +846,7 @@ yiarray = (1:ny);
 %     plot(fl_x3d(itarray),'-d')
 %     plot(fit,ffl_x3d)
 %     plot(fit(iit),ffl_x3d(iit),'o')
-%     pause
+%     pausera
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
       [nc,~]=size(iit); nc=nc-1; ip=0; id=0;
@@ -845,6 +860,9 @@ yiarray = (1:ny);
           valX = ffl_x3d(iit_i);
           valY = ffl_y3d(iit_i);
           valZ = ffl_z3d(iit_i);
+          if i == (439)
+            fprintf('here is the problem point. follow it...\n');
+          endif
           fprintf(rawPuncFid, '%d, %d, %f, %f, %f\n', iline-1, i-1, valX, valY, valZ);
         endfor
       endif
@@ -852,10 +870,15 @@ yiarray = (1:ny);
 
       % only for the field-lines pass x=0 plane, one calculates the
       % corresponding puncture point information
+      fprintf('dumping out the punctures.\n');
+      fprintf('dumping punctures.\n');
       if (nc > 0)
-
-
         for i=1:nc
+            %i = 439;
+            if i == (439)
+              fprintf('here is the problem point. follow it...\n');
+            endif
+
             iit_i= iit(i);
             fit_i = fit(iit_i);
             it=floor(fit(iit(i)));
@@ -867,32 +890,55 @@ yiarray = (1:ny);
             xtraj = traj(2, it); xtraj1 = traj(2, it+1);
             ytraj = traj(3, it); ytraj1 = traj(3, it+1);
             ztraj = traj(7, it); ztraj1 = traj(7, it+1);
+            traj4 = traj(7, it); traj41 = traj(4, it+1);
+            y_m1 = traj(3,it-1);
+            fprintf('pt  : %f %f %f %f\n', traj(2,it), traj(3,it), traj(4,it), traj(7,it));
+            fprintf('pt_1: %f %f %f %f\n', traj(2,it+1), traj(3,it+1), traj(4,it+1), traj(7,it+1));
+            fprintf('a= %f\n', a);
 
-            xind_tmp=b*traj(2,it)+a*traj(2,it+1);
+            drp_debug = true;
+            if (drp_debug)
+              xtraj = 150.42348967086684 + 1.0;
+              ytraj = 69 + 1.0;
+              ztraj = 1.0515749450777652;
+              traj4 = 42.940555720100384;
+
+              xtraj1 = 150.07653056362201 + 1.0;
+              ytraj1 = 70 + 1.0;
+              ztraj1 = 1.055778179026708;
+              traj41 = 42.84501773842296;
+              y_m1 = 68 + 1.0;
+              a = 0.28459963403588517;
+              b = 0.71540036596411483;
+            endif
+
+
+            xind_tmp=b*xtraj+a*xtraj1;
             % default, unless at the branch cut
-            yind_tmp=b*traj(3,it)+a*traj(3,it+1);
+            yind_tmp=b*ytraj+a*ytraj1;
             % with raw zEnd information, it doesn't matter whether the
             % field-line across the branch cut or not, unless ...
             %traj(7) = zEnd
-            zvalue = b*traj(7,it)+a*traj(7,it+1);
-            if (abs(traj(7,it)-traj(7,it+1))>1.)
-                zvalue=b*mod(traj(7,it),zmax)+a*mod(traj(7,it+1),zmax);
+            zvalue = b*ztraj+a*ztraj1;
+            fprintf('xind,yind,zvalue= %f %f %f\n', xind_tmp, yind_tmp, zvalue);
+
+            if (abs(ztraj-ztraj1)>1.)
+                zvalue=b*mod(ztraj,zmax)+a*mod(ztraj1,zmax);
             end
 
-            y_m1 = traj(3,it-1);
             % further ajustments for edge cases
-            if (traj(3,it)==double(nypf2) && direction==1 && xind_tmp<double(ixsep)+0.5)
+            if (ytraj==double(nypf2) && direction==1 && xind_tmp<double(ixsep)+0.5)
                 % here y index is extended to one more point for accuracy
-                yind_tmp=b*traj(3,it)+a*double(nypf2+1);
-            elseif (traj(3,it)==double(nypf1+1) && direction==-1 && xind_tmp<double(ixsep)+0.5)
+                yind_tmp=b*ytraj+a*double(nypf2+1);
+            elseif (ytraj==double(nypf1+1) && direction==-1 && xind_tmp<double(ixsep)+0.5)
                 % here y index is extended to one more point for accuracy
-                yind_tmp=b*double(nypf2+1)+a*traj(3,it+1);
+                yind_tmp=b*double(nypf2+1)+a*ytraj1;
                 % one needs to twist-shift in this case
                 shiftangle = interp1(xiarray,sa,xind_tmp);
                 zvalue = mod(zvalue-shiftangle,zmax);
-            elseif (it>1 && (traj(3,it-1)==double(nypf2) || traj(3,it-1)==double(nypf1+1)))
-                zvalue = b*interp1(ziarray,zarray,traj(4,it)) + ...
-                     a*interp1(ziarray,zarray,traj(4,it+1));
+            elseif (it>1 && (y_m1==double(nypf2) || y_m1==double(nypf1+1)))
+                zvalue = b*interp1(ziarray,zarray,traj4) + ...
+                     a*interp1(ziarray,zarray,traj41);
             end
 
             if (xind_tmp < double(ixsep)+0.5)
@@ -911,7 +957,7 @@ yiarray = (1:ny);
             ipy = ipx3d_tmp*sin(zvalue)+ipy3d_tmp*cos(zvalue);
             ipz = zxyvalue;
 
-
+            % one side of tokamak vs. the otherside.
             if (ipy>0)
                 %if (abs(ipx)>0.05)
                 %    id=id+1;
@@ -929,6 +975,7 @@ yiarray = (1:ny);
                 fprintf(puncFid, '%d, %d, %.8f, %.8f, %.8f\n', iline-1, i-1, ipx, ipy, ipz);
                 %end
             else
+                fprintf(punc_ip_Fid, '%d, %d, %.8f, %.8f, %.8f\n', iline-1, i-1, ipx, ipy, ipz);
                 fprintf('%d: ipy is < 0:  %f \n', i, ipy);
             end
 

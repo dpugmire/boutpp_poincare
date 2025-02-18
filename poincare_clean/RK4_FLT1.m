@@ -108,6 +108,7 @@ function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,reg
     dzdy1=interp2(xarray,zarray,dzdyp',xStart,zStart,'spline');
     x1=xStart+dir*hh*dxdy1;
     z1=zStart+dir*hh*dzdy1;
+    _z1 = mod(z1,2*pi);
     fprintf(rk4FID, '%d, %.6e, %d, %.6e, %.6e\n', iline-1, it-1, 0, dxdy1, dzdy1);
     %fprintf('dxdy1/dzdy1= %12.10e %12.10e xz= %12.10e %12.10e\n', dxdy1, dzdy1, x1,z1);
 
@@ -116,6 +117,8 @@ function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,reg
     dzdy2=interp2(xarray,zarray,dzdyh',x1,mod(z1,2*pi),'spline');
     x2=xStart+dir*hh*dxdy2;
     z2=zStart+dir*hh*dzdy2;
+    _z2 = mod(z2,2*pi);
+
     fprintf(rk4FID, '%d, %.6e, %d, %.6e, %.6e\n', iline-1, it-1 + 0.25, 0, dxdy2, dzdy2);
 
     %fprintf('dxdy2/dzdy2= %12.10e %12.10e xz= %12.10e %12.10e\n', dxdy2, dzdy2, x2,z2);
@@ -125,6 +128,8 @@ function [xEnd,zEnd] = RK4_FLT1(xStart,yStart,zStart,dxdy,dzdy,xarray,zarray,reg
     dzdy3=interp2(xarray,zarray,dzdyh',x2,mod(z2,2*pi),'spline');
     x3=xStart+dir*dxdy3;
     z3=zStart+dir*dzdy3;
+    _z3 = mod(z3,2*pi);
+
     fprintf(rk4FID, '%d, %.6e, %d, %.6e, %.6e\n', iline-1, it-1 + 0.5, 0, dxdy3, dzdy3);
 
     %fprintf('dxdy3/dzdy3= %12.10e %12.10e xz= %12.10e %12.10e\n', dxdy3, dzdy3, x3,z3);

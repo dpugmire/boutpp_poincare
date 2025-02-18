@@ -4,6 +4,9 @@
 #include <stdexcept>
 #include <iostream>
 
+// Bicubic Spline Interpolation using Eigen
+double interp2Spline(const std::vector<double>& x, const std::vector<double>& y, const std::vector<std::vector<double>>& Z, double xi, double yi);
+
 double alglib_spline(const std::vector<double>& x, const std::vector<double>& y, const std::vector<std::vector<double>>& f,
                      double xi, double yi);
 

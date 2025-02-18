@@ -1,31 +1,66 @@
 #include <vector>
 #include "SplineInterpolation.h"
 #include "alglib/src/interpolation.h"
+#include <tinysplinecxx.h>
+
+using namespace tinyspline;
+
+double interp2Spline(const std::vector<double>& x, const std::vector<double>& y, const std::vector<std::vector<double>>& Z, double xi, double yi)
+{
+    int nx = x.size();
+    int ny = y.size();
+
+    // Flatten 2D data into a single vector
+    std::vector<tsReal> ctrlp;
+    for (int j = 0; j < ny; ++j) {
+        for (int i = 0; i < nx; ++i) {
+            ctrlp.push_back(x[i]);   // X-coordinate
+            ctrlp.push_back(y[j]);   // Y-coordinate
+            ctrlp.push_back(Z[j][i]); // Z-value
+        }
+    }
+    BSpline spline(ctrlp.size(), 3, 3);
+
+    // Create a B-spline surface (bicubic: degree 3)
+    //tsBSpline spline = tsBSpline::interpolate_cubic_natural(ctrlp, nx, 3);
+    //BSpline spline(nx, 3);  // `nx` control points, degree 3 (cubic)
+
+    // Query point
+    //DeBoorNet net;
+    auto result = spline.evalAll({xi, yi});
+    return result[0];
+    //std::vector<tsReal> result = net.result();
+
+    //return result[2]; // Return interpolated Z value
+}
 
 double alglib_spline(const std::vector<double>& x, const std::vector<double>& y, const std::vector<std::vector<double>>& f,
                      double xi, double yi)
 {
-    // Flatten the f array into a single vector for alglib
-    std::vector<double> f_flat;
-    for (const auto& row : f)
-        f_flat.insert(f_flat.end(), row.begin(), row.end());
+    #if 0
+    int nx = x.size();
+    int ny = y.size();
 
-    // Create an alglib spline2dinterpolant object
-    alglib::spline2dinterpolant spline;
+    // Flatten 2D data into a single vector
+    vector<tsReal> ctrlp;
+    for (int j = 0; j < ny; ++j) {
+        for (int i = 0; i < nx; ++i) {
+            ctrlp.push_back(x[i]);   // X-coordinate
+            ctrlp.push_back(y[j]);   // Y-coordinate
+            ctrlp.push_back(Z[j][i]); // Z-value
+        }
+    }
 
-    // Initialize the 2D spline interpolant
-    alglib::real_1d_array x_arr, y_arr, f_arr;
-    x_arr.setcontent(x.size(), x.data());
-    y_arr.setcontent(y.size(), y.data());
-    f_arr.setcontent(f_flat.size(), f_flat.data());
+    // Create a B-spline surface (bicubic: degree 3)
+    tsBSpline spline(nx, ny, 3, TS_CLAMPED);
+    spline.setControlPoints(ctrlp);
 
-    alglib::spline2dbuildbicubicv(x_arr, x.size(), y_arr, y.size(), f_arr, 1, spline);
+    // Query point
+    vector<tsReal> query = {xi, yi};
+    vector<tsReal> result = spline.eval(query).result();
 
-    // Evaluate the spline at a specific point (x = 2.5, y = 2.5)
-    double x_eval = 3.92984; //2.5;
-    double y_eval = 2.019384; //2.5;
-    double f_eval = alglib::spline2dcalc(spline, xi, yi);
-    return f_eval;
+    return result[2]; // Return interpolated Z value
+    #endif
 }
 
 double interpolate2D_WRONG(
@@ -69,21 +104,25 @@ SplineInterpolation::SplineInterpolation(const std::vector<double>& x, const std
     compute2DSplineCoefficients();
 }
 
-// Compute 1D spline coefficients
 void SplineInterpolation::compute1DSplineCoefficients()
 {
     size_t n = x1D.size();
+    if (n < 2)
+        throw std::invalid_argument("At least two points are required for spline interpolation.");
+
+    // Allocate memory for spline coefficients
     a1D = y1D;
     b1D.resize(n - 1);
     c1D.resize(n);
     d1D.resize(n - 1);
 
-    std::vector<double> h(n - 1), alpha(n - 1);
+    std::vector<double> h(n - 1), alpha(n - 2);  // Fix: correct alpha size
+
     for (size_t i = 0; i < n - 1; ++i)
         h[i] = x1D[i + 1] - x1D[i];
 
-    for (size_t i = 1; i < n - 1; ++i)
-        alpha[i] = (3.0 / h[i] * (a1D[i + 1] - a1D[i])) - (3.0 / h[i - 1] * (a1D[i] - a1D[i - 1]));
+    for (size_t i = 1; i < n - 1; ++i)  
+        alpha[i - 1] = (3.0 * (a1D[i + 1] - a1D[i]) / h[i]) - (3.0 * (a1D[i] - a1D[i - 1]) / h[i - 1]);
 
     std::vector<double> l(n), mu(n), z(n);
     l[0] = 1.0;
@@ -93,13 +132,13 @@ void SplineInterpolation::compute1DSplineCoefficients()
     {
         l[i] = 2.0 * (x1D[i + 1] - x1D[i - 1]) - h[i - 1] * mu[i - 1];
         mu[i] = h[i] / l[i];
-        z[i] = (alpha[i] - h[i - 1] * z[i - 1]) / l[i];
+        z[i] = (alpha[i - 1] - h[i - 1] * z[i - 1]) / l[i];
     }
 
     l[n - 1] = 1.0;
     z[n - 1] = c1D[n - 1] = 0.0;
 
-    for (size_t j = n - 2; j != static_cast<size_t>(-1); --j)
+    for (int j = n - 2; j >= 0; --j)  // Fix: signed integer
     {
         c1D[j] = z[j] - mu[j] * c1D[j + 1];
         b1D[j] = (a1D[j + 1] - a1D[j]) / h[j] - h[j] * (c1D[j + 1] + 2.0 * c1D[j]) / 3.0;
@@ -121,7 +160,9 @@ size_t SplineInterpolation::findInterval(const std::vector<double>& x, double va
     if (val < x.front() || val > x.back())
         throw std::out_of_range("Value is outside the interpolation range.");
 
-    return std::upper_bound(x.begin(), x.end(), val) - x.begin() - 1;
+    //return std::upper_bound(x.begin(), x.end(), val) - x.begin() - 1;
+    size_t idx = std::upper_bound(x.begin(), x.end(), val) - x.begin() - 1;
+    return (idx >= x.size() - 1) ? x.size() - 2 : idx;
 }
 
 
@@ -132,28 +173,29 @@ void SplineInterpolation::compute2DSplineCoefficients()
 
     // Resize the 2D coefficient arrays
     a2D.resize(nx, std::vector<double>(ny));
-    b2D.resize(nx, std::vector<double>(ny));
+    b2D.resize(nx, std::vector<double>(ny - 1));  // Fix: ny-1
     c2D.resize(nx, std::vector<double>(ny));
-    d2D.resize(nx, std::vector<double>(ny));
+    d2D.resize(nx, std::vector<double>(ny - 1));  // Fix: ny-1
 
     // Compute row-wise splines
     for (size_t i = 0; i < nx; ++i)
     {
         SplineInterpolation rowSpline(y2D, z2D[i]);
 
-        // Assign each component of the spline coefficients
+        // Assign spline coefficients
         for (size_t j = 0; j < ny; ++j)
         {
-            a2D[i][j] = rowSpline.a1D[j];
-            b2D[i][j] = rowSpline.b1D[j];
-            c2D[i][j] = rowSpline.c1D[j];
-            d2D[i][j] = rowSpline.d1D[j];
+            a2D[i][j] = rowSpline.a1D[j];  
+            c2D[i][j] = rowSpline.c1D[j];  // c1D has size ny
+        }
+        for (size_t j = 0; j < ny - 1; ++j)  // Fix: only iterate up to ny-1
+        {
+            b2D[i][j] = rowSpline.b1D[j];  // b1D has size ny-1
+            d2D[i][j] = rowSpline.d1D[j];  // d1D has size ny-1
         }
     }
 }
 
-
-// Evaluate 2D spline
 double SplineInterpolation::evaluate(double x, double y) const
 {
     size_t ix = findInterval(x2D, x);
@@ -162,6 +204,21 @@ double SplineInterpolation::evaluate(double x, double y) const
     double hx = x - x2D[ix];
     double hy = y - y2D[iy];
 
-    return a2D[ix][iy] + b2D[ix][iy] * hy + c2D[ix][iy] * hy * hy + d2D[ix][iy] * hy * hy * hy;
-}
+    // Perform bicubic interpolation using correct weight functions
+    double f00 = a2D[ix][iy], f01 = a2D[ix][iy + 1];
+    double f10 = a2D[ix + 1][iy], f11 = a2D[ix + 1][iy + 1];
 
+    double b00 = b2D[ix][iy], b01 = b2D[ix][iy + 1];
+    double b10 = b2D[ix + 1][iy], b11 = b2D[ix + 1][iy + 1];
+
+    double c00 = c2D[ix][iy], c01 = c2D[ix][iy + 1];
+    double c10 = c2D[ix + 1][iy], c11 = c2D[ix + 1][iy + 1];
+
+    double d00 = d2D[ix][iy], d01 = d2D[ix][iy + 1];
+    double d10 = d2D[ix + 1][iy], d11 = d2D[ix + 1][iy + 1];
+
+    double fy0 = f00 + b00 * hy + c00 * hy * hy + d00 * hy * hy * hy;
+    double fy1 = f10 + b10 * hy + c10 * hy * hy + d10 * hy * hy * hy;
+
+    return fy0 + (fy1 - fy0) * (hx / (x2D[ix + 1] - x2D[ix]));  // Linear along x
+}

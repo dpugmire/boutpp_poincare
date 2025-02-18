@@ -8,6 +8,8 @@
 
 std::ofstream trajspline("/Users/dpn/trajspline.c.txt", std::ofstream::out);
 std::ofstream puncFid("/Users/dpn/punc.c.txt");
+std::ofstream punc_ip_Fid("/Users/dpn/punc_ip.c.txt");
+std::ofstream puncFid2("/Users/dpn/punc2.c.txt");
 std::ofstream rawPunc("/Users/dpn/rawpunc.c.txt", std::ofstream::out);
 std::ofstream trajOut("/Users/dpn/traj.c.txt", std::ofstream::out);
 std::ofstream stepOut("/Users/dpn/steps.c.txt", std::ofstream::out);
@@ -104,9 +106,13 @@ class Options
         this->init_array(this->xiarray_cfr, this->ixsep);
         this->init_array(this->yiarray_cfr, this->nypf1+1, this->nypf2+2);
 
+        this->init_array(this->yiarray_cfr, this->nypf1+1-1, this->nypf2+2-1);
+
         writeArray1DToFile(this->xiarray_cfr, "xiarray_cfr");
         writeArray1DToFile(this->yiarray_cfr, "yiarray_cfr");
         writeArray2DToFile(this->zShift_cfr, "zshift_cfr");
+        writeArray2DToFile(this->rxy_cfr, "rxy_cfr");
+        writeArray2DToFile(this->zxy_cfr, "zxy_cfr");
         writeArray3DToFile(this->dxdy, "dxdy_0");
         writeArray3DToFile(this->dzdy, "dzdy_0");
 
@@ -303,7 +309,7 @@ dumpTrajSamples(int iline, std::vector<std::vector<double>> points)
     double tmin = 0.0, tmax = double(n-1);
     int id = 0;
     double x0 = -1.0;
-    for (double t = tmin; t < tmax; t+= 0.01, id++)
+    for (double t = tmin; t < tmax; t+= 0.0005, id++)
     {
         double x = splineX.evaluate(t);
         double y = splineY.evaluate(t);
@@ -412,6 +418,8 @@ int main()
     trajOut<<"ID, STEP, X, Y, Z, REGION, YI, ZSVALUE, ZVALUE"<<std::endl;
     rawPunc<<"ID, STEP, X, Y, Z\n";
     puncFid<<"ID, STEP, X, Y, Z\n";
+    puncFid2<<"ID, STEP, X, Y, Z\n";
+    punc_ip_Fid<<"ID, STEP, X, Y, Z\n";
     stepOut<<"ID, STEP, X, Y, Z\n";
     rk4Out<<"ID, STEP, X, Y, Z\n"<<std::scientific<<std::setprecision(6);
     auto TRAJ_FID = fopen("/Users/dpn/pt_traj.c.txt", "w");
@@ -426,8 +434,9 @@ int main()
     std::vector<int> LINES;// = {0, 50, 100, 150, 200, 250};
     for (int i = 0; i < 250; i+= 5)
         LINES.push_back(i);
-    int nturns = 5;
+    int nturns = 15;
     LINES = {149};
+    //LINES = {0,50,100,150,200,250};
 
     std::vector<Point> Points;
 
@@ -474,6 +483,10 @@ int main()
                     fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", _p.traj1, _p.traj2, (int)_p.traj3, _p.traj4, (int)_p.traj5, _p.traj7);
                     Points.push_back(_p);
                     //Points.push_back({xind, yStart, zind, iline, iy, it});
+                }
+                if (it == 6)
+                {
+                    std::cout<<"stop here."<<std::endl;
                 }
 
                 if (yStart+1 == opts.dxdy[0].size())
@@ -539,18 +552,21 @@ int main()
                 }
 
                 //Relabel toroidal location.
-                std::cout<<"********** it= "<<it<<" pt0= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<std::endl;
-                if (zEnd < opts.zmin || zEnd > opts.zmax)
-                    zEnd = double_mod(zEnd, opts.zmax);
-                std::cout<<"********** it= "<<it<<" pt1= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<" zind "<<zind<<std::endl;
-                zind = INTERP(opts.zarray, opts.ziarray, zEnd);
+                //std::cout<<"********** it= "<<it<<" pt0= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<std::endl;
+
+                //std::cout<<"********** it= "<<it<<" pt1= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<" zind "<<zind<<std::endl;
                 fprintf(zindFID, "%d %12.10f --> %12.10f\n", it, zEnd, zind);
                 //Points.push_back({xind, yEnd, zind, iline, iy, it});
+
                 Point _p;
                 _p.traj1 = it; _p.traj2 = xind; _p.traj3 = yEnd; _p.traj4 = zind;
                 _p.traj5 = region; _p.traj7 = zEnd;
                 fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", _p.traj1, _p.traj2, (int)_p.traj3, _p.traj4, (int)_p.traj5, _p.traj7);
                 Points.push_back(_p);
+
+                if (zEnd < opts.zmin || zEnd > opts.zmax)
+                    zEnd = double_mod(zEnd, opts.zmax);
+                zind = INTERP(opts.zarray, opts.ziarray, zEnd);
 
                 it = it+1;
                 xStart = xEnd;
@@ -645,11 +661,16 @@ int main()
             double valX = ffl_x3d.evaluate(tval);
             double valY = ffl_y3d.evaluate(tval);
             double valZ = ffl_z3d.evaluate(tval);
-            rawPunc<<i<<", "<<valX<<", "<<valY<<", "<<valZ<<std::endl;
+            if (i == 328)
+                std::cout<<"***** problem point... "<<valX<<" "<<valY<<" "<<valZ<<std::endl;
+            rawPunc<<iline<<", "<<i<<", "<<valX<<", "<<valY<<", "<<valZ<<std::endl;
         }
 
         for (int i = 0; i < nc; i++)
         {
+            //i = 328;
+            if (i == 228)
+                std::cout<<"***** problem point... "<<std::endl;
             int iit_i = iit[i];
             double fit_i = fit[iit_i];
             int _it = std::floor(fit_i);
@@ -660,7 +681,7 @@ int main()
 
             auto xind_tmp = b*pt.traj2 + a*pt_1.traj2;
             auto yind_tmp = b*pt.traj3 + a*pt_1.traj3;
-            auto zvalue = b*pt.traj7 + a*pt_1.traj7;
+            auto zvalue   = b*pt.traj7 + a*pt_1.traj7;
 
             auto pt_m1 = Points[_it-1];
             auto _nypf2 = opts.nypf2, _nypf1 = opts.nypf1;
@@ -670,7 +691,9 @@ int main()
                 yind_tmp = b*pt.traj3 + a*double(opts.nypf2+1);
             else if (_it > 0 && (Points[_it-1].traj3 == double(opts.nypf2) || (Points[_it-1].traj3 == double(opts.nypf1+1))))
             {
-                std::cout<<"******** Need to support the update of zvalue "<<__LINE__<<std::endl;
+                zvalue = b*INTERP(opts.ziarray, opts.zarray, pt.traj4) +
+                         a*INTERP(opts.ziarray, opts.zarray, pt_1.traj4);
+                //std::cout<<"******** Need to support the update of zvalue "<<__LINE__<<std::endl;
                 //throw std::string("Need to support the update of zvalue");
                 //zvalue = b*
             }
@@ -678,21 +701,54 @@ int main()
             double rxyvalue, zxyvalue, zsvalue;
             if (xind_tmp < double(opts.ixsep)+0.5)
             {
-                //rxyvalue = interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.rxy_cfr,   xind_tmp, yind_tmp);
-                //zxyvalue =   interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zxy_cfr,  xind_tmp, yind_tmp);
-                //zsvalue =   interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr, xind_tmp, yind_tmp);
+                //rxyvalue2 = interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.rxy_cfr,   xind_tmp, yind_tmp);
+                //zxyvalue2 =   interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zxy_cfr,  xind_tmp, yind_tmp);
+                //zsvalue2 =   interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr, xind_tmp, yind_tmp);
                 rxyvalue = bilinear_interp2(opts.xiarray_cfr, opts.yiarray_cfr, opts.rxy_cfr,   xind_tmp, yind_tmp);
                 zxyvalue = bilinear_interp2(opts.xiarray_cfr, opts.yiarray_cfr, opts.zxy_cfr,  xind_tmp, yind_tmp);
                 zsvalue =  bilinear_interp2(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr, xind_tmp, yind_tmp);
+
+                //double rxyvalue2 = interp2Spline(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
+                //double dv = rxyvalue - rxyvalue2;
+
+                /*
+                SplineInterpolation rxySpline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
+                SplineInterpolation zxySpline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
+                SplineInterpolation zSpline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
+                rxyvalue = rxySpline.evaluate(xind_tmp, yind_tmp);
+                zxyvalue = zxySpline.evaluate(xind_tmp, yind_tmp);
+                zsvalue = zSpline.evaluate(xind_tmp, yind_tmp);
+                */
+
+                /*
+                SplineInterpolation int_spline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
+                auto val = int_spline.evaluate(xind_tmp, yind_tmp);
+
+                auto dv = std::fabs(zsvalue - val);
+                if (dv > 1e-5)
+                    std::cout<<" *** zsvalue difference.."<<std::endl;
+                */
             }
             else
             {
                 rxyvalue = bilinear_interp2(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
                 zxyvalue = bilinear_interp2(opts.xiarray, opts.yiarray, opts.zxy, xind_tmp, yind_tmp);
                 zsvalue = bilinear_interp2(opts.xiarray, opts.yiarray, opts.zShift, xind_tmp, yind_tmp);
-                //rxyvalue = interpolate2D(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
-                //zxyvalue = interpolate2D(opts.xiarray, opts.yiarray, opts.zxy, xind_tmp, yind_tmp);
-                //zsvalue = interpolate2D(opts.xiarray, opts.yiarray, opts.zShift, xind_tmp, yind_tmp);
+                double rxyvalue2 = interp2Spline(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
+
+                double dv = rxyvalue - rxyvalue2;
+
+                /*
+                SplineInterpolation int_spline(opts.xiarray, opts.yiarray, opts.zShift);
+                auto val = int_spline.evaluate(xind_tmp, yind_tmp);
+                auto dv = std::fabs(zsvalue - val);
+                if (dv > 1e-5)
+                    std::cout<<" *** zsvalue difference.."<<std::endl;
+                */
+
+                //rxyvalue2 = interpolate2D(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
+                //zxyvalue2 = interpolate2D(opts.xiarray, opts.yiarray, opts.zxy, xind_tmp, yind_tmp);
+                //zsvalue2 = interpolate2D(opts.xiarray, opts.yiarray, opts.zShift, xind_tmp, yind_tmp);
             }
 
             double ipx3d_tmp = rxyvalue*cos(zsvalue);
@@ -706,8 +762,12 @@ int main()
                 // do the rxy/zxy interpolation
                 //if (i > 0) puncFid<<iit[i]-1<<", "<<fl_x3d[iit[i]-1]<<", "<<fl_y3d[iit[i]-1]<<", "<<fl_z3d[iit[i]-1]<<std::endl;
                 //puncFid<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
-                //puncFid<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
+                puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
                 //puncFid<<iit[i]+1<<", "<<fl_x3d[iit[i]+1]<<", "<<fl_y3d[iit[i]+1]<<", "<<fl_z3d[iit[i]+1]<<std::endl;
+            }
+            else
+            {
+                punc_ip_Fid<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
             }
         }
         std::cout<<"All done"<<std::endl;
