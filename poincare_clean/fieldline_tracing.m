@@ -437,6 +437,7 @@ yiarray = (1:ny);
     LINES = [150];
     LINES = 1:50:nlines;
     LINES = [150];
+    LINES = [151];
     %LINES = [1,51, 101, 151, 201, 251];
 
     YVALS = 1:ny-1;
@@ -519,9 +520,9 @@ yiarray = (1:ny);
             for iy = YVALS
                 %fprintf(trajFID, '%d, %d, %d, %d, %.8f, %d, %.8f\n', iline-1, iy-1, it-1, iturn-1, xStart, yStart-1, zStart);
 
-                if it == 7
+                if (it == 20)
                   printf('****** start debugging.\n');
-                  printf('\n');
+                  printf('\n\n');
                 endif
 
                 %fprintf('%d: xi,yi= %d %d region: %d xyzStart= %.8f %.8f %.8f  xyzInd= %.8f %.8f %.8f\n', COUNTER, iline, iy, region, xStart,yStart,zStart, xind,yind,zind);
@@ -616,7 +617,7 @@ yiarray = (1:ny);
                   % approximate field-line segment length
                   traj(6,it) = hthe(round(xind),yEnd);
   %                traj(:,it)=[iturn;xind;yEnd;zind;region];
-                  fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", traj(1,it)-1, traj(2,it)-1, traj(3,it)-1, traj(4,it)-1, traj(5,it), traj(7,it));
+                  fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", it-1, traj(2,it)-1, traj(3,it)-1, traj(4,it)-1, traj(5,it), traj(7,it));
 
                   % now the end-point becomes new start-point
                   xStart = xEnd;
@@ -896,20 +897,20 @@ yiarray = (1:ny);
             fprintf('pt_1: %f %f %f %f\n', traj(2,it+1), traj(3,it+1), traj(4,it+1), traj(7,it+1));
             fprintf('a= %f\n', a);
 
-            drp_debug = true;
+            drp_debug = false;
             if (drp_debug)
-              xtraj = 150.42348967086684 + 1.0;
-              ytraj = 69 + 1.0;
-              ztraj = 1.0515749450777652;
-              traj4 = 42.940555720100384;
+              xtraj = 149.54106292358114 + 1.0;
+              ytraj = 73 + 1.0;
+              ztraj = 0.00029379732422597326;
+              traj4 = 0.011970379882940391;
 
-              xtraj1 = 150.07653056362201 + 1.0;
-              ytraj1 = 70 + 1.0;
-              ztraj1 = 1.055778179026708;
-              traj41 = 42.84501773842296;
-              y_m1 = 68 + 1.0;
-              a = 0.28459963403588517;
-              b = 0.71540036596411483;
+              xtraj1 = 149.61731548903271 + 1.0;
+              ytraj1 = 74 + 1.0;
+              ztraj1 = 6.2795725343616526;
+              traj41 = 255.852802393026;
+              y_m1 = 72 + 1.0;
+              a = 0.6585999999675245;
+              b = 0.3414000000324755;
             endif
 
 

@@ -435,8 +435,9 @@ int main()
     for (int i = 0; i < 250; i+= 5)
         LINES.push_back(i);
     int nturns = 15;
-    LINES = {149};
+    //LINES = {149};
     //LINES = {0,50,100,150,200,250};
+    LINES = {150};
 
     std::vector<Point> Points;
 
@@ -474,6 +475,10 @@ int main()
             // Start field-line tracing.
             for (int iy = 0; iy < opts.ny-1; iy++)
             {
+                if (it == 16)
+                {
+                    std::cout<<"start looking at it=19"<<std::endl;
+                }
                 //trajOut<<iline<<", "<<iy<<", "<<it<<", "<<iturn<<", "<<xStart<<", "<<yStart<<", "<<zStart<<std::endl;
                 if (it == 0)
                 {
@@ -484,7 +489,7 @@ int main()
                     Points.push_back(_p);
                     //Points.push_back({xind, yStart, zind, iline, iy, it});
                 }
-                if (it == 6)
+                if (it == 57)
                 {
                     std::cout<<"stop here."<<std::endl;
                 }
@@ -546,32 +551,40 @@ int main()
                 //Twist-shift at branch cut.
                 if (yStart == opts.nypf2-1 && region == 0)
                 {
+                    std::cout<<"Branch cut: "<<yStart<<" "<<opts.nypf2<<std::endl;
                     double shiftAngle = INTERP(opts.xiarray, opts.shiftAngle, xind);
                     zEnd = zEnd + shiftAngle;
                     yEnd = opts.nypf1;
                 }
 
+                double zEnd_no_mod = zEnd;
                 //Relabel toroidal location.
-                //std::cout<<"********** it= "<<it<<" pt0= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<std::endl;
+                if (zEnd < opts.zmin || zEnd > opts.zmax)
+                    zEnd = double_mod(zEnd, opts.zmax);
+                zind = INTERP(opts.zarray, opts.ziarray, zEnd);
 
                 //std::cout<<"********** it= "<<it<<" pt1= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<" zind "<<zind<<std::endl;
                 fprintf(zindFID, "%d %12.10f --> %12.10f\n", it, zEnd, zind);
                 //Points.push_back({xind, yEnd, zind, iline, iy, it});
+                if (zEnd > opts.zmax)
+                {
+                    std::cout<<"We have a problem now..."<<std::endl;
+                    double diff = std::abs(zEnd - opts.zmax);
+                    std::cout<<"diff is "<<diff<<std::endl;
+                    std::cout<<"*******"<<std::endl;
+                }
 
                 Point _p;
                 _p.traj1 = it; _p.traj2 = xind; _p.traj3 = yEnd; _p.traj4 = zind;
-                _p.traj5 = region; _p.traj7 = zEnd;
-                fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", _p.traj1, _p.traj2, (int)_p.traj3, _p.traj4, (int)_p.traj5, _p.traj7);
+                _p.traj5 = region;
+                _p.traj7 = zEnd_no_mod;
                 Points.push_back(_p);
-
-                if (zEnd < opts.zmin || zEnd > opts.zmax)
-                    zEnd = double_mod(zEnd, opts.zmax);
-                zind = INTERP(opts.zarray, opts.ziarray, zEnd);
 
                 it = it+1;
                 xStart = xEnd;
                 yStart = yEnd;
                 zStart = zEnd;
+                fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", it, _p.traj2, (int)_p.traj3, _p.traj4, (int)_p.traj5, _p.traj7);
             }
             iturn++;
         }
@@ -669,7 +682,7 @@ int main()
         for (int i = 0; i < nc; i++)
         {
             //i = 328;
-            if (i == 228)
+            if (i == 3)
                 std::cout<<"***** problem point... "<<std::endl;
             int iit_i = iit[i];
             double fit_i = fit[iit_i];
@@ -753,6 +766,8 @@ int main()
 
             double ipx3d_tmp = rxyvalue*cos(zsvalue);
             double ipy3d_tmp = rxyvalue*sin(zsvalue);
+            double cz = cos(zvalue);
+            double sz = sin(zvalue);
             double ipx = ipx3d_tmp*cos(zvalue)-ipy3d_tmp*sin(zvalue);
             double ipy = ipx3d_tmp*sin(zvalue)+ipy3d_tmp*cos(zvalue);
             double ipz = zxyvalue;
@@ -762,11 +777,14 @@ int main()
                 // do the rxy/zxy interpolation
                 //if (i > 0) puncFid<<iit[i]-1<<", "<<fl_x3d[iit[i]-1]<<", "<<fl_y3d[iit[i]-1]<<", "<<fl_z3d[iit[i]-1]<<std::endl;
                 //puncFid<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
+                //puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<", "<<rxyvalue<<", "<<zxyvalue<<", "<<zsvalue<<", "<<zvalue<<std::endl;
                 puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
                 //puncFid<<iit[i]+1<<", "<<fl_x3d[iit[i]+1]<<", "<<fl_y3d[iit[i]+1]<<", "<<fl_z3d[iit[i]+1]<<std::endl;
             }
             else
             {
+                //puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<", SKIP"<<std::endl;
+                //puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<", "<<rxyvalue<<", "<<zxyvalue<<", "<<zsvalue<<", "<<zvalue<<", SKIP"<<std::endl;
                 punc_ip_Fid<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
             }
         }
