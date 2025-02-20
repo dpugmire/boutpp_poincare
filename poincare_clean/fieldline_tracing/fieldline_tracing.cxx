@@ -10,6 +10,7 @@ std::ofstream trajspline("/Users/dpn/trajspline.c.txt", std::ofstream::out);
 std::ofstream puncFid("/Users/dpn/punc.c.txt");
 std::ofstream punc_ip_Fid("/Users/dpn/punc_ip.c.txt");
 std::ofstream puncFid2("/Users/dpn/punc2.c.txt");
+std::ofstream puncSplineFid("/Users/dpn/puncspline.c.txt");
 std::ofstream rawPunc("/Users/dpn/rawpunc.c.txt", std::ofstream::out);
 std::ofstream trajOut("/Users/dpn/traj.c.txt", std::ofstream::out);
 std::ofstream stepOut("/Users/dpn/steps.c.txt", std::ofstream::out);
@@ -412,6 +413,11 @@ void processPunctures(
     }
 }
 
+bool signChange(const double& x0, const double& x1)
+{
+    return (x0 * x1 < 0 && x0 != 0 && x1 != 0);
+}
+
 int main()
 {
     trajspline  <<"ID, STEP, X, Y, Z, REGION\n";
@@ -419,6 +425,7 @@ int main()
     rawPunc<<"ID, STEP, X, Y, Z\n";
     puncFid<<"ID, STEP, X, Y, Z\n";
     puncFid2<<"ID, STEP, X, Y, Z\n";
+    puncSplineFid<<"ID, STEP, X, Y, Z\n";
     punc_ip_Fid<<"ID, STEP, X, Y, Z\n";
     stepOut<<"ID, STEP, X, Y, Z\n";
     rk4Out<<"ID, STEP, X, Y, Z\n"<<std::scientific<<std::setprecision(6);
@@ -678,6 +685,65 @@ int main()
                 std::cout<<"***** problem point... "<<valX<<" "<<valY<<" "<<valZ<<std::endl;
             rawPunc<<iline<<", "<<i<<", "<<valX<<", "<<valY<<", "<<valZ<<std::endl;
         }
+        // do a root finding for punctures.
+        {
+            SplineInterpolation xvalues(itarray, fl_x3d);
+
+            for (int i = 1; i < itarray.size(); i++)
+            {
+                double x0 = fl_x3d[i-1];
+                double x1 = fl_x3d[i];
+                //sign change.
+                if (signChange(x0, x1))
+                {
+                    double t0 = itarray[i-1];
+                    double t1 = itarray[i];
+
+                    bool done = false;
+                    double tZero = 0.0;
+                    int cnt = 0;
+                    while (!done && cnt < 100)
+                    {
+                        double val0 = xvalues.evaluate(t0);
+                        double val1 = xvalues.evaluate(t1);
+
+                        double dt = t1-t0;
+                        double tMid = t0 + dt * 0.5;
+                        double valMid = xvalues.evaluate(tMid);
+                        //zero lies between t0 and tmid
+                        if (signChange(val0, valMid))
+                        {
+                            t0 = t0;
+                            t1 = tMid;
+                            val0 = val0;
+                            val1 = valMid;
+                        }
+                        // zero lies between tmid and t1.
+                        else
+                        {
+                            t0 = tMid;
+                            t1 = t1;
+                            val0 = valMid;
+                            val1 = val1;
+                        }
+                        double diff = std::fabs(val0-val1);
+                        cnt++;
+
+                        if (diff < 1e-8)
+                        {
+                            tZero = t0 + (t1-t0) * 0.5;
+                            done = true;
+                        }
+                    }
+                    double result = xvalues.evaluate(tZero);
+                    double sx = result;
+                    double sy = ffl_y3d.evaluate(tZero);
+                    double sz = ffl_z3d.evaluate(tZero);
+                    puncSplineFid<<iline<<", "<<tZero<<", "<<sx<<", "<<sy<<", "<<sz<<std::endl;
+                    std::cout<<cnt<<": X crossing: "<<tZero<<" val= "<<result<<std::endl;
+                }
+            }
+        }
 
         for (int i = 0; i < nc; i++)
         {
@@ -774,6 +840,7 @@ int main()
 
             if (ipy > 0.0)
             {
+                ipx = 0.0;
                 // do the rxy/zxy interpolation
                 //if (i > 0) puncFid<<iit[i]-1<<", "<<fl_x3d[iit[i]-1]<<", "<<fl_y3d[iit[i]-1]<<", "<<fl_z3d[iit[i]-1]<<std::endl;
                 //puncFid<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
