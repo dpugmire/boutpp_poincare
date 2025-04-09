@@ -232,6 +232,55 @@ avgArrays(const std::vector<std::vector<double>>& x,
     return result;
 }
 
+static int count = 0;
+double maxErrx1, maxErrz1, maxErrx2, maxErrz2;
+double maxX1, maxZ1, maxX2, maxZ2;
+
+void splineTest(double xStart, double zStart,
+                std::vector<std::vector<double>>& dxdyp,
+                std::vector<std::vector<double>>& dzdyp,
+                std::vector<double>& xarray,  std::vector<double>& zarray)
+{
+    double linear_dxdy = bilinear_interp2(xarray, zarray, dxdyp, xStart, zStart);
+    double linear_dzdy = bilinear_interp2(xarray, zarray, dzdyp, xStart, zStart);
+
+    double spline1_dxdy = alglib_spline(xarray, zarray, dxdyp, xStart, zStart);
+    double spline1_dzdy = alglib_spline(xarray, zarray, dzdyp, xStart, zStart);
+    SplineInterpolation spline1dx(xarray, zarray, dxdyp), spline1dz(xarray, zarray, dzdyp);
+    double spline2_dxdy = spline1dx.evaluate(xStart, zStart);
+    double spline2_dzdy = spline1dz.evaluate(xStart, zStart);
+
+    //double spline3_dxydy = interp2Spline(xarray, zarray, dxdyp, xStart, zStart);
+    //double spline3_dzydy = interp2Spline(xarray, zarray, dzdyp, xStart, zStart);
+
+    double errx1 = std::abs(linear_dxdy-spline1_dxdy), errz1 = std::abs(linear_dzdy-spline1_dzdy);
+    double errx2 = std::abs(linear_dxdy-spline2_dxdy), errz2 = std::abs(linear_dzdy-spline2_dzdy);
+    if (count == 0)
+    {
+        maxErrx1 = errx1;
+        maxErrz1 = errz1;
+        maxErrx2 = errx2;
+        maxErrz2 = errz2;
+        maxX1 = maxX2 = xStart;
+        maxZ1 = maxZ2 = zStart;
+    }
+    if (errx1 > maxErrx1) {maxErrx1 = errx1; maxX1 = xStart;}
+    if (errz1 > maxErrz1) {maxErrz1 = errz1; maxZ1 = zStart;}
+    if (errx2 > maxErrx2) {maxErrx2 = errx2; maxX2 = xStart;}
+    if (errz2 > maxErrz2) {maxErrz2 = errz2; maxZ2 = zStart;}
+
+    std::cout<<"*************************************"<<std::endl;
+    std::cout<<"pt: "<<xStart<<" "<<zStart<<std::endl;
+    std::cout<<" Linear: "<<linear_dxdy<<" "<<linear_dzdy<<std::endl;
+    std::cout<<"   Spline1: ("<<spline1_dxdy<<" "<<spline1_dzdy<<") "<<std::abs(linear_dxdy-spline1_dxdy)<<" "<<std::abs(linear_dxdy-spline1_dzdy)<<std::endl;
+    std::cout<<"   Spline2: ("<<spline2_dxdy<<" "<<spline2_dzdy<<") "<<std::abs(linear_dxdy-spline2_dxdy)<<" "<<std::abs(linear_dxdy-spline2_dzdy)<<std::endl;
+
+    std::cout<<"***** MAX: "<<maxErrx1<<" "<<maxErrz1<<" "<<maxErrx2<<" "<<maxErrz2<<std::endl;
+    std::cout<<"        max1 at: "<<maxX1<<" "<<maxZ1<<std::endl;
+    std::cout<<"        max2 at: "<<maxX2<<" "<<maxZ2<<std::endl<<std::endl;
+    count++;
+}
+
 std::pair<double, double> RK4_FLT1(
     double xStart, double yStart, double zStart,
     const std::vector<std::vector<std::vector<double>>>& dxdy,
@@ -342,7 +391,13 @@ std::pair<double, double> RK4_FLT1(
         writeArray2DToFile(dzdyh, "dzdyh_");
     }
 
-    bool useSplineInterp = false;
+    bool doTest = false;
+    if (doTest)
+    {
+        splineTest(xStart, zStart, dxdyp, dzdyp, xarray, zarray);
+    }
+
+    bool useSplineInterp = true;
 
     // Interpolation using the SplineInterpolation class
     //SplineInterpolation splineDxdy(xarray, zarray, dxdyp); //[zStart]);
@@ -354,16 +409,12 @@ std::pair<double, double> RK4_FLT1(
     double dxdy1, dzdy1;
     if (useSplineInterp)
     {
-        double tmp1 = alglib_spline(xarray, zarray, dxdyp, xStart, zStart);
-        double tmp2 = alglib_spline(xarray, zarray, dzdyp, xStart, zStart);
         SplineInterpolation spline1dx(xarray, zarray, dxdyp), spline1dz(xarray, zarray, dzdyp);
         dxdy1 = spline1dx.evaluate(xStart, zStart);
         dzdy1 = spline1dz.evaluate(xStart, zStart);
     }
     else
     {
-        //double tmp1 = alglib_spline(xarray, zarray, dxdyp, xStart, zStart);
-        //double tmp2 = alglib_spline(xarray, zarray, dzdyp, xStart, zStart);
         dxdy1 = bilinear_interp2(xarray, zarray, dxdyp, xStart, zStart);
         dzdy1 = bilinear_interp2(xarray, zarray, dzdyp, xStart, zStart);
 

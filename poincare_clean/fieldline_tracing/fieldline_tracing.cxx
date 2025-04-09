@@ -418,6 +418,7 @@ bool signChange(const double& x0, const double& x1)
     return (x0 * x1 < 0 && x0 != 0 && x1 != 0);
 }
 
+
 int main()
 {
     trajspline  <<"ID, STEP, X, Y, Z, REGION\n";
@@ -442,6 +443,7 @@ int main()
     for (int i = 0; i < 250; i+= 5)
         LINES.push_back(i);
     int nturns = 15;
+    nturns = 150;
     //LINES = {149};
     //LINES = {0,50,100,150,200,250};
     LINES = {150};
@@ -729,7 +731,7 @@ int main()
                         double diff = std::fabs(val0-val1);
                         cnt++;
 
-                        if (diff < 1e-8)
+                        if (diff < 1e-12)
                         {
                             tZero = t0 + (t1-t0) * 0.5;
                             done = true;

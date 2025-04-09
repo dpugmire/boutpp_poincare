@@ -121,7 +121,7 @@ void SplineInterpolation::compute1DSplineCoefficients()
     for (size_t i = 0; i < n - 1; ++i)
         h[i] = x1D[i + 1] - x1D[i];
 
-    for (size_t i = 1; i < n - 1; ++i)  
+    for (size_t i = 1; i < n - 1; ++i)
         alpha[i - 1] = (3.0 * (a1D[i + 1] - a1D[i]) / h[i]) - (3.0 * (a1D[i] - a1D[i - 1]) / h[i - 1]);
 
     std::vector<double> l(n), mu(n), z(n);
@@ -185,7 +185,7 @@ void SplineInterpolation::compute2DSplineCoefficients()
         // Assign spline coefficients
         for (size_t j = 0; j < ny; ++j)
         {
-            a2D[i][j] = rowSpline.a1D[j];  
+            a2D[i][j] = rowSpline.a1D[j];
             c2D[i][j] = rowSpline.c1D[j];  // c1D has size ny
         }
         for (size_t j = 0; j < ny - 1; ++j)  // Fix: only iterate up to ny-1

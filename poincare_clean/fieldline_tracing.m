@@ -26,6 +26,7 @@ rk4FID = fopen('/Users/dpn/rk4.m.txt', 'w');
 trajSplineFID = fopen('/Users/dpn/trajspline.m.txt', 'w');
 rawPuncFid = fopen('/Users/dpn/rawpunc.m.txt', 'w');
 puncFid = fopen('/Users/dpn/punc.m.txt', 'w');
+puncSplineFid = fopen('/Users/dpn/puncspline.m.txt', 'w');
 punc_ip_Fid = fopen('/Users/dpn/punc_ip.m.txt', 'w');
 TRAJ_FID = fopen('/Users/dpn/pt_traj.m.txt', 'w');
 
@@ -33,6 +34,7 @@ fprintf(trajFID, 'ID, STEP, X, Y, Z, REGION, YI, ZSVALUE, ZVALUE\n');
 fprintf(trajSplineFID, 'ID, STEP, X, Y, Z, REGION\n');
 fprintf(rawPuncFid, 'ID, STEP, X, Y, Z\n');
 fprintf(puncFid, 'ID, STEP, X, Y, Z\n');
+fprintf(puncSplineFid, 'ID, STEP, X, Y, Z, REGION\n');
 fprintf(punc_ip_Fid, 'ID, STEP, X, Y, Z\n');
 fprintf(stepsFID, 'ID, STEP, X, Y, Z\n');
 fprintf(rk4FID, 'ID, STEP, X, Y, Z\n');
@@ -732,7 +734,7 @@ yiarray = (1:ny);
     %% DRP: Save out high resolution trajectory.
     if (saveHighResTraj)
       _xi = 1:itmax;
-      _samples = 1:0.01:itmax;
+      _samples = 1:0.001:itmax;
       nsamples = length(_samples);
       xVals = zeros(1, itmax);
       yVals = zeros(1, itmax);
@@ -756,8 +758,56 @@ yiarray = (1:ny);
       splineX = spline(_xi, xVals, _samples);
       splineY = spline(_xi, yVals, _samples);
       splineZ = spline(_xi, zVals, _samples);
+      splineXEval = spline(_xi, xVals);
       for _it=1:nsamples
         fprintf(trajSplineFID, '%d, %f, %f, %f, %f, %d\n', iline-1, _samples(_it)-1.0, splineX(_it), splineY(_it), splineZ(_it), region);
+        % root finding for more accurate punctures.
+        if _it > 1 && _it < nsamples
+            x0 = ppval(splineXEval, _samples(_it-1));
+            x1 = ppval(splineXEval, _samples(_it));
+            if x0*x1 < 0 && x0 != 0 && x1 != 0
+                %% Zero crossing exists between x0 and x1.
+                t0 = _samples(_it-1);
+                t1 = _samples(_it);
+                cnt = 0;
+                tZero = -1.0;
+                for _cnt=1:100
+                    val0 = ppval(splineXEval, t0);
+                    val1 = ppval(splineXEval, t1);
+                    dt = t1-t0;
+                    tMid = t0 + dt * 0.5;
+                    valMid = ppval(splineXEval, tMid);
+
+                    % zero lies between t0 and tMid
+                    if val0*valMid < 0 && val0 != 0 && valMid != 0
+                        t0 = t0;
+                        t1 = tMid;
+                        val0 = val0;
+                        val1 = valMid;
+                    else  % zero lies between tMid and t1
+                        t0 = tMid;
+                        t1 = t1;
+                        val0 = valMid;
+                        val1 = val1;
+                    endif
+                    dx = abs(val0-val1);
+                    %fprintf('  *** %d: zero finding: (%12.10f %12.10f) dX= %15.13f\n', _cnt, val0, val1, dx);
+
+                    if dx < 1e-8
+                        tZero = t0 + (t1-t0)*0.5;
+                        break;
+                    endif
+                endfor
+
+                px0 = ppval(splineXEval, tZero);
+                splineYEval = spline(_xi, yVals);
+                splineZEval = spline(_xi, zVals);
+                py0 = ppval(splineYEval, tZero);
+                pz0 = ppval(splineZEval, tZero);
+                fprintf(' FOUND Zero: cnt= %d  %d, %f, %f, %f, %f, %d\n', _cnt, iline-1, tZero-1.0, px0, py0, pz0, region);
+                fprintf(puncSplineFid, '%d, %f, %f, %f, %f, %d\n', iline-1, tZero-1.0, px0, py0, pz0, region);
+            endif
+        endif
       endfor
 
     endif
