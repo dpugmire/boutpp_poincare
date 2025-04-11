@@ -598,7 +598,7 @@ int main()
         auto zStart = opts.zarray[zzz];
         std::cout<<"**** xind= "<<xind<<" opts.jyomp= "<<opts.jyomp<<" zStart= "<<zStart<<std::endl;
         double xStart = opts.psixy[static_cast<int>(xind)][opts.jyomp];
-        double xStart2 = scalarField2DEval(opts.Grid2D, "psixy", {xind, (double)yStart, 0});
+        double xStart2 = scalarField2DEval(opts.Grid2D, "psixy", vtkm::Vec3f(xind, (double)yStart, 0));
 
         //int yind = yStart;
         double zind = INTERP(opts.zarray, opts.ziarray, zStart);
@@ -647,7 +647,7 @@ int main()
                     bool dumpFiles = false;
                     //auto step = RK4_FLT1(xStart, yStart, zStart, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
                     vtkm::Vec3f pt0(xStart, yStart, zStart), p1;
-                    auto step = RK4_FLT1_vtkm(pt0, opts.Grid2D, opts.Grid3D, opts.XArray, opts.ZArray, region, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
+                    auto step = RK4_FLT1_vtkm(pt0, opts.Grid2D, opts.Grid2D_cfr, opts.Grid2D_xz, opts.Grid3D, opts.XArray, opts.ZArray, region, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
                     xEnd = step.first;
                     zEnd = step.second;
                     yEnd = yStart+1;

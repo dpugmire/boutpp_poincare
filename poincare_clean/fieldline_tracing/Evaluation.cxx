@@ -1,4 +1,14 @@
 #include "Evaluation.h"
+#include <vtkm/cont/CellLocatorUniformGrid.h>
+#include <vtkm/cont/DataSetBuilderExplicit.h>
+#include <vtkm/cont/DataSetBuilderUniform.h>
+#include <vtkm/exec/CellInterpolate.h>
+#include <vtkm/filter/flow/worklet/CellInterpolationHelper.h>
+#include <vtkm/filter/resampling/Probe.h>
+#include <vtkm/io/VTKDataSetWriter.h>
+#include <vtkm/worklet/WorkletMapField.h>
+#include <vtkm/cont/ArrayHandleConstant.h>
+#include <vtkm/cont/ArrayHandleCounting.h>
 
 
 namespace
@@ -94,34 +104,80 @@ vtkm::FloatDefault scalarField1DEval(const vtkm::cont::ArrayHandle<vtkm::FloatDe
 }
 
 vtkm::FloatDefault scalarField2DEval(const vtkm::cont::DataSet& dataset,
-const std::string& fieldname,
-const vtkm::Vec3f& pt)
+                                     const std::string& fieldname,
+                                     const vtkm::Vec3f& pt)
 {
-vtkm::filter::resampling::Probe probe;
-
-vtkm::cont::DataSetBuilderExplicit builder;
-std::vector<vtkm::Vec3f> pts = { pt };
-auto inPts = builder.Create(pts, {vtkm::CELL_SHAPE_VERTEX}, {1}, {0});
-
-probe.SetGeometry(inPts);
-auto output = probe.Execute(dataset);
-
-vtkm::cont::ArrayHandle<vtkm::FloatDefault> fieldArray;
-output.GetField(fieldname).GetData().AsArrayHandle(fieldArray);
-
-return fieldArray.ReadPortal().Get(0);
+    return scalarField3DEval(dataset, fieldname, pt);
+}
 
 #if 0
-vtkm::cont::CellLocatorUniformGrid locator;
-locator.SetCoordinates(dataset.GetCoordinateSystem());
-locator.SetCellSet(dataset.GetCellSet());
-locator.Update();
+vtkm::FloatDefault scalarField2DEval(const vtkm::cont::DataSet& dataset,
+                                     const std::string& fieldname,
+                                     const std::vector<vtkm::Vec3f>& pts)
+{
+  return scalarField3DEval(dataset, fieldname, pts);
+  /*
+  vtkm::filter::resampling::Probe probe;
 
-vtkm::cont::CellInterpolationHelper interpolationHelper(dataset.GetCellSet());
-vtkm::cont::Invoker invoker;
-vtkm::cont::ArrayHandle<vtkm::Vec3f> input = vtkm::cont::make_ArrayHandle<vtkm::Vec3f>(pts, vtkm::CopyFlag::Off);
-vtkm::cont::ArrayHandle<vtkm::FloatDefault> output;
-invoker(LocatorWorklet{}, input, dataset.GetField(fieldname), locator, interpolationHelper, output);
-//  interpolationHelper.
+  vtkm::cont::DataSetBuilderExplicit builder;
+  auto inPts = builder.Create(pts, { vtkm::CELL_SHAPE_VERTEX }, { 1 }, { 0 });
+
+  probe.SetGeometry(inPts);
+  auto output = probe.Execute(dataset);
+
+  vtkm::cont::ArrayHandle<vtkm::FloatDefault> fieldArray;
+  output.GetField(fieldname).GetData().AsArrayHandle(fieldArray);
+
+  return fieldArray.ReadPortal().Get(0);
+  */
+
+#if 0
+    vtkm::cont::CellLocatorUniformGrid locator;
+    locator.SetCoordinates(dataset.GetCoordinateSystem());
+    locator.SetCellSet(dataset.GetCellSet());
+    locator.Update();
+
+    vtkm::cont::CellInterpolationHelper interpolationHelper(dataset.GetCellSet());
+    vtkm::cont::Invoker invoker;
+    vtkm::cont::ArrayHandle<vtkm::Vec3f> input = vtkm::cont::make_ArrayHandle<vtkm::Vec3f>(pts, vtkm::CopyFlag::Off);
+    vtkm::cont::ArrayHandle<vtkm::FloatDefault> output;
+    invoker(LocatorWorklet{}, input, dataset.GetField(fieldname), locator, interpolationHelper, output);
+    //  interpolationHelper.
 #endif
 }
+#endif
+
+vtkm::FloatDefault
+scalarField3DEval(const vtkm::cont::DataSet& dataset,
+                  const std::string& fieldname,
+                  const vtkm::Vec3f& pt)
+{
+    vtkm::cont::DataSetBuilderExplicit builder;
+    vtkm::Id num = 1;
+
+    if (num != 1)
+      throw std::runtime_error("Only 1 point is supported");
+
+    std::vector<vtkm::Vec3f> pts = {pt};
+    std::vector<vtkm::Id> ptIds;
+    std::vector<vtkm::IdComponent> numPts;
+    std::vector<vtkm::UInt8> cellTypes;
+    for (vtkm::Id i = 0; i < num; i++)
+    {
+        ptIds.push_back(i);
+        numPts.push_back(1);
+        cellTypes.push_back(vtkm::CELL_SHAPE_VERTEX);
+    }
+
+    auto samplePts = builder.Create(pts, cellTypes, numPts, ptIds);
+
+    vtkm::filter::resampling::Probe probe;
+    probe.SetGeometry(samplePts);
+    auto output = probe.Execute(dataset);
+
+    vtkm::cont::ArrayHandle<vtkm::FloatDefault> fieldArray;
+    output.GetField(fieldname).GetData().AsArrayHandle(fieldArray);
+
+    return fieldArray.ReadPortal().Get(0);
+
+}                                     

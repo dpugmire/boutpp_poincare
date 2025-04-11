@@ -300,6 +300,8 @@ std::pair<double, double> RK4_FLT1(
 
     double val0 = dxdy[123][79][101];
     double val1 = dxdy[192][47][200];
+    //std::cout<<"dxdy: "<<val0<<" "<<val1<<std::endl;
+    //throw std::runtime_error("RK4_FLT1_vtkm: Not implemented.");
 
     if (dumpFiles)
     {
