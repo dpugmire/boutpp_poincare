@@ -1,5 +1,6 @@
 #include "RK4.h"
 #include "SplineInterpolation.h"
+#include "Evaluation.h"
 #include <cmath>
 #include <stdexcept>
 #include <fstream>

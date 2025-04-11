@@ -7,8 +7,7 @@
 #include <vtkm/filter/resampling/Probe.h>
 #include <vtkm/exec/CellInterpolate.h>
 
-#ifndef _Evauluation_h_
-#define _Evaluation_h_
+#pragma once
 
 vtkm::FloatDefault scalarField1DEval(const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& x,
                                      const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& y,
@@ -21,6 +20,3 @@ vtkm::FloatDefault scalarField1DEval(const vtkm::cont::ArrayHandle<vtkm::FloatDe
 vtkm::FloatDefault scalarField2DEval(const vtkm::cont::DataSet& dataset,
     const std::string& fieldname,
     const vtkm::Vec3f& pt);
-
-
-#endif // _Evauluation_h_

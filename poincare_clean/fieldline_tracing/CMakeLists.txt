@@ -22,9 +22,9 @@ link_directories(/opt/homebrew/lib)
 add_subdirectory(alglib)
 
 
-add_executable(fieldline_tracing fieldline_tracing.cxx SplineInterpolation.cxx NetCDFLoader.cxx RK4.cxx)
-add_executable(fieldline_tracing_vtkm fieldline_tracing_vtkm.cxx SplineInterpolation.cxx NetCDFLoader.cxx RK4.cxx Evaluation.cxx)
+add_executable(fieldline_tracing fieldline_tracing.cxx SplineInterpolation.cxx NetCDFLoader.cxx RK4.cxx )
+add_executable(fieldline_tracing_vtkm fieldline_tracing_vtkm.cxx SplineInterpolation.cxx NetCDFLoader.cxx RK4_vtkm.cxx Evaluation.cxx)
 
 #target_link_libraries(fieldline_tracing NetCDF::NetCDF)
-target_link_libraries(fieldline_tracing netcdf alglib ${TINY_SPLINE_LIB})
+target_link_libraries(fieldline_tracing netcdf alglib ${TINY_SPLINE_LIB} vtkm::cont)
 target_link_libraries(fieldline_tracing_vtkm netcdf alglib ${TINY_SPLINE_LIB} vtkm::cont vtkm::io vtkm::filter_resampling)

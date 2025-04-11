@@ -1,7 +1,8 @@
 #include "NetCDFLoader.h"
 #include "SplineInterpolation.h"
-#include "Evaluation.h"
 #include "RK4.h"
+#include "RK4_vtkm.h"
+#include "Evaluation.h"
 #include <iostream>
 #include <fstream>
 #include <cmath>
@@ -16,6 +17,7 @@
 #include <vtkm/filter/flow/worklet/CellInterpolationHelper.h>
 #include <vtkm/filter/resampling/Probe.h>
 #include <vtkm/exec/CellInterpolate.h>
+
 
 std::ofstream trajspline("/Users/dpn/trajspline.v.txt", std::ofstream::out);
 std::ofstream puncFid("/Users/dpn/punc.v.txt");
@@ -92,6 +94,12 @@ class Options
     Options(const std::string& fileName)
     : loader(fileName)
     {
+        this->nx = this->loader.getDim("nx");
+        this->ny = this->loader.getDim("ny");
+        this->nz = this->loader.getDim("nz");
+        this->nx_cfr = this->loader.getDim("nx_cfr");
+        this->ny_cfr = this->loader.getDim("ny_cfr");
+
         this->rxy = this->loader.read2DVariable("rxy");
         this->zxy = this->loader.read2DVariable("zxy");
         this->rxy_cfr = this->loader.read2DVariable("rxy_cfr");
@@ -167,16 +175,40 @@ class Options
         vtkm::Id3 dims(this->nx, this->ny, 1);
         vtkm::Vec3f origin(0.0, 0.0, 0.0), spacing(1.0, 1.0, 1.0);
         this->Grid2D = builder.Create(dims, origin, spacing);
-        //flatten and add field.
-        std::vector<vtkm::FloatDefault> field;
-        field.reserve(this->nx * this->ny);
-        for (vtkm::Id j = 0; j < this->ny; ++j)
-            for (vtkm::Id i = 0; i < this->nx; ++i)
-              field.push_back(this->psixy[i][j]);
-        this->Grid2D.AddPointField("psixy", field);
+        dims = { this->nx_cfr, this->ny_cfr, 1 };
+        this->Grid2D_cfr = builder.Create(dims, origin, spacing);
+        dims = { this->nx, this->nz, 1 };
+        this->Grid2D_xz = builder.Create(dims, origin, spacing);
+
+        //Add fields.
+        this->AddField(this->psixy, "psixy", this->Grid2D);
+        this->AddField(this->zShift, "zShift", this->Grid2D);
+        this->AddField(this->rxy, "rxy", this->Grid2D);
+        this->AddField(this->zxy, "zxy", this->Grid2D);
+
+        this->AddField(this->zShift_cfr, "zShift_cfr", this->Grid2D_cfr);
+        this->AddField(this->rxy_cfr, "rxy_cfr", this->Grid2D_cfr);
+        this->AddField(this->zxy_cfr, "zxy_cfr", this->Grid2D_cfr);
+
+
+        this->AddField(this->dxdy_m1, "dxdy_m1", this->Grid2D_xz);
+        this->AddField(this->dxdy_p1, "dxdy_p1", this->Grid2D_xz);
+        this->AddField(this->dzdy_m1, "dzdy_m1", this->Grid2D_xz);
+        this->AddField(this->dzdy_p1, "dzdy_p1", this->Grid2D_xz);
+
+        dims = { this->nx, this->ny, this->nz };
+        this->Grid3D = builder.Create(dims, origin, spacing);
+        this->AddField(this->dxdy, "dxdy", this->Grid3D);
+        this->AddField(this->dzdy, "dzdy", this->Grid3D);
 
         vtkm::io::VTKDataSetWriter writer("/Users/dpn/grid2D.vtk");
         writer.WriteDataSet(this->Grid2D);
+        writer = vtkm::io::VTKDataSetWriter("/Users/dpn/grid2D_cfr.vtk");
+        writer.WriteDataSet(this->Grid2D_cfr);
+        writer = vtkm::io::VTKDataSetWriter("/Users/dpn/grid2D_xz.vtk");
+        writer.WriteDataSet(this->Grid2D_xz);
+        writer = vtkm::io::VTKDataSetWriter("/Users/dpn/grid3D.vtk");
+        writer.WriteDataSet(this->Grid3D);
         this->XArray = vtkm::cont::make_ArrayHandle(this->xarray, vtkm::CopyFlag::On);
         this->XiArray = vtkm::cont::make_ArrayHandle(this->xiarray, vtkm::CopyFlag::On);
         this->ZArray = vtkm::cont::make_ArrayHandle(this->zarray, vtkm::CopyFlag::On);
@@ -184,9 +216,36 @@ class Options
         this->ShiftAngle = vtkm::cont::make_ArrayHandle(this->shiftAngle, vtkm::CopyFlag::On);
     }
 
+    void AddField(const std::vector<std::vector<double>>& vals, const std::string& fieldName, vtkm::cont::DataSet& ds)
+    {
+        vtkm::Id n_y = vals[0].size();
+        vtkm::Id n_x = vals.size();
 
-    void
-    init_array(std::vector<double>& arr, size_t n)
+        std::vector<double> field;
+        field.reserve(n_x * n_y);
+        for (vtkm::Id j = 0; j < n_y; ++j)
+            for (vtkm::Id i = 0; i < n_x; ++i)
+                field.push_back(vals[i][j]);
+        ds.AddPointField(fieldName, field);
+    }
+
+    void AddField(const std::vector<std::vector<std::vector<double>>>& vals, const std::string& fieldName, vtkm::cont::DataSet& ds)
+    {
+        vtkm::Id n_z = vals[0][0].size();
+        vtkm::Id n_y = vals[0].size();
+        vtkm::Id n_x = vals.size();
+
+        std::vector<double> field;
+        field.reserve(n_x * n_y * n_z);
+        for (vtkm::Id k = 0; k < n_z; ++k)
+            for (vtkm::Id j = 0; j < n_y; ++j)
+                for (vtkm::Id i = 0; i < n_x; ++i)
+                    field.push_back(vals[i][j][k]);
+        ds.AddPointField(fieldName, field);
+    }
+
+
+      void init_array(std::vector<double>& arr, size_t n)
     {
         this->init_array(arr, 0, n);
     }
@@ -254,6 +313,8 @@ class Options
     int nx = 260;
     int ny = 128;
     int nz = 256;
+    int nx_cfr = 195;
+    int ny_cfr = 97;
     double xMin, xMax;
     int jyomp;
     double zmin = 0.0;
@@ -286,7 +347,8 @@ class Options
     NetCDFLoader loader;
 
     //vtkm data.
-    vtkm::cont::DataSet Grid2D;
+    vtkm::cont::DataSet Grid2D, Grid2D_cfr, Grid2D_xz;
+    vtkm::cont::DataSet Grid3D;
     vtkm::cont::ArrayHandle<vtkm::FloatDefault> XArray, ZArray;
     vtkm::cont::ArrayHandle<vtkm::FloatDefault> XiArray, YiArray, ZiArray;
     vtkm::cont::ArrayHandle<vtkm::FloatDefault> ShiftAngle;
@@ -583,7 +645,9 @@ int main()
                 if (region == 0 && yStart >= opts.nypf1 && yStart < opts.nypf2+1)
                 {
                     bool dumpFiles = false;
-                    auto step = RK4_FLT1(xStart, yStart, zStart, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
+                    //auto step = RK4_FLT1(xStart, yStart, zStart, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
+                    vtkm::Vec3f pt0(xStart, yStart, zStart), p1;
+                    auto step = RK4_FLT1_vtkm(pt0, opts.Grid2D, opts.Grid3D, opts.XArray, opts.ZArray, region, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
                     xEnd = step.first;
                     zEnd = step.second;
                     yEnd = yStart+1;

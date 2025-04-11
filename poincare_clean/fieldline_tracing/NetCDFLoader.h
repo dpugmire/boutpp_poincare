@@ -20,6 +20,16 @@ public:
         nc_close(this->ncid);
     }
 
+    int getDim(const std::string& name) const
+    {
+        int dimid;
+        size_t dimSz;
+        nc_inq_dimid(this->ncid, name.c_str(), &dimid);
+        nc_inq_dimlen(this->ncid, dimid, &dimSz);
+
+        return static_cast<int>(dimSz);
+    }
+
     std::vector<double> read1DVariable(const std::string& varName);
     std::vector<std::vector<double>> read2DVariable(const std::string& varName, bool transpose=true);
     std::vector<std::vector<std::vector<double>>> read3DVariable(const std::string& varName, bool permute=true);
