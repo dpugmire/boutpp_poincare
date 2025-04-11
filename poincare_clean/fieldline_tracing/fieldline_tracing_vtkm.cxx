@@ -181,6 +181,7 @@ class Options
         this->XiArray = vtkm::cont::make_ArrayHandle(this->xiarray, vtkm::CopyFlag::On);
         this->ZArray = vtkm::cont::make_ArrayHandle(this->zarray, vtkm::CopyFlag::On);
         this->ZiArray = vtkm::cont::make_ArrayHandle(this->ziarray, vtkm::CopyFlag::On);
+        this->ShiftAngle = vtkm::cont::make_ArrayHandle(this->shiftAngle, vtkm::CopyFlag::On);
     }
 
 
@@ -288,6 +289,7 @@ class Options
     vtkm::cont::DataSet Grid2D;
     vtkm::cont::ArrayHandle<vtkm::FloatDefault> XArray, ZArray;
     vtkm::cont::ArrayHandle<vtkm::FloatDefault> XiArray, YiArray, ZiArray;
+    vtkm::cont::ArrayHandle<vtkm::FloatDefault> ShiftAngle;
 };
 
 
@@ -525,7 +527,6 @@ int main()
 
     auto start = std::chrono::high_resolution_clock::now();
 
-
     for (const auto& iline : LINES)
     {
         xind = static_cast<double>(iline);
@@ -603,6 +604,8 @@ int main()
                 else
                 {
                     xind = INTERP(opts.xarray, opts.xiarray, xEnd);
+                    auto xind_ = scalarField1DEval(opts.XArray, opts.XiArray, xEnd);
+                    std::cout<<"   INTERP:  xind "<<xind<<" "<<xind_<<std::endl;
                     if (xind > static_cast<double>(opts.ixsep1) + 0.5)
                     {
                         region = 1;
@@ -615,6 +618,8 @@ int main()
                 {
                     std::cout<<"Branch cut: "<<yStart<<" "<<opts.nypf2<<std::endl;
                     double shiftAngle = INTERP(opts.xiarray, opts.shiftAngle, xind);
+                    double shiftAngle_ = scalarField1DEval(opts.XiArray, opts.ShiftAngle, xind);
+                    std::cout<<"   INTERP:  sa"<<shiftAngle<<" "<<shiftAngle_<<std::endl;
                     zEnd = zEnd + shiftAngle;
                     yEnd = opts.nypf1;
                 }
@@ -624,6 +629,8 @@ int main()
                 if (zEnd < opts.zmin || zEnd > opts.zmax)
                     zEnd = double_mod(zEnd, opts.zmax);
                 zind = INTERP(opts.zarray, opts.ziarray, zEnd);
+                auto zind_ = scalarField1DEval(opts.ZArray, opts.ZiArray, {zEnd});
+                std::cout<<" "<<zEnd<<" -->  zind: "<<zind<<" : "<<zind_<<std::endl;
 
                 //std::cout<<"********** it= "<<it<<" pt1= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<" zind "<<zind<<std::endl;
                 fprintf(zindFID, "%d %12.10f --> %12.10f\n", it, zEnd, zind);

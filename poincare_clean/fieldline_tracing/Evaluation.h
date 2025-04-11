@@ -11,8 +11,12 @@
 #define _Evaluation_h_
 
 vtkm::FloatDefault scalarField1DEval(const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& x,
-    const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& y,
-    const std::vector<vtkm::FloatDefault>& vals);
+                                     const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& y,
+                                     const std::vector<vtkm::FloatDefault>& vals);
+
+vtkm::FloatDefault scalarField1DEval(const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& x,
+                                     const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& y,
+                                     const vtkm::FloatDefault& val);
 
 vtkm::FloatDefault scalarField2DEval(const vtkm::cont::DataSet& dataset,
     const std::string& fieldname,

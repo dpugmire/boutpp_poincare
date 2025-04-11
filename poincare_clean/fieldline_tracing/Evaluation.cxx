@@ -70,6 +70,15 @@ private:
 } //namespace
 
 vtkm::FloatDefault scalarField1DEval(const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& x,
+    const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& y,
+    const vtkm::FloatDefault& val)
+{
+  std::vector<vtkm::FloatDefault> vals;
+  vals.push_back(val);
+  return scalarField1DEval(x, y, vals);
+}
+
+vtkm::FloatDefault scalarField1DEval(const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& x,
                                      const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& y,
                                      const std::vector<vtkm::FloatDefault>& vals)
 {
