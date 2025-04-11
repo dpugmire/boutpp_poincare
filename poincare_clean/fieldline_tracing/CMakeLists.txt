@@ -27,4 +27,4 @@ add_executable(fieldline_tracing_vtkm fieldline_tracing_vtkm.cxx SplineInterpola
 
 #target_link_libraries(fieldline_tracing NetCDF::NetCDF)
 target_link_libraries(fieldline_tracing netcdf alglib ${TINY_SPLINE_LIB})
-target_link_libraries(fieldline_tracing_vtkm netcdf alglib ${TINY_SPLINE_LIB} vtkm::cont)
+target_link_libraries(fieldline_tracing_vtkm netcdf alglib ${TINY_SPLINE_LIB} vtkm::cont vtkm::io vtkm::filter_resampling)

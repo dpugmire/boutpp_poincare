@@ -7,6 +7,14 @@
 #include <chrono>
 
 #include <vtkm/Particle.h>
+#include <vtkm/cont/DataSetBuilderUniform.h>
+#include <vtkm/cont/DataSetBuilderExplicit.h>
+#include <vtkm/io/VTKDataSetWriter.h>
+#include <vtkm/cont/CellLocatorUniformGrid.h>
+#include <vtkm/worklet/WorkletMapField.h>
+#include <vtkm/filter/flow/worklet/CellInterpolationHelper.h>
+#include <vtkm/filter/resampling/Probe.h>
+#include <vtkm/exec/CellInterpolate.h>
 
 std::ofstream trajspline("/Users/dpn/trajspline.v.txt", std::ofstream::out);
 std::ofstream puncFid("/Users/dpn/punc.v.txt");
@@ -152,6 +160,26 @@ class Options
         auto minmaxIt = std::minmax_element(this->xarray.begin(), this->xarray.end());
         this->xMin = *minmaxIt.first;
         this->xMax = *minmaxIt.second;
+
+        //VTKm stuff.
+        vtkm::cont::DataSetBuilderUniform builder;
+        vtkm::Id3 dims(this->nx, this->ny, 1);
+        vtkm::Vec3f origin(0.0, 0.0, 0.0), spacing(1.0, 1.0, 1.0);
+        this->Grid2D = builder.Create(dims, origin, spacing);
+        //flatten and add field.
+        std::vector<vtkm::FloatDefault> field;
+        field.reserve(this->nx * this->ny);
+        for (vtkm::Id j = 0; j < this->ny; ++j)
+            for (vtkm::Id i = 0; i < this->nx; ++i)
+              field.push_back(this->psixy[i][j]);
+        this->Grid2D.AddPointField("psixy", field);
+
+        vtkm::io::VTKDataSetWriter writer("/Users/dpn/grid2D.vtk");
+        writer.WriteDataSet(this->Grid2D);
+        this->XArray = vtkm::cont::make_ArrayHandle(this->xarray, vtkm::CopyFlag::On);
+        this->XiArray = vtkm::cont::make_ArrayHandle(this->xiarray, vtkm::CopyFlag::On);
+        this->ZArray = vtkm::cont::make_ArrayHandle(this->zarray, vtkm::CopyFlag::On);
+        this->ZiArray = vtkm::cont::make_ArrayHandle(this->ziarray, vtkm::CopyFlag::On);
     }
 
 
@@ -254,6 +282,47 @@ class Options
     std::vector<double> shiftAngle;
 
     NetCDFLoader loader;
+
+    //vtkm data.
+    vtkm::cont::DataSet Grid2D;
+    vtkm::cont::ArrayHandle<vtkm::FloatDefault> XArray, ZArray;
+    vtkm::cont::ArrayHandle<vtkm::FloatDefault> XiArray, YiArray, ZiArray;
+};
+
+class LinearInterpolationWorklet : public vtkm::worklet::WorkletMapField
+{
+public:
+    LinearInterpolationWorklet(vtkm::Id size) : Size(size) {}
+
+    using ControlSignature = void(FieldIn val, WholeArrayIn x, WholeArrayIn y,FieldOut result);
+    using ExecutionSignature = void(_1, _2, _3, _4);
+
+    template <typename XArrayType, typename YArrayType, typename ResultType>
+    VTKM_EXEC void operator()(const vtkm::FloatDefault& val,
+                              const XArrayType& x,
+                              const YArrayType& y,
+                              ResultType& result) const
+    {
+      // Find the interval.
+      vtkm::Id idx = -1;
+      for (vtkm::Id i = 0; i < this->Size-1; i++)
+      {
+        if (val >= x.Get(i) && val <= x.Get(i + 1))
+        {
+            idx = i;
+            break;
+        }
+      }
+      // Perform linear interpolation
+      auto x1 = x.Get(idx);
+      auto x2 = x.Get(idx + 1);
+      auto y1 = y.Get(idx);
+      auto y2 = y.Get(idx + 1);
+
+      result = y1 + (y2 - y1) * (val - x1) / (x2 - x1);
+    }
+private:
+  vtkm::Id Size;
 };
 
 double INTERP(const std::vector<double>& X, const std::vector<double>& Y, double val)
@@ -445,8 +514,85 @@ bool signChange(const double& x0, const double& x1)
     return (x0 * x1 < 0 && x0 != 0 && x1 != 0);
 }
 
+class LocatorWorklet : public vtkm::worklet::WorkletMapField
+{
+  public:
+    using ControlSignature = void(FieldIn, WholeArrayIn, ExecObject, ExecObject, FieldOut);
+    using ExecutionSignature = void(InputIndex, _1, _2, _3, _4, _5);
 
-int main()
+    template <typename T, typename FieldType, typename LocatorType, typename InterpolationHelperType, typename U>
+    VTKM_EXEC void operator()(const vtkm::Id& idx,
+                              const T& pt,
+                              const FieldType& field,
+                              const LocatorType& locator,
+                              const InterpolationHelperType& ipHelper,
+                              U &result) const
+    {
+        vtkm::Id cellId;
+        vtkm::Vec3f parametric;
+        locator.FindCell(pt, cellId, parametric);
+
+        vtkm::UInt8 cellShape;
+        vtkm::IdComponent nVerts;
+        vtkm::VecVariable<vtkm::Id, 8> ptIndices;
+        vtkm::VecVariable<vtkm::FloatDefault, 8> fieldValues;
+        ipHelper.GetCellInfo(cellId, cellShape, nVerts, ptIndices);
+        //field.GetValue(0);
+        //vtkm::exec::CellInterpolate(fieldValues, parametric, cellShape, nVerts, ptIndices, result);
+        //vtkm::exec::CellInterpolate(ptIndices, fieldValues, parametric, cellShape, result);
+    }
+};
+
+vtkm::FloatDefault scalarField1DInterpolate(const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& x,
+                                            const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& y,
+                                            const std::vector<vtkm::FloatDefault>& vals)
+{
+    vtkm::cont::Invoker invoker;
+
+    auto worklet = LinearInterpolationWorklet( x.GetNumberOfValues());
+
+    vtkm::cont::ArrayHandle<vtkm::FloatDefault> result;
+    auto input = vtkm::cont::make_ArrayHandle<vtkm::FloatDefault>(vals, vtkm::CopyFlag::On);
+    invoker(worklet, input, x, y, result);
+
+    return result.ReadPortal().Get(0);
+}
+
+vtkm::FloatDefault scalarField2DEval(const vtkm::cont::DataSet& dataset,
+                                        const std::string& fieldname,
+                                        const vtkm::Vec3f& pt)
+{
+  vtkm::filter::resampling::Probe probe;
+
+  vtkm::cont::DataSetBuilderExplicit builder;
+  std::vector<vtkm::Vec3f> pts = { pt };
+  auto inPts = builder.Create(pts, {vtkm::CELL_SHAPE_VERTEX}, {1}, {0});
+
+  probe.SetGeometry(inPts);
+  auto output = probe.Execute(dataset);
+  
+  vtkm::cont::ArrayHandle<vtkm::FloatDefault> fieldArray;
+  output.GetField(fieldname).GetData().AsArrayHandle(fieldArray);
+
+  return fieldArray.ReadPortal().Get(0);
+
+#if 0
+  vtkm::cont::CellLocatorUniformGrid locator;
+  locator.SetCoordinates(dataset.GetCoordinateSystem());
+  locator.SetCellSet(dataset.GetCellSet());
+  locator.Update();
+
+  vtkm::cont::CellInterpolationHelper interpolationHelper(dataset.GetCellSet());
+  vtkm::cont::Invoker invoker;
+  vtkm::cont::ArrayHandle<vtkm::Vec3f> input = vtkm::cont::make_ArrayHandle<vtkm::Vec3f>(pts, vtkm::CopyFlag::Off);
+  vtkm::cont::ArrayHandle<vtkm::FloatDefault> output;
+  invoker(LocatorWorklet{}, input, dataset.GetField(fieldname), locator, interpolationHelper, output);
+  //  interpolationHelper.
+#endif
+}
+
+
+  int main()
 {
     trajspline  <<"ID, STEP, X, Y, Z, REGION\n";
     trajOut<<"ID, STEP, X, Y, Z, REGION, YI, ZSVALUE, ZVALUE"<<std::endl;
@@ -498,11 +644,22 @@ int main()
         int yStart = opts.jyomp;
         int zzz = 0;
         auto zStart = opts.zarray[zzz];
+        std::cout<<"**** xind= "<<xind<<" opts.jyomp= "<<opts.jyomp<<" zStart= "<<zStart<<std::endl;
         double xStart = opts.psixy[static_cast<int>(xind)][opts.jyomp];
+        double xStart2 = scalarField2DEval(opts.Grid2D, "psixy", {xind, (double)yStart, 0});
+
         //int yind = yStart;
         double zind = INTERP(opts.zarray, opts.ziarray, zStart);
+        auto zind2 = scalarField1DInterpolate(opts.ZiArray, opts.ZArray, {zStart});
 
         vtkm::Particle p({ xStart, static_cast<vtkm::FloatDefault>(yStart), zStart }, 0);
+
+        std::cout<<std::setprecision(12);
+        std::cout<<"   xStart=  "<<xStart<<std::endl;
+        std::cout<<"   xStart2= "<<xStart2<<std::endl;
+        std::cout<<"   zind= "<<zind<<std::endl;
+        std::cout<<"   zind2= "<<zind<<std::endl;
+        break;
 
         int region = opts.GetRegion(xind, yStart);
         int region_ = opts.GetRegion(p);
