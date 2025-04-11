@@ -6,15 +6,17 @@
 #include <cmath>
 #include <chrono>
 
-std::ofstream trajspline("/Users/dpn/trajspline.c.txt", std::ofstream::out);
-std::ofstream puncFid("/Users/dpn/punc.c.txt");
-std::ofstream punc_ip_Fid("/Users/dpn/punc_ip.c.txt");
-std::ofstream puncFid2("/Users/dpn/punc2.c.txt");
-std::ofstream puncSplineFid("/Users/dpn/puncspline.c.txt");
-std::ofstream rawPunc("/Users/dpn/rawpunc.c.txt", std::ofstream::out);
-std::ofstream trajOut("/Users/dpn/traj.c.txt", std::ofstream::out);
-std::ofstream stepOut("/Users/dpn/steps.c.txt", std::ofstream::out);
-std::ofstream rk4Out("/Users/dpn/rk4.c.txt", std::ofstream::out);
+#include <vtkm/Particle.h>
+
+std::ofstream trajspline("/Users/dpn/trajspline.v.txt", std::ofstream::out);
+std::ofstream puncFid("/Users/dpn/punc.v.txt");
+std::ofstream punc_ip_Fid("/Users/dpn/punc_ip.v.txt");
+std::ofstream puncFid2("/Users/dpn/punc2.v.txt");
+std::ofstream puncSplineFid("/Users/dpn/puncspline.v.txt");
+std::ofstream rawPunc("/Users/dpn/rawpunc.v.txt", std::ofstream::out);
+std::ofstream trajOut("/Users/dpn/traj.v.txt", std::ofstream::out);
+std::ofstream stepOut("/Users/dpn/steps.v.txt", std::ofstream::out);
+std::ofstream rk4Out("/Users/dpn/rk4.v.txt", std::ofstream::out);
 
 double
 double_mod(double val, double mod_base)
@@ -166,6 +168,31 @@ class Options
         arr.resize(n);
         for (size_t i = 0; i < n; i++)
             arr[i] = static_cast<double>(i+n0);
+    }
+
+    int GetRegion(const vtkm::Particle& p) const
+    {
+        int region = -1;
+        if (p.GetPosition()[0] < static_cast<double>(this->ixsep + 0.5))
+        {
+            region = 0;  //Closed flux surface
+            std::cout<<"Check this +1 stuff.."<<std::endl;
+            if (p.GetPosition()[1] < this->nypf1 + 1 || p.GetPosition()[1] > nypf2-1)
+            {
+                region = 2;  //PFR
+                std::cout<<" We hit the +1 stuff..."<<std::endl;
+            }
+        }
+        else
+            region = 1; //SOL
+
+        // Check for divertor starting points
+        if (this->direction == 1 && p.GetPosition()[1] == this->ny - 1)
+          region = 14;
+        else if (this->direction == -1 && p.GetPosition()[1] == 0)
+            region = 13;
+
+        return region;
     }
 
     int GetRegion(double xind, int yStart) const
@@ -461,7 +488,9 @@ int main()
     auto step2 = RK4_FLT1(_xStart, _yStart, _zStart, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, 0, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2);
 */
 
-     auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
+
+
     for (const auto& iline : LINES)
     {
         xind = static_cast<double>(iline);
@@ -470,11 +499,13 @@ int main()
         int zzz = 0;
         auto zStart = opts.zarray[zzz];
         double xStart = opts.psixy[static_cast<int>(xind)][opts.jyomp];
-        int yind = yStart;
+        //int yind = yStart;
         double zind = INTERP(opts.zarray, opts.ziarray, zStart);
 
+        vtkm::Particle p({ xStart, static_cast<vtkm::FloatDefault>(yStart), zStart }, 0);
 
         int region = opts.GetRegion(xind, yStart);
+        int region_ = opts.GetRegion(p);
         int iturn = 0, it = 0;
 
         auto zindFID = fopen("/Users/dpn/zind.c.txt", "w");
@@ -482,12 +513,9 @@ int main()
         while (region < 10 && iturn < nturns)
         {
             // Start field-line tracing.
-            for (int iy = 0; iy < opts.ny-1; iy++)
+            // iy is not used -- just a loop...
+            for (int iy_ = 0; iy_ < opts.ny-1; iy_++)
             {
-                if (it == 16)
-                {
-                    std::cout<<"start looking at it=19"<<std::endl;
-                }
                 //trajOut<<iline<<", "<<iy<<", "<<it<<", "<<iturn<<", "<<xStart<<", "<<yStart<<", "<<zStart<<std::endl;
                 if (it == 0)
                 {
@@ -497,10 +525,6 @@ int main()
                     fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", _p.traj1, _p.traj2, (int)_p.traj3, _p.traj4, (int)_p.traj5, _p.traj7);
                     Points.push_back(_p);
                     //Points.push_back({xind, yStart, zind, iline, iy, it});
-                }
-                if (it == 57)
-                {
-                    std::cout<<"stop here."<<std::endl;
                 }
 
                 if (yStart+1 == opts.dxdy[0].size())
@@ -513,22 +537,6 @@ int main()
                 if (region == 0 && yStart >= opts.nypf1 && yStart < opts.nypf2+1)
                 {
                     bool dumpFiles = false;
-                    if (it == 14)
-                    {
-                        /*
-                        std::cout<<"Problem coming...."<<std::endl;
-                        dumpFiles = true;
-                        double _x = -0.13563341;
-                        double _y = 69-1;
-                        double _z = 6.2770085;
-                        auto step = RK4_FLT1(_x, _y, _z, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
-                        _x = step.first;
-                        _z = step.second;
-                        _y = _y+1;
-                        step = RK4_FLT1(_x, _y, _z, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
-                        dumpFiles = false;
-                        */
-                    }
                     auto step = RK4_FLT1(xStart, yStart, zStart, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
                     xEnd = step.first;
                     zEnd = step.second;

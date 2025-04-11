@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(fieldline_tracing)
 
 find_package(NetCDF REQUIRED)
+find_package(VTKm REQUIRED)
 #set(Eigen3_DIR "/Users/dpn/sw/eigen/install/lib")  # Adjust to your installation path
 #find_package(Eigen3 REQUIRED NO_DEFAULT_PATH)
 #include_directories(/Users/dpn/sw/eigen/install/include/eigen3)
@@ -26,4 +27,4 @@ add_executable(fieldline_tracing_vtkm fieldline_tracing_vtkm.cxx SplineInterpola
 
 #target_link_libraries(fieldline_tracing NetCDF::NetCDF)
 target_link_libraries(fieldline_tracing netcdf alglib ${TINY_SPLINE_LIB})
-target_link_libraries(fieldline_tracing_vtkm netcdf alglib ${TINY_SPLINE_LIB})
+target_link_libraries(fieldline_tracing_vtkm netcdf alglib ${TINY_SPLINE_LIB} vtkm::cont)
