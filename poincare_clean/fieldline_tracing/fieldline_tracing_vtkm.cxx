@@ -132,7 +132,7 @@ class Options
         for (int i = 0; i <= this->nzG; i++)
             this->zarray[i] = this->ziarray[i] * this->dz;
         */
-       this->init_array(this->ziarray, this->nzG+1);
+       this->init_array(this->ziarray, this->nzG);
        this->dz = (this->zmax - this->zmin) / (this->nzG-1);
        this->zarray.resize(this->nzG);
        for (int i = 0; i < this->nzG; i++)
