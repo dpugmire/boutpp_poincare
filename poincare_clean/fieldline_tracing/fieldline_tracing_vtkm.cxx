@@ -426,37 +426,6 @@ double INTERP(const std::vector<double>& X, const std::vector<double>& Y, double
     return y_i;
 }
 
-// Function to find zero crossings
-std::tuple<std::vector<double>, std::vector<size_t>, std::vector<double>>
-find_zero_crossings(const std::vector<double>& itarray, const std::vector<double>& fl_x3d, double dx)
-{
-    //x = itarray, y = fl_x3d;
-    double x0 = 0.0, x1 = static_cast<double>(itarray.size());
-    //min_max_values(x, x0, x1);
-
-    SplineInterpolation spline(itarray, fl_x3d);
-
-    std::vector<double> ffl_x3d, fit;
-    for (double xi = x0; xi < x1-1; xi += dx)
-    {
-        ffl_x3d.push_back(spline.evaluate(xi));
-        fit.push_back(xi);
-    }
-
-    std::cout<<" spline: "<<ffl_x3d[190]<<" xi= "<<fit[190]<<std::endl;
-    std::vector<size_t> crossings;
-    std::vector<double> crossing_vals;
-    for (size_t i = 1; i < ffl_x3d.size(); ++i)
-    {
-        if (ffl_x3d[i - 1] * ffl_x3d[i] <= 0 && ffl_x3d[i] != 0.0 && ffl_x3d[i-1]) //sign change
-        {
-            crossing_vals.push_back(ffl_x3d[i]);
-            crossings.push_back(i);
-        }
-    }
-    return std::tuple(fit, crossings, crossing_vals);
-}
-
 void
 dumpTrajSamples(int iline, const std::vector<vtkm::Vec3f>& points)
 {
@@ -488,97 +457,6 @@ dumpTrajSamples(int iline, const std::vector<vtkm::Vec3f>& points)
         if (id > 0 && x * x0 < 0.0 && y > 0.0)
             puncFid<<iline<<", "<<t<<", "<<x<<", "<<y<<", "<<z<<std::endl;
         x0 = x;
-    }
-}
-
-
-void processPunctures(
-    const std::vector<double>& itarray,
-    const std::vector<double>& fl_x3d,
-    const std::vector<std::vector<double>>& traj,
-    const SplineInterpolation& xiSpline,
-    const SplineInterpolation& yiSpline,
-    const SplineInterpolation& rxySpline,
-    const SplineInterpolation& zxySpline,
-    const SplineInterpolation& zsSpline,
-    const SplineInterpolation& thetaSpline,
-    double zmax, double ixsep, double nypf1, double nypf2, int direction)
-{
-    std::vector<double> px, py, pz, ptheta, ppsi;
-    size_t itmax = itarray.size();
-
-    // Fit spline over itarray and fl_x3d
-    SplineInterpolation flSpline(itarray, fl_x3d);
-
-    // Compute zero crossings
-    auto findZeroCrossings = [](const std::vector<double>& data) {
-        std::vector<size_t> crossings;
-        for (size_t i = 1; i < data.size(); ++i)
-        {
-            if (data[i - 1] * data[i] <= 0)
-                crossings.push_back(i - 1);
-        }
-        return crossings;
-    };
-
-    auto iit = findZeroCrossings(fl_x3d);
-    size_t nc = iit.size();
-
-    if (nc > 0)
-    {
-        for (size_t i = 0; i < nc; ++i)
-        {
-            size_t it = static_cast<size_t>(std::floor(itarray[iit[i]]));
-            double a = itarray[iit[i]] - it;
-            double b = 1.0 - a;
-
-            // Linear interpolation along field-line
-            double xind_tmp = b * traj[1][it] + a * traj[1][it + 1];
-            double yind_tmp = b * traj[2][it] + a * traj[2][it + 1];
-            double zvalue = b * traj[6][it] + a * traj[6][it + 1];
-
-            if (std::fabs(traj[6][it] - traj[6][it + 1]) > 1.0)
-                zvalue = b * std::fmod(traj[6][it], zmax) + a * std::fmod(traj[6][it + 1], zmax);
-
-            if (traj[2][it] == nypf2 && direction == 1 && xind_tmp < ixsep + 0.5)
-                yind_tmp = b * traj[2][it] + a * (nypf2 + 1);
-            else if (traj[2][it] == nypf1 + 1 && direction == -1 && xind_tmp < ixsep + 0.5)
-            {
-                yind_tmp = b * (nypf2 + 1) + a * traj[2][it + 1];
-                double shiftangle = xiSpline.evaluate(xind_tmp);
-                zvalue = std::fmod(zvalue - shiftangle, zmax);
-            }
-
-            double rxyvalue, zxyvalue, zsvalue;
-            if (xind_tmp < ixsep + 0.5)
-            {
-                rxyvalue = rxySpline.evaluate(xind_tmp, yind_tmp);
-                zxyvalue = zxySpline.evaluate(xind_tmp, yind_tmp);
-                zsvalue = zsSpline.evaluate(xind_tmp, yind_tmp);
-            }
-            else
-            {
-                rxyvalue = rxySpline.evaluate(xind_tmp, yind_tmp);
-                zxyvalue = zxySpline.evaluate(xind_tmp, yind_tmp);
-                zsvalue = zsSpline.evaluate(xind_tmp, yind_tmp);
-            }
-
-            double ipx3d_tmp = rxyvalue * std::cos(zsvalue);
-            double ipy3d_tmp = rxyvalue * std::sin(zsvalue);
-            double ipx = ipx3d_tmp * std::cos(zvalue) - ipy3d_tmp * std::sin(zvalue);
-            double ipy = ipx3d_tmp * std::sin(zvalue) + ipy3d_tmp * std::cos(zvalue);
-            double ipz = zxyvalue;
-
-            if (ipy > 0)
-            {
-                px.push_back(ipx);
-                py.push_back(ipy);
-                pz.push_back(ipz);
-                ptheta.push_back(thetaSpline.evaluate(yind_tmp));
-                ppsi.push_back(xiSpline.evaluate(xind_tmp));
-                //puncFid << i + 1 << ", " << ipx << ", " << ipy << ", " << ipz << "\n";
-            }
-        }
     }
 }
 
@@ -703,13 +581,13 @@ FindPunctures(int iline, const std::vector<vtkm::Vec3f>& ptsXYZ)
         }
         vtkm::FloatDefault tVal = (t0+t1)/2.0;
         vtkm::Vec3f pt(splineX.evaluate(tVal), splineY.evaluate(tVal), splineZ.evaluate(tVal));
+        VTKM_ASSERT(vtkm::Abs(pt[0]) <= vtkm::Epsilon<vtkm::FloatDefault>());
         puncSplineFid<<iline<<", "<<tVal<<", "<<pt[0]<<", "<<pt[1]<<", "<<pt[2]<<std::endl;
         punctures.push_back(pt);
     }
 
     return punctures;
 }
-
 
 int main()
 {
@@ -734,8 +612,8 @@ int main()
     std::vector<int> LINES;// = {0, 50, 100, 150, 200, 250};
     for (int i = 0; i < 250; i+= 5)
         LINES.push_back(i);
-    int nturns = 15;
-    nturns = 150;
+    int nturns = 50;
+    nturns = 300;
     //LINES = {149};
     //LINES = {0,50,100,150,200,250};
     LINES = {150};
@@ -791,7 +669,7 @@ int main()
             // iy is not used -- just a loop...
             for (int iy_ = 0; iy_ < opts.ny-1; iy_++)
             {
-                if (iturn > 5) break;
+                //if (iturn > 5) break;
 
                 //trajOut<<iline<<", "<<iy<<", "<<it<<", "<<iturn<<", "<<xStart<<", "<<p0[1]<<", "<<p0[2]<<std::endl;
                 if (it == 0)
@@ -901,201 +779,6 @@ int main()
         auto PointsXYZ = ConvertToXYZSpace(opts, iline, id, region, Points);
         auto punctures = FindPunctures(iline, PointsXYZ);
         return 0;
-
-        //find the intersections.
-        std::vector<double> fl_x3d, fl_y3d, fl_z3d, itarray;
-        double xi = 0.0;
-        for (const auto pt : PointsXYZ)
-        {
-            fl_x3d.push_back(pt[0]);
-            fl_y3d.push_back(pt[1]);
-            fl_z3d.push_back(pt[2]);
-            itarray.push_back(xi);
-            xi = xi+1.0;
-        }
-
-        SplineInterpolation ffl_x3d(itarray, fl_x3d), ffl_y3d(itarray, fl_y3d), ffl_z3d(itarray, fl_z3d);
-        auto [fit, iit, iit_vals] = find_zero_crossings(itarray, fl_x3d, 0.0001);
-        int nc = iit.size();
-
-        for (int i = 0; i < nc; i++)
-        {
-            int iit_i = iit[i];
-            double tval = fit[iit_i];
-            double valX = ffl_x3d.evaluate(tval);
-            double valY = ffl_y3d.evaluate(tval);
-            double valZ = ffl_z3d.evaluate(tval);
-            rawPunc<<iline<<", "<<i<<", "<<valX<<", "<<valY<<", "<<valZ<<std::endl;
-        }
-        // do a root finding for punctures.
-        {
-            SplineInterpolation xvalues(itarray, fl_x3d);
-
-            for (int i = 1; i < itarray.size(); i++)
-            {
-                double x0 = fl_x3d[i-1];
-                double x1 = fl_x3d[i];
-                //sign change.
-                if (signChange(x0, x1))
-                {
-                    double t0 = itarray[i-1];
-                    double t1 = itarray[i];
-
-                    bool done = false;
-                    double tZero = 0.0;
-                    int cnt = 0;
-                    while (!done && cnt < 100)
-                    {
-                        double val0 = xvalues.evaluate(t0);
-                        double val1 = xvalues.evaluate(t1);
-
-                        double dt = t1-t0;
-                        double tMid = t0 + dt * 0.5;
-                        double valMid = xvalues.evaluate(tMid);
-                        //zero lies between t0 and tmid
-                        if (signChange(val0, valMid))
-                        {
-                            t0 = t0;
-                            t1 = tMid;
-                            val0 = val0;
-                            val1 = valMid;
-                        }
-                        // zero lies between tmid and t1.
-                        else
-                        {
-                            t0 = tMid;
-                            t1 = t1;
-                            val0 = valMid;
-                            val1 = val1;
-                        }
-                        double diff = std::fabs(val0-val1);
-                        cnt++;
-
-                        if (diff < 1e-12)
-                        {
-                            tZero = t0 + (t1-t0) * 0.5;
-                            done = true;
-                        }
-                    }
-                    double result = xvalues.evaluate(tZero);
-                    double sx = result;
-                    double sy = ffl_y3d.evaluate(tZero);
-                    double sz = ffl_z3d.evaluate(tZero);
-                    puncSplineFid<<iline<<", "<<tZero<<", "<<sx<<", "<<sy<<", "<<sz<<std::endl;
-                    std::cout<<cnt<<": X crossing: "<<tZero<<" val= "<<result<<std::endl;
-                }
-            }
-        }
-
-        for (int i = 0; i < nc; i++)
-        {
-            int iit_i = iit[i];
-            double fit_i = fit[iit_i];
-            int _it = std::floor(fit_i);
-            double a = fit[iit[i]] - static_cast<double>(_it);
-            double b = 1.0-a;
-            auto pt = Points[_it];
-            auto pt_1 = Points[_it+1];
-
-            auto xind_tmp = b*pt.traj2 + a*pt_1.traj2;
-            auto yind_tmp = b*pt.traj3 + a*pt_1.traj3;
-            auto zvalue   = b*pt.traj7 + a*pt_1.traj7;
-
-            auto pt_m1 = Points[_it-1];
-            auto _nypf2 = opts.nypf2, _nypf1 = opts.nypf1;
-            if (std::abs(pt.traj7 - pt_1.traj7) > 1.0)
-                zvalue = b*double_mod(pt.traj7, opts.zmax) + a*double_mod(pt_1.traj7, opts.zmax);
-            if (pt.traj3 == double(opts.nypf2) && xind_tmp < double(opts.ixsep)+0.5)
-                yind_tmp = b*pt.traj3 + a*double(opts.nypf2+1);
-            else if (_it > 0 && (Points[_it-1].traj3 == double(opts.nypf2) || (Points[_it-1].traj3 == double(opts.nypf1+1))))
-            {
-                zvalue = b*INTERP(opts.ziarray, opts.zarray, pt.traj4) +
-                            a*INTERP(opts.ziarray, opts.zarray, pt_1.traj4);
-                //std::cout<<"******** Need to support the update of zvalue "<<__LINE__<<std::endl;
-                //throw std::string("Need to support the update of zvalue");
-                //zvalue = b*
-            }
-
-            double rxyvalue, zxyvalue, zsvalue;
-            if (xind_tmp < double(opts.ixsep)+0.5)
-            {
-                //rxyvalue2 = interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.rxy_cfr,   xind_tmp, yind_tmp);
-                //zxyvalue2 =   interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zxy_cfr,  xind_tmp, yind_tmp);
-                //zsvalue2 =   interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr, xind_tmp, yind_tmp);
-                rxyvalue = bilinear_interp2(opts.xiarray_cfr, opts.yiarray_cfr, opts.rxy_cfr,   xind_tmp, yind_tmp);
-                zxyvalue = bilinear_interp2(opts.xiarray_cfr, opts.yiarray_cfr, opts.zxy_cfr,  xind_tmp, yind_tmp);
-                zsvalue =  bilinear_interp2(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr, xind_tmp, yind_tmp);
-
-                //double rxyvalue2 = interp2Spline(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
-                //double dv = rxyvalue - rxyvalue2;
-
-                /*
-                SplineInterpolation rxySpline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
-                SplineInterpolation zxySpline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
-                SplineInterpolation zSpline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
-                rxyvalue = rxySpline.evaluate(xind_tmp, yind_tmp);
-                zxyvalue = zxySpline.evaluate(xind_tmp, yind_tmp);
-                zsvalue = zSpline.evaluate(xind_tmp, yind_tmp);
-                */
-
-                /*
-                SplineInterpolation int_spline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
-                auto val = int_spline.evaluate(xind_tmp, yind_tmp);
-
-                auto dv = std::fabs(zsvalue - val);
-                if (dv > 1e-5)
-                    std::cout<<" *** zsvalue difference.."<<std::endl;
-                */
-            }
-            else
-            {
-                rxyvalue = bilinear_interp2(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
-                zxyvalue = bilinear_interp2(opts.xiarray, opts.yiarray, opts.zxy, xind_tmp, yind_tmp);
-                zsvalue = bilinear_interp2(opts.xiarray, opts.yiarray, opts.zShift, xind_tmp, yind_tmp);
-                double rxyvalue2 = interp2Spline(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
-
-                double dv = rxyvalue - rxyvalue2;
-
-                /*
-                SplineInterpolation int_spline(opts.xiarray, opts.yiarray, opts.zShift);
-                auto val = int_spline.evaluate(xind_tmp, yind_tmp);
-                auto dv = std::fabs(zsvalue - val);
-                if (dv > 1e-5)
-                    std::cout<<" *** zsvalue difference.."<<std::endl;
-                */
-
-                //rxyvalue2 = interpolate2D(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
-                //zxyvalue2 = interpolate2D(opts.xiarray, opts.yiarray, opts.zxy, xind_tmp, yind_tmp);
-                //zsvalue2 = interpolate2D(opts.xiarray, opts.yiarray, opts.zShift, xind_tmp, yind_tmp);
-            }
-
-            double ipx3d_tmp = rxyvalue*cos(zsvalue);
-            double ipy3d_tmp = rxyvalue*sin(zsvalue);
-            double cz = cos(zvalue);
-            double sz = sin(zvalue);
-            double ipx = ipx3d_tmp*cos(zvalue)-ipy3d_tmp*sin(zvalue);
-            double ipy = ipx3d_tmp*sin(zvalue)+ipy3d_tmp*cos(zvalue);
-            double ipz = zxyvalue;
-
-            if (ipy > 0.0)
-            {
-                ipx = 0.0;
-                // do the rxy/zxy interpolation
-                //if (i > 0) puncFid<<iit[i]-1<<", "<<fl_x3d[iit[i]-1]<<", "<<fl_y3d[iit[i]-1]<<", "<<fl_z3d[iit[i]-1]<<std::endl;
-                //puncFid<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
-                //puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<", "<<rxyvalue<<", "<<zxyvalue<<", "<<zsvalue<<", "<<zvalue<<std::endl;
-                puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
-                //puncFid<<iit[i]+1<<", "<<fl_x3d[iit[i]+1]<<", "<<fl_y3d[iit[i]+1]<<", "<<fl_z3d[iit[i]+1]<<std::endl;
-            }
-            else
-            {
-                //puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<", SKIP"<<std::endl;
-                //puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<", "<<rxyvalue<<", "<<zxyvalue<<", "<<zsvalue<<", "<<zvalue<<", SKIP"<<std::endl;
-                punc_ip_Fid<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
-            }
-        }
-        std::cout<<"All done"<<std::endl;
-        std::cout<<" Exiting now."<<std::endl;
-        return 0;
     }
 }
+
