@@ -485,12 +485,6 @@ int main()
             // Start field-line tracing.
             for (int iy = 0; iy < opts.ny-1; iy++)
             {
-                if (iy > 5) break;
-
-                if (it == 16)
-                {
-                    std::cout<<"start looking at it=19"<<std::endl;
-                }
                 //trajOut<<iline<<", "<<iy<<", "<<it<<", "<<iturn<<", "<<xStart<<", "<<yStart<<", "<<zStart<<std::endl;
                 if (it == 0)
                 {

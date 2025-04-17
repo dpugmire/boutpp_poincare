@@ -663,8 +663,6 @@ int main()
             // iy is not used -- just a loop...
             for (int iy_ = 0; iy_ < opts.ny-1; iy_++)
             {
-                if (iy_ > 5) break;
-                
                 //trajOut<<iline<<", "<<iy<<", "<<it<<", "<<iturn<<", "<<xStart<<", "<<yStart<<", "<<zStart<<std::endl;
                 if (it == 0)
                 {
@@ -687,7 +685,7 @@ int main()
                 {
                     bool dumpFiles = false;
                     //auto step = RK4_FLT1(xStart, yStart, zStart, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
-                    vtkm::Vec3f pt0(xStart, yStart, zStart), p1;
+                    vtkm::Vec3f pt0(xStart, yStart, zStart);
                     std::cout<<"Begin Step: iturn= "<<iturn<<" iy= "<<iy_<<std::endl;
                     auto pStep = RK4_FLT1_vtkm(pt0, opts.Grid2D, opts.Grid2D_cfr, opts.Grid2D_xz, opts.Grid3D, opts.XArray, opts.ZArray, region, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
                     xEnd = pStep[0];
