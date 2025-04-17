@@ -729,13 +729,21 @@ int main()
                     p1[1] = opts.nypf1;
                 }
 
+                Point _p;
+                _p.traj1 = it;
+                _p.traj2 = xind;
+                _p.traj3 = p1[1];
+                _p.traj5 = region;
+                _p.traj7 = p1[2];
+
                 double zEnd_no_mod = p1[2];
                 //Relabel toroidal location.
                 if (p1[2] < opts.zmin || p1[2] > opts.zmax)
                     p1[2] = double_mod(p1[2], opts.zmax);
                 //zind = INTERP(opts.zarray, opts.ziarray, zEnd);
                 zind = scalarField1DEval(opts.ZArray, opts.ZiArray, {p1[2]});
-                std::cout<<"   vINTERP:  zind "<<zind<<std::endl;
+                _p.traj4 = zind;
+                Points.push_back(_p);
 
                 //std::cout<<"********** it= "<<it<<" pt1= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<" zind "<<zind<<std::endl;
                 fprintf(zindFID, "%d %12.10f --> %12.10f\n", it, p1[2], zind);
@@ -746,13 +754,8 @@ int main()
                     double diff = std::abs(p1[2] - opts.zmax);
                     std::cout<<"diff is "<<diff<<std::endl;
                     std::cout<<"*******"<<std::endl;
+                    throw std::runtime_error("Meow");
                 }
-
-                Point _p;
-                _p.traj1 = it; _p.traj2 = xind; _p.traj3 = p1[1]; _p.traj4 = zind;
-                _p.traj5 = region;
-                _p.traj7 = zEnd_no_mod;
-                Points.push_back(_p);
 
                 it = it+1;
                 p0 = p1;
@@ -766,265 +769,264 @@ int main()
 	 std::chrono::duration<double> elapsed = end - start;
 	 std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
 	 
-        //Convert to XYZ space.
-        std::vector<std::vector<double>> PointsXYZ;
+    //Convert to XYZ space.
+    std::vector<std::vector<double>> PointsXYZ;
 
-        int id = 0;
-        auto _fid = fopen("/Users/dpn/problem.c.txt", "w");
-        auto trajvals_fid = fopen("/Users/dpn/trajvals.c.txt", "w");
-        fprintf(trajvals_fid, "iter, xind, yend, zind, zend, x3d, y3d, z3d\n");
+    int id = 0;
+    auto _fid = fopen("/Users/dpn/problem.c.txt", "w");
+    auto trajvals_fid = fopen("/Users/dpn/trajvals.c.txt", "w");
+    fprintf(trajvals_fid, "iter, xind, yend, zind, zend, x3d, y3d, z3d\n");
 
-        for (const auto& pt : Points)
-        {
-            if (id == 13)
-                std::cout<<"Begin debugging"<<std::endl;
-            //double x = pt.x, y = pt.y, z = pt.z;
-            //int xi = static_cast<int>(x), yi = static_cast<int>(y), zi = static_cast<int>(z);
-            int yi = int(pt.traj3);
+    for (const auto& pt : Points)
+    {
+        if (id == 13)
+            std::cout<<"Begin debugging"<<std::endl;
+        //double x = pt.x, y = pt.y, z = pt.z;
+        //int xi = static_cast<int>(x), yi = static_cast<int>(y), zi = static_cast<int>(z);
+        int yi = int(pt.traj3);
 
-            // Get the column vector rxy[:, yi]
-            std::vector<double> rxy_column(opts.rxy.size());
-            for (size_t i = 0; i < opts.rxy.size(); ++i)
-                rxy_column[i] = opts.rxy[i][yi];
+        // Get the column vector rxy[:, yi]
+        std::vector<double> rxy_column(opts.rxy.size());
+        for (size_t i = 0; i < opts.rxy.size(); ++i)
+            rxy_column[i] = opts.rxy[i][yi];
 
-            // Interpolate values
-            double rxyvalue = INTERP(opts.xiarray, rxy_column, pt.traj2);
+        // Interpolate values
+        double rxyvalue = INTERP(opts.xiarray, rxy_column, pt.traj2);
 
-            std::vector<double> zShift_column(opts.zShift.size());
-            for (size_t i = 0; i < opts.zShift.size(); ++i)
-                zShift_column[i] = opts.zShift[i][yi];
-            const auto& __xi = opts.xiarray;
-            double zsvalue = INTERP(opts.xiarray, zShift_column, pt.traj2);
+        std::vector<double> zShift_column(opts.zShift.size());
+        for (size_t i = 0; i < opts.zShift.size(); ++i)
+            zShift_column[i] = opts.zShift[i][yi];
+        const auto& __xi = opts.xiarray;
+        double zsvalue = INTERP(opts.xiarray, zShift_column, pt.traj2);
 
-            double zvalue = INTERP(opts.ziarray, opts.zarray, pt.traj4);
+        double zvalue = INTERP(opts.ziarray, opts.zarray, pt.traj4);
 
-            // Compute x3d_tmp and y3d_tmp
-            double x3d_tmp = rxyvalue * std::cos(zsvalue);
-            double y3d_tmp = rxyvalue * std::sin(zsvalue);
+        // Compute x3d_tmp and y3d_tmp
+        double x3d_tmp = rxyvalue * std::cos(zsvalue);
+        double y3d_tmp = rxyvalue * std::sin(zsvalue);
 
-            // Compute x3d and y3d
-            double x3d = x3d_tmp * std::cos(zvalue) - y3d_tmp * std::sin(zvalue);
-            double y3d = x3d_tmp * std::sin(zvalue) + y3d_tmp * std::cos(zvalue);
+        // Compute x3d and y3d
+        double x3d = x3d_tmp * std::cos(zvalue) - y3d_tmp * std::sin(zvalue);
+        double y3d = x3d_tmp * std::sin(zvalue) + y3d_tmp * std::cos(zvalue);
 
-            // Get the column vector zxy[:, yi]
-            std::vector<double> zxy_column(opts.zxy.size());
-            for (size_t i = 0; i < opts.zxy.size(); ++i)
-                zxy_column[i] = opts.zxy[i][static_cast<size_t>(yi)];
-            double z3d = INTERP(opts.xiarray, zxy_column, pt.traj2);
+        // Get the column vector zxy[:, yi]
+        std::vector<double> zxy_column(opts.zxy.size());
+        for (size_t i = 0; i < opts.zxy.size(); ++i)
+            zxy_column[i] = opts.zxy[i][static_cast<size_t>(yi)];
+        double z3d = INTERP(opts.xiarray, zxy_column, pt.traj2);
 
-            trajOut<<iline<<", "<<id<<", "<<x3d<<", "<<y3d<<", "<<z3d<<", "<<region<<", "<<yi<<", "<<zsvalue<<", "<<zvalue<<std::endl;
-            //fprintf(_fid, "*** istep= %d traj= %d %12.10e %d %12.10e\n", id, (int)pt.traj1, pt.traj2, (int)pt.traj3, pt.traj4);
-            fprintf(_fid, "%d  traj4, zvalue= %12.10e %12.10e\n", id, pt.traj4, zvalue);
-            //printf("*** istep= %d r= %12.10e zs= %12.10e z= %12.10e t23= %12.10e %d\n", id, rxyvalue, zsvalue, zvalue, pt.traj2, int(pt.traj3));
-            PointsXYZ.push_back({x3d, y3d, z3d});
+        trajOut<<iline<<", "<<id<<", "<<x3d<<", "<<y3d<<", "<<z3d<<", "<<region<<", "<<yi<<", "<<zsvalue<<", "<<zvalue<<std::endl;
+        //fprintf(_fid, "*** istep= %d traj= %d %12.10e %d %12.10e\n", id, (int)pt.traj1, pt.traj2, (int)pt.traj3, pt.traj4);
+        fprintf(_fid, "%d  traj4, zvalue= %12.10e %12.10e\n", id, pt.traj4, zvalue);
+        //printf("*** istep= %d r= %12.10e zs= %12.10e z= %12.10e t23= %12.10e %d\n", id, rxyvalue, zsvalue, zvalue, pt.traj2, int(pt.traj3));
+        PointsXYZ.push_back({x3d, y3d, z3d});
 
-            fprintf(trajvals_fid, "%d, %10.8f, %d, %10.8f, %10.8f, %10.8f, %10.8f, %10.8f\n", id, pt.traj2, (int)pt.traj3, pt.traj4, pt.traj7, x3d, y3d, z3d);
+        fprintf(trajvals_fid, "%d, %10.8f, %d, %10.8f, %10.8f, %10.8f, %10.8f, %10.8f\n", id, pt.traj2, (int)pt.traj3, pt.traj4, pt.traj7, x3d, y3d, z3d);
 
-            id++;
-        }
-        fclose(trajvals_fid);
-        dumpTrajSamples(iline, PointsXYZ);
+        id++;
+    }
+    fclose(trajvals_fid);
+    dumpTrajSamples(iline, PointsXYZ);
 
-        //find the intersections.
-        std::vector<double> fl_x3d, fl_y3d, fl_z3d, itarray;
-        double xi = 0.0;
-        for (const auto pt : PointsXYZ)
-        {
-            fl_x3d.push_back(pt[0]);
-            fl_y3d.push_back(pt[1]);
-            fl_z3d.push_back(pt[2]);
-            itarray.push_back(xi);
-            xi = xi+1.0;
-        }
-
-        SplineInterpolation ffl_x3d(itarray, fl_x3d), ffl_y3d(itarray, fl_y3d), ffl_z3d(itarray, fl_z3d);
-        auto [fit, iit, iit_vals] = find_zero_crossings(itarray, fl_x3d, 0.0001);
-        int nc = iit.size();
-
-        for (int i = 0; i < nc; i++)
-        {
-            int iit_i = iit[i];
-            double tval = fit[iit_i];
-            double valX = ffl_x3d.evaluate(tval);
-            double valY = ffl_y3d.evaluate(tval);
-            double valZ = ffl_z3d.evaluate(tval);
-            if (i == 328)
-                std::cout<<"***** problem point... "<<valX<<" "<<valY<<" "<<valZ<<std::endl;
-            rawPunc<<iline<<", "<<i<<", "<<valX<<", "<<valY<<", "<<valZ<<std::endl;
-        }
-        // do a root finding for punctures.
-        {
-            SplineInterpolation xvalues(itarray, fl_x3d);
-
-            for (int i = 1; i < itarray.size(); i++)
-            {
-                double x0 = fl_x3d[i-1];
-                double x1 = fl_x3d[i];
-                //sign change.
-                if (signChange(x0, x1))
-                {
-                    double t0 = itarray[i-1];
-                    double t1 = itarray[i];
-
-                    bool done = false;
-                    double tZero = 0.0;
-                    int cnt = 0;
-                    while (!done && cnt < 100)
-                    {
-                        double val0 = xvalues.evaluate(t0);
-                        double val1 = xvalues.evaluate(t1);
-
-                        double dt = t1-t0;
-                        double tMid = t0 + dt * 0.5;
-                        double valMid = xvalues.evaluate(tMid);
-                        //zero lies between t0 and tmid
-                        if (signChange(val0, valMid))
-                        {
-                            t0 = t0;
-                            t1 = tMid;
-                            val0 = val0;
-                            val1 = valMid;
-                        }
-                        // zero lies between tmid and t1.
-                        else
-                        {
-                            t0 = tMid;
-                            t1 = t1;
-                            val0 = valMid;
-                            val1 = val1;
-                        }
-                        double diff = std::fabs(val0-val1);
-                        cnt++;
-
-                        if (diff < 1e-12)
-                        {
-                            tZero = t0 + (t1-t0) * 0.5;
-                            done = true;
-                        }
-                    }
-                    double result = xvalues.evaluate(tZero);
-                    double sx = result;
-                    double sy = ffl_y3d.evaluate(tZero);
-                    double sz = ffl_z3d.evaluate(tZero);
-                    puncSplineFid<<iline<<", "<<tZero<<", "<<sx<<", "<<sy<<", "<<sz<<std::endl;
-                    std::cout<<cnt<<": X crossing: "<<tZero<<" val= "<<result<<std::endl;
-                }
-            }
-        }
-
-        for (int i = 0; i < nc; i++)
-        {
-            //i = 328;
-            if (i == 3)
-                std::cout<<"***** problem point... "<<std::endl;
-            int iit_i = iit[i];
-            double fit_i = fit[iit_i];
-            int _it = std::floor(fit_i);
-            double a = fit[iit[i]] - static_cast<double>(_it);
-            double b = 1.0-a;
-            auto pt = Points[_it];
-            auto pt_1 = Points[_it+1];
-
-            auto xind_tmp = b*pt.traj2 + a*pt_1.traj2;
-            auto yind_tmp = b*pt.traj3 + a*pt_1.traj3;
-            auto zvalue   = b*pt.traj7 + a*pt_1.traj7;
-
-            auto pt_m1 = Points[_it-1];
-            auto _nypf2 = opts.nypf2, _nypf1 = opts.nypf1;
-            if (std::abs(pt.traj7 - pt_1.traj7) > 1.0)
-                zvalue = b*double_mod(pt.traj7, opts.zmax) + a*double_mod(pt_1.traj7, opts.zmax);
-            if (pt.traj3 == double(opts.nypf2) && xind_tmp < double(opts.ixsep)+0.5)
-                yind_tmp = b*pt.traj3 + a*double(opts.nypf2+1);
-            else if (_it > 0 && (Points[_it-1].traj3 == double(opts.nypf2) || (Points[_it-1].traj3 == double(opts.nypf1+1))))
-            {
-                zvalue = b*INTERP(opts.ziarray, opts.zarray, pt.traj4) +
-                         a*INTERP(opts.ziarray, opts.zarray, pt_1.traj4);
-                //std::cout<<"******** Need to support the update of zvalue "<<__LINE__<<std::endl;
-                //throw std::string("Need to support the update of zvalue");
-                //zvalue = b*
-            }
-
-            double rxyvalue, zxyvalue, zsvalue;
-            if (xind_tmp < double(opts.ixsep)+0.5)
-            {
-                //rxyvalue2 = interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.rxy_cfr,   xind_tmp, yind_tmp);
-                //zxyvalue2 =   interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zxy_cfr,  xind_tmp, yind_tmp);
-                //zsvalue2 =   interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr, xind_tmp, yind_tmp);
-                rxyvalue = bilinear_interp2(opts.xiarray_cfr, opts.yiarray_cfr, opts.rxy_cfr,   xind_tmp, yind_tmp);
-                zxyvalue = bilinear_interp2(opts.xiarray_cfr, opts.yiarray_cfr, opts.zxy_cfr,  xind_tmp, yind_tmp);
-                zsvalue =  bilinear_interp2(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr, xind_tmp, yind_tmp);
-
-                //double rxyvalue2 = interp2Spline(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
-                //double dv = rxyvalue - rxyvalue2;
-
-                /*
-                SplineInterpolation rxySpline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
-                SplineInterpolation zxySpline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
-                SplineInterpolation zSpline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
-                rxyvalue = rxySpline.evaluate(xind_tmp, yind_tmp);
-                zxyvalue = zxySpline.evaluate(xind_tmp, yind_tmp);
-                zsvalue = zSpline.evaluate(xind_tmp, yind_tmp);
-                */
-
-                /*
-                SplineInterpolation int_spline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
-                auto val = int_spline.evaluate(xind_tmp, yind_tmp);
-
-                auto dv = std::fabs(zsvalue - val);
-                if (dv > 1e-5)
-                    std::cout<<" *** zsvalue difference.."<<std::endl;
-                */
-            }
-            else
-            {
-                rxyvalue = bilinear_interp2(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
-                zxyvalue = bilinear_interp2(opts.xiarray, opts.yiarray, opts.zxy, xind_tmp, yind_tmp);
-                zsvalue = bilinear_interp2(opts.xiarray, opts.yiarray, opts.zShift, xind_tmp, yind_tmp);
-                double rxyvalue2 = interp2Spline(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
-
-                double dv = rxyvalue - rxyvalue2;
-
-                /*
-                SplineInterpolation int_spline(opts.xiarray, opts.yiarray, opts.zShift);
-                auto val = int_spline.evaluate(xind_tmp, yind_tmp);
-                auto dv = std::fabs(zsvalue - val);
-                if (dv > 1e-5)
-                    std::cout<<" *** zsvalue difference.."<<std::endl;
-                */
-
-                //rxyvalue2 = interpolate2D(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
-                //zxyvalue2 = interpolate2D(opts.xiarray, opts.yiarray, opts.zxy, xind_tmp, yind_tmp);
-                //zsvalue2 = interpolate2D(opts.xiarray, opts.yiarray, opts.zShift, xind_tmp, yind_tmp);
-            }
-
-            double ipx3d_tmp = rxyvalue*cos(zsvalue);
-            double ipy3d_tmp = rxyvalue*sin(zsvalue);
-            double cz = cos(zvalue);
-            double sz = sin(zvalue);
-            double ipx = ipx3d_tmp*cos(zvalue)-ipy3d_tmp*sin(zvalue);
-            double ipy = ipx3d_tmp*sin(zvalue)+ipy3d_tmp*cos(zvalue);
-            double ipz = zxyvalue;
-
-            if (ipy > 0.0)
-            {
-                ipx = 0.0;
-                // do the rxy/zxy interpolation
-                //if (i > 0) puncFid<<iit[i]-1<<", "<<fl_x3d[iit[i]-1]<<", "<<fl_y3d[iit[i]-1]<<", "<<fl_z3d[iit[i]-1]<<std::endl;
-                //puncFid<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
-                //puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<", "<<rxyvalue<<", "<<zxyvalue<<", "<<zsvalue<<", "<<zvalue<<std::endl;
-                puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
-                //puncFid<<iit[i]+1<<", "<<fl_x3d[iit[i]+1]<<", "<<fl_y3d[iit[i]+1]<<", "<<fl_z3d[iit[i]+1]<<std::endl;
-            }
-            else
-            {
-                //puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<", SKIP"<<std::endl;
-                //puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<", "<<rxyvalue<<", "<<zxyvalue<<", "<<zsvalue<<", "<<zvalue<<", SKIP"<<std::endl;
-                punc_ip_Fid<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
-            }
-        }
-        std::cout<<"All done"<<std::endl;
-        std::cout<<" Exiting now."<<std::endl;
+    //find the intersections.
+    std::vector<double> fl_x3d, fl_y3d, fl_z3d, itarray;
+    double xi = 0.0;
+    for (const auto pt : PointsXYZ)
+    {
+        fl_x3d.push_back(pt[0]);
+        fl_y3d.push_back(pt[1]);
+        fl_z3d.push_back(pt[2]);
+        itarray.push_back(xi);
+        xi = xi+1.0;
     }
 
+    SplineInterpolation ffl_x3d(itarray, fl_x3d), ffl_y3d(itarray, fl_y3d), ffl_z3d(itarray, fl_z3d);
+    auto [fit, iit, iit_vals] = find_zero_crossings(itarray, fl_x3d, 0.0001);
+    int nc = iit.size();
+
+    for (int i = 0; i < nc; i++)
+    {
+        int iit_i = iit[i];
+        double tval = fit[iit_i];
+        double valX = ffl_x3d.evaluate(tval);
+        double valY = ffl_y3d.evaluate(tval);
+        double valZ = ffl_z3d.evaluate(tval);
+        if (i == 328)
+            std::cout<<"***** problem point... "<<valX<<" "<<valY<<" "<<valZ<<std::endl;
+        rawPunc<<iline<<", "<<i<<", "<<valX<<", "<<valY<<", "<<valZ<<std::endl;
+    }
+    // do a root finding for punctures.
+    {
+        SplineInterpolation xvalues(itarray, fl_x3d);
+
+        for (int i = 1; i < itarray.size(); i++)
+        {
+            double x0 = fl_x3d[i-1];
+            double x1 = fl_x3d[i];
+            //sign change.
+            if (signChange(x0, x1))
+            {
+                double t0 = itarray[i-1];
+                double t1 = itarray[i];
+
+                bool done = false;
+                double tZero = 0.0;
+                int cnt = 0;
+                while (!done && cnt < 100)
+                {
+                    double val0 = xvalues.evaluate(t0);
+                    double val1 = xvalues.evaluate(t1);
+
+                    double dt = t1-t0;
+                    double tMid = t0 + dt * 0.5;
+                    double valMid = xvalues.evaluate(tMid);
+                    //zero lies between t0 and tmid
+                    if (signChange(val0, valMid))
+                    {
+                        t0 = t0;
+                        t1 = tMid;
+                        val0 = val0;
+                        val1 = valMid;
+                    }
+                    // zero lies between tmid and t1.
+                    else
+                    {
+                        t0 = tMid;
+                        t1 = t1;
+                        val0 = valMid;
+                        val1 = val1;
+                    }
+                    double diff = std::fabs(val0-val1);
+                    cnt++;
+
+                    if (diff < 1e-12)
+                    {
+                        tZero = t0 + (t1-t0) * 0.5;
+                        done = true;
+                    }
+                }
+                double result = xvalues.evaluate(tZero);
+                double sx = result;
+                double sy = ffl_y3d.evaluate(tZero);
+                double sz = ffl_z3d.evaluate(tZero);
+                puncSplineFid<<iline<<", "<<tZero<<", "<<sx<<", "<<sy<<", "<<sz<<std::endl;
+                std::cout<<cnt<<": X crossing: "<<tZero<<" val= "<<result<<std::endl;
+            }
+        }
+    }
+
+    for (int i = 0; i < nc; i++)
+    {
+        //i = 328;
+        if (i == 3)
+            std::cout<<"***** problem point... "<<std::endl;
+        int iit_i = iit[i];
+        double fit_i = fit[iit_i];
+        int _it = std::floor(fit_i);
+        double a = fit[iit[i]] - static_cast<double>(_it);
+        double b = 1.0-a;
+        auto pt = Points[_it];
+        auto pt_1 = Points[_it+1];
+
+        auto xind_tmp = b*pt.traj2 + a*pt_1.traj2;
+        auto yind_tmp = b*pt.traj3 + a*pt_1.traj3;
+        auto zvalue   = b*pt.traj7 + a*pt_1.traj7;
+
+        auto pt_m1 = Points[_it-1];
+        auto _nypf2 = opts.nypf2, _nypf1 = opts.nypf1;
+        if (std::abs(pt.traj7 - pt_1.traj7) > 1.0)
+            zvalue = b*double_mod(pt.traj7, opts.zmax) + a*double_mod(pt_1.traj7, opts.zmax);
+        if (pt.traj3 == double(opts.nypf2) && xind_tmp < double(opts.ixsep)+0.5)
+            yind_tmp = b*pt.traj3 + a*double(opts.nypf2+1);
+        else if (_it > 0 && (Points[_it-1].traj3 == double(opts.nypf2) || (Points[_it-1].traj3 == double(opts.nypf1+1))))
+        {
+            zvalue = b*INTERP(opts.ziarray, opts.zarray, pt.traj4) +
+                        a*INTERP(opts.ziarray, opts.zarray, pt_1.traj4);
+            //std::cout<<"******** Need to support the update of zvalue "<<__LINE__<<std::endl;
+            //throw std::string("Need to support the update of zvalue");
+            //zvalue = b*
+        }
+
+        double rxyvalue, zxyvalue, zsvalue;
+        if (xind_tmp < double(opts.ixsep)+0.5)
+        {
+            //rxyvalue2 = interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.rxy_cfr,   xind_tmp, yind_tmp);
+            //zxyvalue2 =   interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zxy_cfr,  xind_tmp, yind_tmp);
+            //zsvalue2 =   interpolate2D(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr, xind_tmp, yind_tmp);
+            rxyvalue = bilinear_interp2(opts.xiarray_cfr, opts.yiarray_cfr, opts.rxy_cfr,   xind_tmp, yind_tmp);
+            zxyvalue = bilinear_interp2(opts.xiarray_cfr, opts.yiarray_cfr, opts.zxy_cfr,  xind_tmp, yind_tmp);
+            zsvalue =  bilinear_interp2(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr, xind_tmp, yind_tmp);
+
+            //double rxyvalue2 = interp2Spline(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
+            //double dv = rxyvalue - rxyvalue2;
+
+            /*
+            SplineInterpolation rxySpline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
+            SplineInterpolation zxySpline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
+            SplineInterpolation zSpline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
+            rxyvalue = rxySpline.evaluate(xind_tmp, yind_tmp);
+            zxyvalue = zxySpline.evaluate(xind_tmp, yind_tmp);
+            zsvalue = zSpline.evaluate(xind_tmp, yind_tmp);
+            */
+
+            /*
+            SplineInterpolation int_spline(opts.xiarray_cfr, opts.yiarray_cfr, opts.zShift_cfr);
+            auto val = int_spline.evaluate(xind_tmp, yind_tmp);
+
+            auto dv = std::fabs(zsvalue - val);
+            if (dv > 1e-5)
+                std::cout<<" *** zsvalue difference.."<<std::endl;
+            */
+        }
+        else
+        {
+            rxyvalue = bilinear_interp2(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
+            zxyvalue = bilinear_interp2(opts.xiarray, opts.yiarray, opts.zxy, xind_tmp, yind_tmp);
+            zsvalue = bilinear_interp2(opts.xiarray, opts.yiarray, opts.zShift, xind_tmp, yind_tmp);
+            double rxyvalue2 = interp2Spline(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
+
+            double dv = rxyvalue - rxyvalue2;
+
+            /*
+            SplineInterpolation int_spline(opts.xiarray, opts.yiarray, opts.zShift);
+            auto val = int_spline.evaluate(xind_tmp, yind_tmp);
+            auto dv = std::fabs(zsvalue - val);
+            if (dv > 1e-5)
+                std::cout<<" *** zsvalue difference.."<<std::endl;
+            */
+
+            //rxyvalue2 = interpolate2D(opts.xiarray, opts.yiarray, opts.rxy, xind_tmp, yind_tmp);
+            //zxyvalue2 = interpolate2D(opts.xiarray, opts.yiarray, opts.zxy, xind_tmp, yind_tmp);
+            //zsvalue2 = interpolate2D(opts.xiarray, opts.yiarray, opts.zShift, xind_tmp, yind_tmp);
+        }
+
+        double ipx3d_tmp = rxyvalue*cos(zsvalue);
+        double ipy3d_tmp = rxyvalue*sin(zsvalue);
+        double cz = cos(zvalue);
+        double sz = sin(zvalue);
+        double ipx = ipx3d_tmp*cos(zvalue)-ipy3d_tmp*sin(zvalue);
+        double ipy = ipx3d_tmp*sin(zvalue)+ipy3d_tmp*cos(zvalue);
+        double ipz = zxyvalue;
+
+        if (ipy > 0.0)
+        {
+            ipx = 0.0;
+            // do the rxy/zxy interpolation
+            //if (i > 0) puncFid<<iit[i]-1<<", "<<fl_x3d[iit[i]-1]<<", "<<fl_y3d[iit[i]-1]<<", "<<fl_z3d[iit[i]-1]<<std::endl;
+            //puncFid<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
+            //puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<", "<<rxyvalue<<", "<<zxyvalue<<", "<<zsvalue<<", "<<zvalue<<std::endl;
+            puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
+            //puncFid<<iit[i]+1<<", "<<fl_x3d[iit[i]+1]<<", "<<fl_y3d[iit[i]+1]<<", "<<fl_z3d[iit[i]+1]<<std::endl;
+        }
+        else
+        {
+            //puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<", SKIP"<<std::endl;
+            //puncFid2<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<", "<<rxyvalue<<", "<<zxyvalue<<", "<<zsvalue<<", "<<zvalue<<", SKIP"<<std::endl;
+            punc_ip_Fid<<iline<<", "<<i<<", "<<ipx<<", "<<ipy<<", "<<ipz<<std::endl;
+        }
+    }
+    std::cout<<"All done"<<std::endl;
+    std::cout<<" Exiting now."<<std::endl;
     return 0;
+    }
 }
