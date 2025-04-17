@@ -296,14 +296,14 @@ class Options
             arr[i] = static_cast<double>(i+n0);
     }
 
-    int GetRegion(const vtkm::Particle& p) const
+    int GetRegion(const vtkm::Vec3f& p) const
     {
         int region = -1;
-        if (p.GetPosition()[0] < static_cast<double>(this->ixsep + 0.5))
+        if (p[0] < static_cast<double>(this->ixsep + 0.5))
         {
             region = 0;  //Closed flux surface
             std::cout<<"Check this +1 stuff.."<<std::endl;
-            if (p.GetPosition()[1] < this->nypf1 + 1 || p.GetPosition()[1] > nypf2-1)
+            if (p[1] < this->nypf1 + 1 || p[1] > nypf2-1)
             {
                 region = 2;  //PFR
                 std::cout<<" We hit the +1 stuff..."<<std::endl;
@@ -313,9 +313,9 @@ class Options
             region = 1; //SOL
 
         // Check for divertor starting points
-        if (this->direction == 1 && p.GetPosition()[1] == this->ny - 1)
+        if (this->direction == 1 && p[1] == this->ny - 1)
           region = 14;
-        else if (this->direction == -1 && p.GetPosition()[1] == 0)
+        else if (this->direction == -1 && p[1] == 0)
             region = 13;
 
         return region;
@@ -643,7 +643,8 @@ int main()
         double zind = INTERP(opts.zarray, opts.ziarray, zStart);
         auto zind2 = scalarField1DEval(opts.ZiArray, opts.ZArray, {zStart});
 
-        vtkm::Particle p({ xStart, static_cast<vtkm::FloatDefault>(yStart), zStart }, 0);
+        //vtkm::Particle p({ xStart, static_cast<vtkm::FloatDefault>(yStart), zStart }, 0);
+        vtkm::Vec3f p0(xStart, static_cast<vtkm::FloatDefault>(yStart), zStart);
 
         std::cout<<std::setprecision(12);
         std::cout<<"   xStart=  "<<xStart<<std::endl;
@@ -651,8 +652,8 @@ int main()
         std::cout<<"   zind= "<<zind<<std::endl;
         std::cout<<"   zind2= "<<zind<<std::endl;
 
-        int region = opts.GetRegion(xind, yStart);
-        int region_ = opts.GetRegion(p);
+        int region = opts.GetRegion(xind, p0[1]);
+        int region_ = opts.GetRegion(p0);
         int iturn = 0, it = 0;
 
         auto zindFID = fopen("/Users/dpn/zind.c.txt", "w");
@@ -663,45 +664,45 @@ int main()
             // iy is not used -- just a loop...
             for (int iy_ = 0; iy_ < opts.ny-1; iy_++)
             {
-                //trajOut<<iline<<", "<<iy<<", "<<it<<", "<<iturn<<", "<<xStart<<", "<<yStart<<", "<<zStart<<std::endl;
+                if (iturn > 5) break;
+
+                //trajOut<<iline<<", "<<iy<<", "<<it<<", "<<iturn<<", "<<xStart<<", "<<p0[1]<<", "<<p0[2]<<std::endl;
                 if (it == 0)
                 {
                     Point _p;
-                    _p.traj1 = it; _p.traj2 = xind; _p.traj3 = yStart;
-                    _p.traj4 = zind; _p.traj5 = region; _p.traj7 = zStart;
-                    fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", _p.traj1, _p.traj2, (int)_p.traj3, _p.traj4, (int)_p.traj5, _p.traj7);
+                    _p.traj1 = it; _p.traj2 = xind; _p.traj3 = p0[1];
+                    _p.traj4 = zind; _p.traj5 = region; _p.traj7 = p0[2];
+                    fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", (int)_p.traj1, _p.traj2, (int)_p.traj3, _p.traj4, (int)_p.traj5, _p.traj7);
                     Points.push_back(_p);
-                    //Points.push_back({xind, yStart, zind, iline, iy, it});
+                    //Points.push_back({xind, p0[1], zind, iline, iy, it});
                 }
 
-                if (yStart+1 == opts.dxdy[0].size())
+                if (p0[1]+1 == opts.dxdy[0].size())
                 {
                     std::cout<<"Overflow of some kind... Need to track this down."<<std::endl;
                     break;
                 }
 
-                double xEnd, zEnd, yEnd;
-                if (region == 0 && yStart >= opts.nypf1 && yStart < opts.nypf2+1)
+                //double xEnd, zEnd, yEnd;
+                vtkm::Vec3f p1;
+                if (region == 0 && p0[1] >= opts.nypf1 && p0[1] < opts.nypf2+1)
                 {
                     bool dumpFiles = false;
-                    //auto step = RK4_FLT1(xStart, yStart, zStart, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
-                    vtkm::Vec3f pt0(xStart, yStart, zStart);
+                    //auto step = RK4_FLT1(xStart, p0[1], p0[2], opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
                     std::cout<<"Begin Step: iturn= "<<iturn<<" iy= "<<iy_<<std::endl;
-                    auto pStep = RK4_FLT1_vtkm(pt0, opts.Grid2D, opts.Grid2D_cfr, opts.Grid2D_xz, opts.Grid3D, opts.XArray, opts.ZArray, region, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
-                    xEnd = pStep[0];
-                    zEnd = pStep[2];
-                    yEnd = yStart+1;
+                    p1 = RK4_FLT1_vtkm(p0, opts.Grid2D, opts.Grid2D_cfr, opts.Grid2D_xz, opts.Grid3D, opts.XArray, opts.ZArray, region, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
+                    p1[1] += 1.0;
                 }
-                std::cout<<"  *** vRK4: end= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<std::endl;
-                stepOut<<iline<<", "<<it<<", "<<xEnd<<", "<<yEnd<<", "<<zEnd<<std::endl;
+                std::cout<<"  *** vRK4: end= "<<p1<<std::endl;
+                stepOut<<iline<<", "<<it<<", "<<p1[0]<<", "<<p1[1]<<", "<<p1[2]<<std::endl;
 
                 // Check where the field line ends
-                if (xEnd > opts.xMax)
+                if (p1[0] > opts.xMax)
                 {
                     std::cout<<"  Starting xind= "<<xind<<" line= "<<iline<<" reaches outer boundary"<<std::endl;
                     region = 12;
                 }
-                else if (xEnd < opts.xMin)
+                else if (p1[0] < opts.xMin)
                 {
                     std::cout<<"  Starting xind= "<<xind<<" line= "<<iline<<" reaches inner boundary"<<std::endl;
                     region = 11;
@@ -709,7 +710,7 @@ int main()
                 else
                 {
                     //xind = INTERP(opts.xarray, opts.xiarray, xEnd);
-                    xind = scalarField1DEval(opts.XArray, opts.XiArray, xEnd);
+                    xind = scalarField1DEval(opts.XArray, opts.XiArray, p1[0]);
                     std::cout<<"   vINTERP:  xind "<<xind<<std::endl;
                     if (xind > static_cast<double>(opts.ixsep1) + 0.5)
                     {
@@ -719,44 +720,42 @@ int main()
                 }
 
                 //Twist-shift at branch cut.
-                if (yStart == opts.nypf2-1 && region == 0)
+                if (p0[1] == opts.nypf2-1 && region == 0)
                 {
-                    std::cout<<"Branch cut: "<<yStart<<" "<<opts.nypf2<<std::endl;
+                    std::cout<<"Branch cut: "<<p0[1]<<" "<<opts.nypf2<<std::endl;
                     //double shiftAngle = INTERP(opts.xiarray, opts.shiftAngle, xind);
                     double shiftAngle = scalarField1DEval(opts.XiArray, opts.ShiftAngle, xind);
-                    zEnd = zEnd + shiftAngle;
-                    yEnd = opts.nypf1;
+                    p1[2] = p1[2] + shiftAngle;
+                    p1[1] = opts.nypf1;
                 }
 
-                double zEnd_no_mod = zEnd;
+                double zEnd_no_mod = p1[2];
                 //Relabel toroidal location.
-                if (zEnd < opts.zmin || zEnd > opts.zmax)
-                    zEnd = double_mod(zEnd, opts.zmax);
+                if (p1[2] < opts.zmin || p1[2] > opts.zmax)
+                    p1[2] = double_mod(p1[2], opts.zmax);
                 //zind = INTERP(opts.zarray, opts.ziarray, zEnd);
-                zind = scalarField1DEval(opts.ZArray, opts.ZiArray, {zEnd});
+                zind = scalarField1DEval(opts.ZArray, opts.ZiArray, {p1[2]});
                 std::cout<<"   vINTERP:  zind "<<zind<<std::endl;
 
                 //std::cout<<"********** it= "<<it<<" pt1= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<" zind "<<zind<<std::endl;
-                fprintf(zindFID, "%d %12.10f --> %12.10f\n", it, zEnd, zind);
+                fprintf(zindFID, "%d %12.10f --> %12.10f\n", it, p1[2], zind);
                 //Points.push_back({xind, yEnd, zind, iline, iy, it});
-                if (zEnd > opts.zmax)
+                if (p1[2] > opts.zmax)
                 {
                     std::cout<<"We have a problem now..."<<std::endl;
-                    double diff = std::abs(zEnd - opts.zmax);
+                    double diff = std::abs(p1[2] - opts.zmax);
                     std::cout<<"diff is "<<diff<<std::endl;
                     std::cout<<"*******"<<std::endl;
                 }
 
                 Point _p;
-                _p.traj1 = it; _p.traj2 = xind; _p.traj3 = yEnd; _p.traj4 = zind;
+                _p.traj1 = it; _p.traj2 = xind; _p.traj3 = p1[1]; _p.traj4 = zind;
                 _p.traj5 = region;
                 _p.traj7 = zEnd_no_mod;
                 Points.push_back(_p);
 
                 it = it+1;
-                xStart = xEnd;
-                yStart = yEnd;
-                zStart = zEnd;
+                p0 = p1;
                 //throw std::runtime_error("Meow");
 
                 fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", it, _p.traj2, (int)_p.traj3, _p.traj4, (int)_p.traj5, _p.traj7);
