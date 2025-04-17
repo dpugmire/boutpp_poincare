@@ -102,6 +102,7 @@ class Options
         this->zarray.resize(this->nzG+1);
         for (int i = 0; i <= this->nzG; i++)
             this->zarray[i] = this->ziarray[i] * this->dz;
+
         this->init_array(this->xiarray, this->nx);
         this->init_array(this->yiarray, this->ny);
         this->init_array(this->xiarray_cfr, this->ixsep);
@@ -484,6 +485,8 @@ int main()
             // Start field-line tracing.
             for (int iy = 0; iy < opts.ny-1; iy++)
             {
+                if (iy > 5) break;
+
                 if (it == 16)
                 {
                     std::cout<<"start looking at it=19"<<std::endl;
@@ -529,11 +532,13 @@ int main()
                         dumpFiles = false;
                         */
                     }
+                    std::cout<<"Begin Step: iturn= "<<iturn<<" iy= "<<iy<<std::endl;
                     auto step = RK4_FLT1(xStart, yStart, zStart, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
                     xEnd = step.first;
                     zEnd = step.second;
                     yEnd = yStart+1;
                 }
+                std::cout<<"  *** cRK4: end= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<std::endl;
                 stepOut<<iline<<", "<<it<<", "<<xEnd<<", "<<yEnd<<", "<<zEnd<<std::endl;
 
                 // Check where the field line ends
@@ -550,6 +555,7 @@ int main()
                 else
                 {
                     xind = INTERP(opts.xarray, opts.xiarray, xEnd);
+                    std::cout<<"   cINTERP:  xind "<<xind<<std::endl;
                     if (xind > static_cast<double>(opts.ixsep1) + 0.5)
                     {
                         region = 1;
@@ -571,6 +577,7 @@ int main()
                 if (zEnd < opts.zmin || zEnd > opts.zmax)
                     zEnd = double_mod(zEnd, opts.zmax);
                 zind = INTERP(opts.zarray, opts.ziarray, zEnd);
+                std::cout<<"   cINTERP:  zind "<<zind<<std::endl;
 
                 //std::cout<<"********** it= "<<it<<" pt1= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<" zind "<<zind<<std::endl;
                 fprintf(zindFID, "%d %12.10f --> %12.10f\n", it, zEnd, zind);
@@ -594,6 +601,7 @@ int main()
                 yStart = yEnd;
                 zStart = zEnd;
                 fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", it, _p.traj2, (int)_p.traj3, _p.traj4, (int)_p.traj5, _p.traj7);
+                //throw std::runtime_error("Meow");
             }
             iturn++;
         }

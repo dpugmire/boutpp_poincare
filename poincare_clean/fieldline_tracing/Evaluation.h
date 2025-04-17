@@ -27,6 +27,10 @@ vtkm::FloatDefault scalarField3DEval(const vtkm::cont::DataSet& dataset,
                                      const std::string& fieldname,
                                      const vtkm::Vec3f& pt);
 
+vtkm::FloatDefault scalarField3DEvalFwdAvg(const vtkm::cont::DataSet& dataset,
+                                            const std::string& fieldname,
+                                            const vtkm::Vec3f& pt);
+
 /*
 vtkm::FloatDefault scalarField3DEval(const vtkm::cont::DataSet& dataset,
                                      const std::string& fieldname,

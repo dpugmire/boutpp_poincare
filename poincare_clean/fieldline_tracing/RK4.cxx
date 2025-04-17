@@ -57,6 +57,14 @@ double bilinear_interp2(const std::vector<double>& xarray,
                     q12 * (x2 - x) * (z - z1) +
                     q22 * (x - x1) * (z - z1)) / denom;
 
+#if 0
+    std::cout<<"  Bilinear: xz : "<<x<<" "<<z<<std::endl;
+    std::cout<<"    *** indices: "<<i1<<" "<<j1<<" "<<i2<<" "<<j2<<std::endl;
+    std::cout<<"         zxvals: "<<x1<<" "<<x2<<" "<<z1<<" "<<z2<<std::endl;
+    std::cout<<"    *** data   : "<<q11<<" "<<q12<<" "<<q21<<" "<<q22<<std::endl;
+    std::cout<<"           --> : "<<interp<<std::endl;
+#endif
+
     return interp;
 }
 
@@ -293,6 +301,7 @@ std::pair<double, double> RK4_FLT1(
     int direction, int nypf1, int nypf2,
     std::ofstream& rk4Out, int iline, int it, bool dumpFiles)
 {
+    std::cout<<"cRK4 begin: "<<xStart<<" "<<yStart<<" "<<zStart<<std::endl;
     const double twoPi = 2.0 * M_PI;
     double h = 1.0;
     double hh = h / 2.0;
@@ -300,8 +309,9 @@ std::pair<double, double> RK4_FLT1(
 
     double val0 = dxdy[123][79][101];
     double val1 = dxdy[192][47][200];
-    //std::cout<<"dxdy: "<<val0<<" "<<val1<<std::endl;
-    //throw std::runtime_error("RK4_FLT1_vtkm: Not implemented.");
+    std::cout<<std::setprecision(12);
+    std::cout<<"dxdy: "<<val0<<" "<<val1<<std::endl;
+
 
     if (dumpFiles)
     {
@@ -315,6 +325,7 @@ std::pair<double, double> RK4_FLT1(
     std::vector<std::vector<double>> dxdyp = Slice(dxdy, yStart);
     double val00 = dxdyp[123][101];
     double val01 = dxdyp[192][200];
+    std::cout<<"dxdyp: "<<val00<<" "<<val01<<std::endl;
     std::vector<std::vector<double>> dzdyp = Slice(dzdy, yStart);
     std::vector<std::vector<double>> dxdyn, dzdyn, dxdyh, dzdyh;
 
@@ -333,6 +344,7 @@ std::pair<double, double> RK4_FLT1(
             dzdyn = dzdy_pm1;
             dxdyh = avgArrays(dxdyp, dxdyn);
             dzdyh = avgArrays(dzdyp, dzdyn);
+            std::cout<<"*************   "<<__LINE__<<std::endl;
         }
         else
         {
@@ -340,6 +352,7 @@ std::pair<double, double> RK4_FLT1(
             dzdyn = Slice(dzdy, yStart+1);
             dxdyh = avgArrays(Slice(dxdy, yStart), Slice(dxdy, yStart+1));
             dzdyh = avgArrays(Slice(dzdy, yStart), Slice(dzdy, yStart+1));
+            std::cout<<"*************   "<<__LINE__<<std::endl;
         }
     }
     else
@@ -400,7 +413,7 @@ std::pair<double, double> RK4_FLT1(
         splineTest(xStart, zStart, dxdyp, dzdyp, xarray, zarray);
     }
 
-    bool useSplineInterp = true;
+    bool useSplineInterp = false;
 
     // Interpolation using the SplineInterpolation class
     //SplineInterpolation splineDxdy(xarray, zarray, dxdyp); //[zStart]);
@@ -434,10 +447,17 @@ std::pair<double, double> RK4_FLT1(
         //    std::cout<<" Error_al: "<<dx2<<" "<<dz2<<std::endl;
 #endif
     }
+    std::cout<<std::setprecision(12);
+    std::cout<<"P0: "<<xStart<<" "<<yStart<<" "<<zStart<<std::endl;
+    std::cout<<"dxdy:dzdy "<<dxdy1<<" "<<dzdy1<<std::endl;
+
     double x1 = xStart + direction * hh * dxdy1;
     double z1 = zStart + direction * hh * dzdy1;
     double _z1 = z1;
     z1 = double_mod(z1, twoPi);
+    std::cout<<std::setprecision(12);
+    std::cout<<"cRK4 step1: "<<dxdy1<<" "<<dzdy1<<" :: "<<x1<<" "<<z1<<std::endl<<std::endl;
+
     rk4Out<<iline<<", "<<double(it)<<", "<<0<<", "<<dxdy1<<", "<<dzdy1<<std::endl;
     //printf("  RES: %12.10e %12.10e\n", dxdy1, dzdy1);
     //printf("  bi-RES: %12.10e %12.10e\n", tmp1, tmp2);
@@ -460,6 +480,8 @@ std::pair<double, double> RK4_FLT1(
     double z2 = zStart + direction * hh * dzdy2;
     double _z2 = z2;
     z2 = double_mod(z2, twoPi);
+    std::cout<<"cRK4 step2: "<<dxdy2<<" "<<dzdy2<<" :: "<<x2<<" "<<z2<<std::endl<<std::endl;
+
     rk4Out<<iline<<", "<<it+0.25<<", "<<0<<", "<<dxdy2<<", "<<dzdy2<<std::endl;
 
     //std::cout<<"   RES= "<<dxdy2<<" "<<dzdy2<<std::endl;
@@ -482,6 +504,8 @@ std::pair<double, double> RK4_FLT1(
     double z3 = zStart + direction * dzdy3;
     double _z3 = z3;
     z3 = double_mod(z3, twoPi);
+
+    std::cout<<"cRK4 step3: "<<dxdy3<<" "<<dzdy3<<" :: "<<x3<<" "<<z3<<std::endl<<std::endl;
     rk4Out<<iline<<", "<<it+0.5<<", "<<0<<", "<<dxdy3<<", "<<dzdy3<<std::endl;
 
     // RK4 Step 4
@@ -504,6 +528,7 @@ std::pair<double, double> RK4_FLT1(
     double xEnd = xStart + direction * h6 * (dxdy1 + 2.0 * dxdy2 + 2.0 * dxdy3 + dxdy4);
     double zEnd = zStart + direction * h6 * (dzdy1 + 2.0 * dzdy2 + 2.0 * dzdy3 + dzdy4);
     //zEnd = double_mod(zEnd, twoPi);
+    std::cout<<"cRK4 step4: "<<dxdy4<<" "<<dzdy4<<" :: "<<xEnd<<" "<<zEnd<<std::endl<<std::endl;
 
     rk4Out<<iline<<", "<<it+0.99<<", "<<0<<", "<<xEnd<<", "<<zEnd<<std::endl;
 

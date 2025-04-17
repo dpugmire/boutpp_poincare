@@ -10,6 +10,7 @@
 
 #include <vtkm/Particle.h>
 #include <vtkm/cont/DataSetBuilderUniform.h>
+#include <vtkm/cont/DataSetBuilderRectilinear.h>
 #include <vtkm/cont/DataSetBuilderExplicit.h>
 #include <vtkm/io/VTKDataSetWriter.h>
 #include <vtkm/cont/CellLocatorUniformGrid.h>
@@ -115,12 +116,28 @@ class Options
         this->dzdy_m1 = this->loader.read2DVariable("dzdy_m1");
         this->dzdy_p1 = this->loader.read2DVariable("dzdy_p1");
         this->nzG = this->nz * this->zperiod;
-        this->dz = (this->zmax - this->zmin) / this->nzG;
 
+        std::cout<<"*******************************************************************************************"<<std::endl;
+        std::cout<<"*******************************************************************************************"<<std::endl;
+        std::cout<<__FILE__<<" "<<__LINE__<<std::endl;
+        std::cout<<" Fix me. zarray length issue..."<<std::endl;
+        std::cout<<"      Right now using dz = (zmax - zmin) / (nzG-1)"<<std::endl;
+        std::cout<<__FILE__<<" "<<__LINE__<<std::endl;
+        std::cout<<"*******************************************************************************************"<<std::endl;
+        std::cout<<"*******************************************************************************************"<<std::endl;
+        /*
+        this->dz = (this->zmax - this->zmin) / this->nzG;
         this->init_array(this->ziarray, this->nzG+1);
         this->zarray.resize(this->nzG+1);
         for (int i = 0; i <= this->nzG; i++)
             this->zarray[i] = this->ziarray[i] * this->dz;
+        */
+       this->init_array(this->ziarray, this->nzG+1);
+       this->dz = (this->zmax - this->zmin) / (this->nzG-1);
+       this->zarray.resize(this->nzG);
+       for (int i = 0; i < this->nzG; i++)
+           this->zarray[i] = this->ziarray[i] * this->dz;
+
         this->init_array(this->xiarray, this->nx);
         this->init_array(this->yiarray, this->ny);
         this->init_array(this->xiarray_cfr, this->ixsep);
@@ -196,10 +213,25 @@ class Options
         this->AddField(this->dzdy_m1, "dzdy_m1", this->Grid2D_xz);
         this->AddField(this->dzdy_p1, "dzdy_p1", this->Grid2D_xz);
 
-        dims = { this->nx, this->ny, this->nz };
-        this->Grid3D = builder.Create(dims, origin, spacing);
+        vtkm::cont::DataSetBuilderRectilinear builderRect;
+        std::vector<vtkm::FloatDefault> yarray;
+        yarray.reserve(this->ny);
+        for (int i = 0; i < this->ny; i++)
+            yarray.push_back(static_cast<vtkm::FloatDefault>(i));
+
+        std::cout<<"Create rectilinear: "<<this->xarray.size()<<" "<<yarray.size()<<" "<<this->zarray.size()<<std::endl;
+        this->Grid3D = builderRect.Create(this->xarray, yarray, this->zarray);
+        std::cout<<"Create rectilinear: "<<this->xarray.size()<<" "<<yarray.size()<<" "<<this->zarray.size()<<std::endl;
         this->AddField(this->dxdy, "dxdy", this->Grid3D);
         this->AddField(this->dzdy, "dzdy", this->Grid3D);
+        std::cout<<std::setprecision(15)<<"Grid3d bounds: "<<this->Grid3D.GetCoordinateSystem().GetBounds()<<std::endl;
+        std::cout<<"  dz= "<<this->dz<<" z0: "<<this->zarray[0]<<" "<<this->zarray[1]<<" ... "<<this->zarray[this->zarray.size()-2]<<" "<<this->zarray[this->zarray.size()-1]<<std::endl;
+
+
+        #if 0
+        this->Grid3D.PrintSummary(std::cout);
+        std::cout<<"dims: "<<this->dxdy[0][0].size()<<" "<<this->dxdy[0].size()<<" "<<this->dxdy.size()<<std::endl;
+        std::cout<<" npts / ncells: "<<this->Grid3D.GetNumberOfPoints()<<" "<<this->Grid3D.GetNumberOfCells()<<std::endl;
 
         vtkm::io::VTKDataSetWriter writer("/Users/dpn/grid2D.vtk");
         writer.WriteDataSet(this->Grid2D);
@@ -209,6 +241,8 @@ class Options
         writer.WriteDataSet(this->Grid2D_xz);
         writer = vtkm::io::VTKDataSetWriter("/Users/dpn/grid3D.vtk");
         writer.WriteDataSet(this->Grid3D);
+        #endif
+
         this->XArray = vtkm::cont::make_ArrayHandle(this->xarray, vtkm::CopyFlag::On);
         this->XiArray = vtkm::cont::make_ArrayHandle(this->xiarray, vtkm::CopyFlag::On);
         this->ZArray = vtkm::cont::make_ArrayHandle(this->zarray, vtkm::CopyFlag::On);
@@ -234,6 +268,8 @@ class Options
         vtkm::Id n_z = vals[0][0].size();
         vtkm::Id n_y = vals[0].size();
         vtkm::Id n_x = vals.size();
+        std::cout<<"Add Field3D: "<<fieldName<<" "<<n_x<<" "<<n_y<<" "<<n_z<<std::endl;
+
 
         std::vector<double> field;
         field.reserve(n_x * n_y * n_z);
@@ -241,11 +277,12 @@ class Options
             for (vtkm::Id j = 0; j < n_y; ++j)
                 for (vtkm::Id i = 0; i < n_x; ++i)
                     field.push_back(vals[i][j][k]);
+
+        std::cout<<"  **** field size: "<<field.size()<<std::endl;
         ds.AddPointField(fieldName, field);
     }
 
-
-      void init_array(std::vector<double>& arr, size_t n)
+    void init_array(std::vector<double>& arr, size_t n)
     {
         this->init_array(arr, 0, n);
     }
@@ -359,8 +396,10 @@ class Options
 double INTERP(const std::vector<double>& X, const std::vector<double>& Y, double val)
 {
     // Ensure input vectors have the same size
+    /*
     if (X.size() != Y.size())
         throw std::invalid_argument("X and Y must have the same size.");
+    */
 
     // Find the appropriate interval for the value
     int idx = -1;
@@ -624,6 +663,8 @@ int main()
             // iy is not used -- just a loop...
             for (int iy_ = 0; iy_ < opts.ny-1; iy_++)
             {
+                if (iy_ > 5) break;
+                
                 //trajOut<<iline<<", "<<iy<<", "<<it<<", "<<iturn<<", "<<xStart<<", "<<yStart<<", "<<zStart<<std::endl;
                 if (it == 0)
                 {
@@ -647,11 +688,13 @@ int main()
                     bool dumpFiles = false;
                     //auto step = RK4_FLT1(xStart, yStart, zStart, opts.dxdy, opts.dzdy, opts.xarray, opts.zarray, region, opts.dxdy_p1, opts.dzdy_p1, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
                     vtkm::Vec3f pt0(xStart, yStart, zStart), p1;
-                    auto step = RK4_FLT1_vtkm(pt0, opts.Grid2D, opts.Grid2D_cfr, opts.Grid2D_xz, opts.Grid3D, opts.XArray, opts.ZArray, region, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
-                    xEnd = step.first;
-                    zEnd = step.second;
+                    std::cout<<"Begin Step: iturn= "<<iturn<<" iy= "<<iy_<<std::endl;
+                    auto pStep = RK4_FLT1_vtkm(pt0, opts.Grid2D, opts.Grid2D_cfr, opts.Grid2D_xz, opts.Grid3D, opts.XArray, opts.ZArray, region, 1, opts.nypf1, opts.nypf2, rk4Out, iline, it, dumpFiles);
+                    xEnd = pStep[0];
+                    zEnd = pStep[2];
                     yEnd = yStart+1;
                 }
+                std::cout<<"  *** vRK4: end= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<std::endl;
                 stepOut<<iline<<", "<<it<<", "<<xEnd<<", "<<yEnd<<", "<<zEnd<<std::endl;
 
                 // Check where the field line ends
@@ -667,9 +710,9 @@ int main()
                 }
                 else
                 {
-                    xind = INTERP(opts.xarray, opts.xiarray, xEnd);
-                    auto xind_ = scalarField1DEval(opts.XArray, opts.XiArray, xEnd);
-                    std::cout<<"   INTERP:  xind "<<xind<<" "<<xind_<<std::endl;
+                    //xind = INTERP(opts.xarray, opts.xiarray, xEnd);
+                    xind = scalarField1DEval(opts.XArray, opts.XiArray, xEnd);
+                    std::cout<<"   vINTERP:  xind "<<xind<<std::endl;
                     if (xind > static_cast<double>(opts.ixsep1) + 0.5)
                     {
                         region = 1;
@@ -681,9 +724,8 @@ int main()
                 if (yStart == opts.nypf2-1 && region == 0)
                 {
                     std::cout<<"Branch cut: "<<yStart<<" "<<opts.nypf2<<std::endl;
-                    double shiftAngle = INTERP(opts.xiarray, opts.shiftAngle, xind);
-                    double shiftAngle_ = scalarField1DEval(opts.XiArray, opts.ShiftAngle, xind);
-                    std::cout<<"   INTERP:  sa"<<shiftAngle<<" "<<shiftAngle_<<std::endl;
+                    //double shiftAngle = INTERP(opts.xiarray, opts.shiftAngle, xind);
+                    double shiftAngle = scalarField1DEval(opts.XiArray, opts.ShiftAngle, xind);
                     zEnd = zEnd + shiftAngle;
                     yEnd = opts.nypf1;
                 }
@@ -692,9 +734,9 @@ int main()
                 //Relabel toroidal location.
                 if (zEnd < opts.zmin || zEnd > opts.zmax)
                     zEnd = double_mod(zEnd, opts.zmax);
-                zind = INTERP(opts.zarray, opts.ziarray, zEnd);
-                auto zind_ = scalarField1DEval(opts.ZArray, opts.ZiArray, {zEnd});
-                std::cout<<" "<<zEnd<<" -->  zind: "<<zind<<" : "<<zind_<<std::endl;
+                //zind = INTERP(opts.zarray, opts.ziarray, zEnd);
+                zind = scalarField1DEval(opts.ZArray, opts.ZiArray, {zEnd});
+                std::cout<<"   vINTERP:  zind "<<zind<<std::endl;
 
                 //std::cout<<"********** it= "<<it<<" pt1= "<<xEnd<<" "<<yEnd<<" "<<zEnd<<" zind "<<zind<<std::endl;
                 fprintf(zindFID, "%d %12.10f --> %12.10f\n", it, zEnd, zind);
@@ -717,6 +759,8 @@ int main()
                 xStart = xEnd;
                 yStart = yEnd;
                 zStart = zEnd;
+                //throw std::runtime_error("Meow");
+
                 fprintf(TRAJ_FID, "%d, %12.8f, %d, %12.8f, %d, %12.8f\n", it, _p.traj2, (int)_p.traj3, _p.traj4, (int)_p.traj5, _p.traj7);
             }
             iturn++;

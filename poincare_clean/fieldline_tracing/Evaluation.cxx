@@ -110,6 +110,8 @@ vtkm::FloatDefault scalarField2DEval(const vtkm::cont::DataSet& dataset,
     return scalarField3DEval(dataset, fieldname, pt);
 }
 
+
+
 #if 0
 vtkm::FloatDefault scalarField2DEval(const vtkm::cont::DataSet& dataset,
                                      const std::string& fieldname,
@@ -170,14 +172,32 @@ scalarField3DEval(const vtkm::cont::DataSet& dataset,
     }
 
     auto samplePts = builder.Create(pts, cellTypes, numPts, ptIds);
+    //samplePts.PrintSummary(std::cout);
 
     vtkm::filter::resampling::Probe probe;
     probe.SetGeometry(samplePts);
     auto output = probe.Execute(dataset);
+    /*
+    vtkm::io::VTKDataSetWriter writer("grid3D.vtk");
+    writer.WriteDataSet(dataset);
+    writer = vtkm::io::VTKDataSetWriter("samplePts.vtk");
+    writer.WriteDataSet(samplePts);
+    output.PrintSummary(std::cout);
+    */
 
     vtkm::cont::ArrayHandle<vtkm::FloatDefault> fieldArray;
     output.GetField(fieldname).GetData().AsArrayHandle(fieldArray);
 
     return fieldArray.ReadPortal().Get(0);
+}
 
-}                                     
+vtkm::FloatDefault
+scalarField3DEvalFwdAvg(const vtkm::cont::DataSet& dataset,
+                  const std::string& fieldname,
+                  const vtkm::Vec3f& pt)
+{
+  auto v0 = scalarField3DEval(dataset, fieldname, pt);
+  auto v1 = scalarField3DEval(dataset, fieldname, {pt[0], pt[1]+1, pt[2]});
+
+  return (v0+v1) / 2.0;
+}
