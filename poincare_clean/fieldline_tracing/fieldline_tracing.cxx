@@ -485,6 +485,7 @@ int main()
             // Start field-line tracing.
             for (int iy = 0; iy < opts.ny-1; iy++)
             {
+                if (iturn > 5) break;
                 //trajOut<<iline<<", "<<iy<<", "<<it<<", "<<iturn<<", "<<xStart<<", "<<yStart<<", "<<zStart<<std::endl;
                 if (it == 0)
                 {

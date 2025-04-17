@@ -413,7 +413,7 @@ std::pair<double, double> RK4_FLT1(
         splineTest(xStart, zStart, dxdyp, dzdyp, xarray, zarray);
     }
 
-    bool useSplineInterp = false;
+    bool useSplineInterp = true;
 
     // Interpolation using the SplineInterpolation class
     //SplineInterpolation splineDxdy(xarray, zarray, dxdyp); //[zStart]);
