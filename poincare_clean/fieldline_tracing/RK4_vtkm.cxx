@@ -287,111 +287,6 @@ void splineTest(double xStart, double zStart,
     count++;
 }
 
-class RK4Worklet : public vtkm::worklet::WorkletMapField
-{
-public:
-  RK4Worklet() = default;
-
-  using ControlSignature =
-    void(FieldIn points, ExecObject locator, WholeCellSetIn<> cells, WholeArrayIn dxdy, WholeArrayIn dzdy, FieldOut result);
-  using ExecutionSignature = void(_1, _2, _3, _4, _5, _6);
-  using InputDomain = _1;
-
-
-
-  template <typename LocatorType, typename CellSetType, typename FieldType>
-  VTKM_EXEC void operator() (const vtkm::Vec3f& p0,
-                             LocatorType& locator,
-                             const CellSetType& cells,
-                             const FieldType& dxdy,
-                             const FieldType& dzdy,
-                             vtkm::Vec3f& ptRes) const
-   {
-    constexpr vtkm::Vec3f yPlus1(0, 1, 0);
-    constexpr double twoPi = 2.0 * M_PI;
-    constexpr double h = 1.0;
-    constexpr double hh = h / 2.0;
-    constexpr double h6 = h / 6.0;
-    constexpr double direction = 1.0;
-
-    std::cout<<"vtkm::RK begin: "<<p0<<std::endl;
-    //Step 1
-    auto res1 = this->Evaluate(p0, locator, cells, dxdy, dzdy);
-    vtkm::Vec3f p1;
-    p1[0] = p0[0] + direction * hh * res1[0];
-    p1[1] = p0[1];
-    p1[2] = p0[2] + direction * hh * res1[1];
-    p1[2] = double_mod(p1[2], twoPi);
-    std::cout<<"step1: "<<res1[0]<<" "<<res1[1]<<" :: "<<p1[0]<<" "<<p1[2]<<std::endl;
-
-    //Step 2
-    auto res2 = this->Evaluate(p1, locator, cells, dxdy, dzdy);
-    res2 += this->Evaluate(p1+yPlus1, locator, cells, dxdy, dzdy);
-    res2[0] /= 2.0;
-    res2[1] /= 2.0;
-    vtkm::Vec3f p2;
-    p2[0] = p0[0] + direction * hh * res2[0];
-    p2[1] = p0[1];
-    p2[2] = p0[2] + direction * hh * res2[1];
-    p2[2] = double_mod(p2[2], twoPi);
-    std::cout<<"step2: "<<res2[0]<<" "<<res2[1]<<" :: "<<p2[0]<<" "<<p2[2]<<std::endl;
-
-    //Step 3
-    auto res3 = this->Evaluate(p2, locator, cells, dxdy, dzdy);
-    res3 += this->Evaluate(p2+yPlus1, locator, cells, dxdy, dzdy);
-    res3[0] /= 2.0;
-    res3[1] /= 2.0;
-
-    vtkm::Vec3f p3;
-    p3[0] = p0[0] + direction * h * res3[0];
-    p3[1] = p0[1];
-    p3[2] = p0[2] + direction * h * res3[1];
-    p3[2] = double_mod(p3[2], twoPi);
-    std::cout<<"step3: "<<res3[0]<<" "<<res3[1]<<" :: "<<p3[0]<<" "<<p3[2]<<std::endl;
-
-    //Step 4
-    auto res4 = this->Evaluate(p3+yPlus1, locator, cells, dxdy, dzdy);
-
-    ptRes[0] = p0[0] + direction * h6 * (res1[0] + 2.0 * res2[0] + 2.0 * res3[0] + res4[0]);
-    ptRes[1] = p0[1];
-    ptRes[2] = p0[2] + direction * h6 * (res1[1] + 2.0 * res2[1] + 2.0 * res3[1] + res4[1]);
-    std::cout<<"step4: "<<res4[0]<<" "<<res4[1]<<" :: "<<ptRes[0]<<" "<<ptRes[2]<<std::endl;
-
-  }
-
-  private:
-  template <typename LocatorType, typename CellSetType, typename FieldType>
-  VTKM_EXEC vtkm::Vec2f Evaluate(const vtkm::Vec3f& pt,
-                          LocatorType& locator,
-                          const CellSetType& cells,
-                          const FieldType& dxdy,
-                          const FieldType& dzdy) const
-    {
-        vtkm::Id cellId;
-        vtkm::Vec3f parametric;
-        locator.FindCell(pt, cellId, parametric);
-        if (cellId == -1)
-          this->RaiseError("Locator.FindCell failed.");
-
-        auto cellShape = cells.GetCellShape(cellId);
-        vtkm::IdComponent numVerts = cells.GetNumberOfIndices(cellId);
-        vtkm::VecVariable<vtkm::Id, 8> ptIndices = cells.GetIndices(cellId);
-        vtkm::VecVariable<vtkm::FloatDefault, 8> dxdyVals, dzdyVals;
-        for (vtkm::IdComponent i = 0; i < numVerts; i++)
-        {
-            dxdyVals.Append(dxdy.Get(ptIndices[i]));
-            dzdyVals.Append(dzdy.Get(ptIndices[i]));
-        }
-
-        vtkm::Vec2f result;
-        auto status1 = vtkm::exec::CellInterpolate(dxdyVals, parametric, cellShape, result[0]);
-        auto status2 = vtkm::exec::CellInterpolate(dzdyVals, parametric, cellShape, result[1]);
-        if (status1 != vtkm::ErrorCode::Success || status2 != vtkm::ErrorCode::Success)
-          this->RaiseError("CellInterpolate failed.");
-        return result;
-    }
-};
-
 vtkm::Vec3f
 RK4_FLT1_vtkm(const vtkm::Vec3f& pStart,
               const vtkm::cont::DataSet& grid2D,
@@ -407,11 +302,12 @@ RK4_FLT1_vtkm(const vtkm::Vec3f& pStart,
               int it,
               bool dumpFiles)
 {
+    /*
     vtkm::cont::CellLocatorRectilinearGrid locator;
     locator.SetCoordinates(grid3D.GetCoordinateSystem());
     locator.SetCellSet(grid3D.GetCellSet());
     locator.Update();
-    RK4Worklet worklet;
+    RK4Worklet worklet(100, 10000);
     vtkm::cont::Invoker invoker;
     auto inPts = vtkm::cont::make_ArrayHandle<vtkm::Vec3f>({pStart});
     //vtkm::cont::ArrayHandle<vtkm::Vec3f> inPts({pStart});
@@ -420,10 +316,11 @@ RK4_FLT1_vtkm(const vtkm::Vec3f& pStart,
     grid3D.GetField("dxdy").GetData().AsArrayHandle<vtkm::FloatDefault>(dxdyField);
     grid3D.GetField("dzdy").GetData().AsArrayHandle<vtkm::FloatDefault>(dzdyField);
 
-    inPts.WritePortal().Set(0, pStart);
-    invoker(worklet, inPts, locator, grid3D.GetCellSet(), dxdyField, dzdyField, result);
+    vtkm::cont::ArrayHandle<vtkm::Id> puncIndices;
+    invoker(worklet, inPts, locator, grid3D.GetCellSet(), dxdyField, dzdyField, puncIndices, result);
     vtkm::Vec3f pEnd_vtkm = result.ReadPortal().Get(0);
-
+    return pEnd_vtkm;
+    */
 
     std::cout<<"vRK4 begin: "<<pStart[0]<<" "<<pStart[1]<<" "<<pStart[2]<<std::endl;
     constexpr vtkm::Vec3f yPlus1( 0, 1, 0);
@@ -604,10 +501,12 @@ RK4_FLT1_vtkm(const vtkm::Vec3f& pStart,
                 << std::endl
                 << std::endl;
 
+                /*
     auto diff = pEnd - pEnd_vtkm;
     std::cout<<"****************  DIFF *******************"<<std::endl;
     std::cout<<"diff= "<<diff<<" pEnd= "<<pEnd<<" vtkm= "<<pEnd_vtkm<<" mag= "<<vtkm::Magnitude(diff)<<std::endl;
     std::cout<<"****************  DIFF *******************"<<std::endl;
+    */
 
     return pEnd;
 
