@@ -281,22 +281,36 @@ private:
   template <typename FieldType1, typename FieldType2>
   vtkm::FloatDefault LinearInterpolate(const FieldType1& x, const FieldType2& y, const vtkm::FloatDefault val) const
   {
-    // Find the interval.
-    vtkm::Id idx = -1;
+    // Perform binary search to find the interval.
     vtkm::Id size = x.GetNumberOfValues();
-    for (vtkm::Id i = 0; i < size - 1; i++)
+    vtkm::Id low = 0;
+    vtkm::Id high = size - 1;
+
+    while (low <= high)
     {
-      if (val >= x.Get(i) && val <= x.Get(i + 1))
+      vtkm::Id mid = low + (high - low) / 2;
+
+      if (val >= x.Get(mid) && val <= x.Get(mid + 1))
       {
-        idx = i;
-        break;
+        auto x1 = x.Get(mid);
+        auto x2 = x.Get(mid + 1);
+        auto y1 = y.Get(mid);
+        auto y2 = y.Get(mid + 1);
+
+        auto result = y1 + (y2 - y1) * (val - x1) / (x2 - x1);
+        return result;
       }
+      else if (val < x.Get(mid))
+        high = mid - 1;
+      else
+        low = mid + 1;
     }
-    // Perform linear interpolation
-    auto x1 = x.Get(idx);
-    auto x2 = x.Get(idx + 1);
-    auto y1 = y.Get(idx);
-    auto y2 = y.Get(idx + 1);
+
+    // Handle edge cases if the value is outside the range
+    auto x1 = x.Get(0);
+    auto x2 = x.Get(size - 1);
+    auto y1 = y.Get(0);
+    auto y2 = y.Get(size - 1);
 
     auto result = y1 + (y2 - y1) * (val - x1) / (x2 - x1);
     return result;
