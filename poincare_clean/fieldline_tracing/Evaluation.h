@@ -1,38 +1,38 @@
 #pragma once
 
-#include <vtkm/cont/ArrayHandle.h>
-#include <vtkm/cont/DataSet.h>
+#include <viskores/cont/ArrayHandle.h>
+#include <viskores/cont/DataSet.h>
 
 #include <string>
 #include <vector>
 
-vtkm::FloatDefault scalarField1DEval(const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& x,
-                                     const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& y,
-                                     const std::vector<vtkm::FloatDefault>& vals);
+viskores::FloatDefault scalarField1DEval(const viskores::cont::ArrayHandle<viskores::FloatDefault>& x,
+                                     const viskores::cont::ArrayHandle<viskores::FloatDefault>& y,
+                                     const std::vector<viskores::FloatDefault>& vals);
 
-vtkm::FloatDefault scalarField1DEval(const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& x,
-                                     const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& y,
-                                     const vtkm::FloatDefault& val);
+viskores::FloatDefault scalarField1DEval(const viskores::cont::ArrayHandle<viskores::FloatDefault>& x,
+                                     const viskores::cont::ArrayHandle<viskores::FloatDefault>& y,
+                                     const viskores::FloatDefault& val);
 /*
-vtkm::FloatDefault scalarField2DEval(const vtkm::cont::DataSet& dataset,
+viskores::FloatDefault scalarField2DEval(const viskores::cont::DataSet& dataset,
                                      const std::string& fieldname,
-                                     const std::vector<vtkm::Vec3f>& pts);
+                                     const std::vector<viskores::Vec3f>& pts);
 */
 
-vtkm::FloatDefault scalarField2DEval(const vtkm::cont::DataSet& dataset,
+viskores::FloatDefault scalarField2DEval(const viskores::cont::DataSet& dataset,
                                      const std::string& fieldname,
-                                     const vtkm::Vec3f& pt);
+                                     const viskores::Vec3f& pt);
 
-vtkm::FloatDefault scalarField3DEval(const vtkm::cont::DataSet& dataset,
+viskores::FloatDefault scalarField3DEval(const viskores::cont::DataSet& dataset,
                                      const std::string& fieldname,
-                                     const vtkm::Vec3f& pt);
+                                     const viskores::Vec3f& pt);
 
-vtkm::FloatDefault scalarField3DEvalFwdAvg(const vtkm::cont::DataSet& dataset,
+viskores::FloatDefault scalarField3DEvalFwdAvg(const viskores::cont::DataSet& dataset,
                                             const std::string& fieldname,
-                                            const vtkm::Vec3f& pt);
+                                            const viskores::Vec3f& pt);
 
 /*
-vtkm::FloatDefault scalarField3DEval(const vtkm::cont::DataSet& dataset,
+viskores::FloatDefault scalarField3DEval(const viskores::cont::DataSet& dataset,
                                      const std::string& fieldname,
-                                     const std::vector<vtkm::Vec3f>& pts);
+                                     const std::vector<viskores::Vec3f>& pts);
 */

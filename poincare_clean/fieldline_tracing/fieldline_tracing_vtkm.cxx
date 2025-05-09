@@ -7,18 +7,22 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <numeric>
 
-#include <vtkm/Particle.h>
-#include <vtkm/cont/CellLocatorRectilinearGrid.h>
-#include <vtkm/cont/CellLocatorUniformGrid.h>
-#include <vtkm/cont/DataSetBuilderExplicit.h>
-#include <vtkm/cont/DataSetBuilderRectilinear.h>
-#include <vtkm/cont/DataSetBuilderUniform.h>
-#include <vtkm/exec/CellInterpolate.h>
-#include <vtkm/filter/flow/worklet/CellInterpolationHelper.h>
-#include <vtkm/filter/resampling/Probe.h>
-#include <vtkm/io/VTKDataSetWriter.h>
-#include <vtkm/worklet/WorkletMapField.h>
+#include <viskores/Particle.h>
+#include <viskores/cont/Algorithm.h>
+#include <viskores/cont/ArrayHandleTransform.h>
+#include <viskores/cont/CellLocatorRectilinearGrid.h>
+#include <viskores/cont/CellLocatorUniformGrid.h>
+#include <viskores/cont/CubicHermiteSpline.h>
+#include <viskores/cont/DataSetBuilderExplicit.h>
+#include <viskores/cont/DataSetBuilderRectilinear.h>
+#include <viskores/cont/DataSetBuilderUniform.h>
+#include <viskores/exec/CellInterpolate.h>
+#include <viskores/filter/flow/worklet/CellInterpolationHelper.h>
+#include <viskores/filter/resampling/Probe.h>
+#include <viskores/io/VTKDataSetWriter.h>
+#include <viskores/worklet/WorkletMapField.h>
 
 std::ofstream trajspline("/Users/dpn/trajspline.v.txt", std::ofstream::out);
 std::ofstream puncFid("/Users/dpn/punc.v.txt");
@@ -194,17 +198,17 @@ public:
     this->xMax = *minmaxIt.second;
 
     //VTKm stuff.
-    vtkm::cont::DataSetBuilderRectilinear builderRect;
-    std::vector<vtkm::FloatDefault> yarray;
+    viskores::cont::DataSetBuilderRectilinear builderRect;
+    std::vector<viskores::FloatDefault> yarray;
     yarray.reserve(this->ny);
     for (int i = 0; i < this->ny; i++)
-      yarray.push_back(static_cast<vtkm::FloatDefault>(i));
+      yarray.push_back(static_cast<viskores::FloatDefault>(i));
 
     this->Grid2D = builderRect.Create(this->xarray, yarray);
 
-    vtkm::cont::DataSetBuilderUniform builder;
-    vtkm::Id3 dims(this->nx, this->ny, 1);
-    vtkm::Vec3f origin(0.0, 0.0, 0.0), spacing(1.0, 1.0, 1.0);
+    viskores::cont::DataSetBuilderUniform builder;
+    viskores::Id3 dims(this->nx, this->ny, 1);
+    viskores::Vec3f origin(0.0, 0.0, 0.0), spacing(1.0, 1.0, 1.0);
     //this->Grid2D = builder.Create(dims, origin, spacing);
     dims = { this->nx_cfr, this->ny_cfr, 1 };
     this->Grid2D_cfr = builder.Create(dims, origin, spacing);
@@ -244,49 +248,49 @@ public:
         std::cout<<"dims: "<<this->dxdy[0][0].size()<<" "<<this->dxdy[0].size()<<" "<<this->dxdy.size()<<std::endl;
         std::cout<<" npts / ncells: "<<this->Grid3D.GetNumberOfPoints()<<" "<<this->Grid3D.GetNumberOfCells()<<std::endl;
 
-        vtkm::io::VTKDataSetWriter writer("/Users/dpn/grid2D.vtk");
+        viskores::io::VTKDataSetWriter writer("/Users/dpn/grid2D.vtk");
         writer.WriteDataSet(this->Grid2D);
-        writer = vtkm::io::VTKDataSetWriter("/Users/dpn/grid2D_cfr.vtk");
+        writer = viskores::io::VTKDataSetWriter("/Users/dpn/grid2D_cfr.vtk");
         writer.WriteDataSet(this->Grid2D_cfr);
-        writer = vtkm::io::VTKDataSetWriter("/Users/dpn/grid2D_xz.vtk");
+        writer = viskores::io::VTKDataSetWriter("/Users/dpn/grid2D_xz.vtk");
         writer.WriteDataSet(this->Grid2D_xz);
-        writer = vtkm::io::VTKDataSetWriter("/Users/dpn/grid3D.vtk");
+        writer = viskores::io::VTKDataSetWriter("/Users/dpn/grid3D.vtk");
         writer.WriteDataSet(this->Grid3D);
 #endif
 
-    this->XArray = vtkm::cont::make_ArrayHandle(this->xarray, vtkm::CopyFlag::On);
-    this->XiArray = vtkm::cont::make_ArrayHandle(this->xiarray, vtkm::CopyFlag::On);
-    this->ZArray = vtkm::cont::make_ArrayHandle(this->zarray, vtkm::CopyFlag::On);
-    this->ZiArray = vtkm::cont::make_ArrayHandle(this->ziarray, vtkm::CopyFlag::On);
-    this->ShiftAngle = vtkm::cont::make_ArrayHandle(this->shiftAngle, vtkm::CopyFlag::On);
+    this->XArray = viskores::cont::make_ArrayHandle(this->xarray, viskores::CopyFlag::On);
+    this->XiArray = viskores::cont::make_ArrayHandle(this->xiarray, viskores::CopyFlag::On);
+    this->ZArray = viskores::cont::make_ArrayHandle(this->zarray, viskores::CopyFlag::On);
+    this->ZiArray = viskores::cont::make_ArrayHandle(this->ziarray, viskores::CopyFlag::On);
+    this->ShiftAngle = viskores::cont::make_ArrayHandle(this->shiftAngle, viskores::CopyFlag::On);
   }
 
-  void AddField(const std::vector<std::vector<double>>& vals, const std::string& fieldName, vtkm::cont::DataSet& ds)
+  void AddField(const std::vector<std::vector<double>>& vals, const std::string& fieldName, viskores::cont::DataSet& ds)
   {
-    vtkm::Id n_y = vals[0].size();
-    vtkm::Id n_x = vals.size();
+    viskores::Id n_y = vals[0].size();
+    viskores::Id n_x = vals.size();
 
     std::vector<double> field;
     field.reserve(n_x * n_y);
-    for (vtkm::Id j = 0; j < n_y; ++j)
-      for (vtkm::Id i = 0; i < n_x; ++i)
+    for (viskores::Id j = 0; j < n_y; ++j)
+      for (viskores::Id i = 0; i < n_x; ++i)
         field.push_back(vals[i][j]);
     ds.AddPointField(fieldName, field);
   }
 
-  void AddField(const std::vector<std::vector<std::vector<double>>>& vals, const std::string& fieldName, vtkm::cont::DataSet& ds)
+  void AddField(const std::vector<std::vector<std::vector<double>>>& vals, const std::string& fieldName, viskores::cont::DataSet& ds)
   {
-    vtkm::Id n_z = vals[0][0].size();
-    vtkm::Id n_y = vals[0].size();
-    vtkm::Id n_x = vals.size();
+    viskores::Id n_z = vals[0][0].size();
+    viskores::Id n_y = vals[0].size();
+    viskores::Id n_x = vals.size();
     std::cout << "Add Field3D: " << fieldName << " " << n_x << " " << n_y << " " << n_z << std::endl;
 
 
     std::vector<double> field;
     field.reserve(n_x * n_y * n_z);
-    for (vtkm::Id k = 0; k < n_z; ++k)
-      for (vtkm::Id j = 0; j < n_y; ++j)
-        for (vtkm::Id i = 0; i < n_x; ++i)
+    for (viskores::Id k = 0; k < n_z; ++k)
+      for (viskores::Id j = 0; j < n_y; ++j)
+        for (viskores::Id i = 0; i < n_x; ++i)
           field.push_back(vals[i][j][k]);
 
     std::cout << "  **** field size: " << field.size() << std::endl;
@@ -303,7 +307,7 @@ public:
       arr[i] = static_cast<double>(i + n0);
   }
 
-  int GetRegion(const vtkm::Vec3f& p) const
+  int GetRegion(const viskores::Vec3f& p) const
   {
     int region = -1;
     if (p[0] < static_cast<double>(this->ixsep + 0.5))
@@ -391,11 +395,11 @@ public:
   NetCDFLoader loader;
 
   //vtkm data.
-  vtkm::cont::DataSet Grid2D, Grid2D_cfr, Grid2D_xz;
-  vtkm::cont::DataSet Grid3D;
-  vtkm::cont::ArrayHandle<vtkm::FloatDefault> XArray, ZArray;
-  vtkm::cont::ArrayHandle<vtkm::FloatDefault> XiArray, YiArray, ZiArray;
-  vtkm::cont::ArrayHandle<vtkm::FloatDefault> ShiftAngle;
+  viskores::cont::DataSet Grid2D, Grid2D_cfr, Grid2D_xz;
+  viskores::cont::DataSet Grid3D;
+  viskores::cont::ArrayHandle<viskores::FloatDefault> XArray, ZArray;
+  viskores::cont::ArrayHandle<viskores::FloatDefault> XiArray, YiArray, ZiArray;
+  viskores::cont::ArrayHandle<viskores::FloatDefault> ShiftAngle;
 };
 
 
@@ -433,7 +437,7 @@ double INTERP(const std::vector<double>& X, const std::vector<double>& Y, double
   return y_i;
 }
 
-void dumpTrajSamples(int iline, const std::vector<vtkm::Vec3f>& points)
+void dumpTrajSamples(int iline, const std::vector<viskores::Vec3f>& points)
 {
   int n = points.size();
   std::vector<double> tivals, xvals, yvals, zvals;
@@ -471,9 +475,9 @@ bool signChange(const double& x0, const double& x1)
   return (x0 * x1 < 0 && x0 != 0 && x1 != 0);
 }
 
-std::vector<vtkm::Vec3f> ConvertToXYZSpace(const Options& opts, int iline, int id, int region, const std::vector<Point>& pts)
+std::vector<viskores::Vec3f> ConvertToXYZSpace(const Options& opts, int iline, int id, int region, const std::vector<Point>& pts)
 {
-  std::vector<vtkm::Vec3f> ptsXYZ;
+  std::vector<viskores::Vec3f> ptsXYZ;
 
   auto _fid = fopen("/Users/dpn/problem.c.txt", "w");
   auto trajvals_fid = fopen("/Users/dpn/trajvals.c.txt", "w");
@@ -538,11 +542,11 @@ std::vector<vtkm::Vec3f> ConvertToXYZSpace(const Options& opts, int iline, int i
   return ptsXYZ;
 }
 
-std::vector<vtkm::Vec3f> FindPunctures(int iline, const std::vector<vtkm::Vec3f>& ptsXYZ)
+std::vector<viskores::Vec3f> FindPunctures(int iline, const std::vector<viskores::Vec3f>& ptsXYZ)
 {
   std::size_t n = ptsXYZ.size();
-  vtkm::FloatDefault t = 0.0;
-  std::vector<vtkm::FloatDefault> xVals, yVals, zVals, tVals;
+  viskores::FloatDefault t = 0.0;
+  std::vector<viskores::FloatDefault> xVals, yVals, zVals, tVals;
   for (const auto& pt : ptsXYZ)
   {
     xVals.push_back(pt[0]);
@@ -553,7 +557,7 @@ std::vector<vtkm::Vec3f> FindPunctures(int iline, const std::vector<vtkm::Vec3f>
   }
 
   SplineInterpolation splineX(tVals, xVals), splineY(tVals, yVals), splineZ(tVals, zVals);
-  std::vector<vtkm::Vec3f> punctures;
+  std::vector<viskores::Vec3f> punctures;
 
   for (std::size_t i = 1; i < n; i++)
   {
@@ -566,14 +570,14 @@ std::vector<vtkm::Vec3f> FindPunctures(int iline, const std::vector<vtkm::Vec3f>
       continue;
 
     //crosses the x=0 plane between i-1 and i.
-    vtkm::FloatDefault t0 = static_cast<vtkm::FloatDefault>(i - 1);
-    vtkm::FloatDefault t1 = static_cast<vtkm::FloatDefault>(i);
+    viskores::FloatDefault t0 = static_cast<viskores::FloatDefault>(i - 1);
+    viskores::FloatDefault t1 = static_cast<viskores::FloatDefault>(i);
 
     auto x0 = splineX.evaluate(t0);
     auto x1 = splineX.evaluate(t1);
     for (int cnt = 0; cnt < 100; cnt++)
     {
-      vtkm::FloatDefault tMid = (t0 + t1) / 2.0;
+      viskores::FloatDefault tMid = (t0 + t1) / 2.0;
       auto xMid = splineX.evaluate(tMid);
       if (xMid * x0 < 0.0)
       {
@@ -585,19 +589,110 @@ std::vector<vtkm::Vec3f> FindPunctures(int iline, const std::vector<vtkm::Vec3f>
         t0 = tMid;
         x0 = xMid;
       }
-      vtkm::FloatDefault diff = vtkm::Abs(t0 - t1);
-      if (vtkm::Abs(t0 - t1) < vtkm::Epsilon<vtkm::FloatDefault>())
+      viskores::FloatDefault diff = viskores::Abs(t0 - t1);
+      if (viskores::Abs(t0 - t1) < viskores::Epsilon<viskores::FloatDefault>())
         break;
     }
-    vtkm::FloatDefault tVal = (t0 + t1) / 2.0;
-    vtkm::Vec3f pt(splineX.evaluate(tVal), splineY.evaluate(tVal), splineZ.evaluate(tVal));
-    VTKM_ASSERT(vtkm::Abs(pt[0]) <= vtkm::Epsilon<vtkm::FloatDefault>());
+    viskores::FloatDefault tVal = (t0 + t1) / 2.0;
+    viskores::Vec3f pt(splineX.evaluate(tVal), splineY.evaluate(tVal), splineZ.evaluate(tVal));
+    VISKORES_ASSERT(viskores::Abs(pt[0]) <= viskores::Epsilon<viskores::FloatDefault>());
     puncSplineFid << iline << ", " << tVal << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
     punctures.push_back(pt);
   }
 
   return punctures;
 }
+class EvaluateSplineWorklet : public viskores::worklet::WorkletMapField
+{
+public:
+  using ControlSignature = void(ExecObject spline, FieldOut points, FieldOut params);
+  using ExecutionSignature = void(InputIndex, _1, _2, _3);
+  using InputDomain = _2;
+
+  EvaluateSplineWorklet(viskores::FloatDefault tmin, viskores::FloatDefault tmax, viskores::Id n)
+    : TMin(tmin)
+    , TMax(tmax)
+  {
+    this->dT = (this->TMax - this->TMin) / static_cast<viskores::FloatDefault>(n - 1);
+  }
+
+  template <typename CubicSplineType, typename ResultType>
+  VISKORES_EXEC void operator()(const viskores::Id& idx, const CubicSplineType& spline, ResultType& pos, viskores::FloatDefault& param) const
+  {
+    param = static_cast<viskores::FloatDefault>(idx) * this->dT;
+    auto res = spline.Evaluate(param, pos);
+
+    if (res != viskores::ErrorCode::Success)
+      this->RaiseError("Spline evaluation failed.");
+  }
+
+private:
+  viskores::FloatDefault TMin, TMax, dT;
+};
+
+class ComputePuncturesWorklet : public viskores::worklet::WorkletMapField
+{
+public:
+  ComputePuncturesWorklet() = default;
+
+  using ControlSignature = void(FieldIn t0, FieldIn t1, ExecObject cubicSpline, FieldOut param, FieldOut pos);
+  using ExecutionSignature = void(_1, _2, _3, _4, _5);
+  using InputDomain = _1;
+
+  template <typename CubicSplineType, typename ResultType>
+  VISKORES_EXEC void operator()(const viskores::FloatDefault& _t0,
+                                const viskores::FloatDefault& _t1,
+                                const CubicSplineType& spline,
+                                viskores::FloatDefault& param,
+                                ResultType& pos) const
+  {
+    viskores::FloatDefault t0 = _t0, t1 = _t1;
+    viskores::Vec3f p0, p1;
+    auto res = spline.Evaluate(t0, p0);
+    if (res != viskores::ErrorCode::Success)
+      this->RaiseError("Spline evaluation failed.");
+
+    res = spline.Evaluate(t1, p1);
+    if (res != viskores::ErrorCode::Success)
+      this->RaiseError("Spline evaluation failed.");
+    if (p0[0] * p1[0] > 0)
+      this->RaiseError("Points not on either side of puncture");
+
+    viskores::Vec3f pMid;
+    viskores::FloatDefault tMid;
+    for (int cnt = 0; cnt < 100; cnt++)
+    {
+      tMid = (t0 + t1) / 2.0;
+      res = spline.Evaluate(tMid, pMid);
+      if (res != viskores::ErrorCode::Success)
+        this->RaiseError("Spline evaluation failed.");
+
+      if (pMid[0] * p0[0] < 0.0)
+      {
+        t1 = tMid;
+        p1 = pMid;
+      }
+      else
+      {
+        t0 = tMid;
+        p0 = pMid;
+      }
+      viskores::FloatDefault diff = viskores::Abs(t0 - t1);
+      if (viskores::Abs(t0 - t1) < viskores::Epsilon<viskores::FloatDefault>())
+        break;
+    }
+    param = (t0 + t1) / 2.0f;
+    res = spline.Evaluate(param, pos);
+    if (res != viskores::ErrorCode::Success)
+      this->RaiseError("Spline evaluation failed.");
+    //std::cout << "wPUNC " << param << " " << pos << std::endl;
+  }
+};
+
+struct SubOneFunctor
+{
+  VISKORES_EXEC viskores::FloatDefault operator()(viskores::FloatDefault x) const { return x - 1.0f; }
+};
 
 int main(int argc, char* argv[])
 {
@@ -650,7 +745,7 @@ int main(int argc, char* argv[])
 
   if (doVTKm)
   {
-    std::vector<vtkm::Vec3f> points;
+    std::vector<viskores::Vec3f> points;
     for (const auto& iline : LINES)
     {
       xind = static_cast<double>(iline);
@@ -660,28 +755,28 @@ int main(int argc, char* argv[])
       auto zStart = opts.zarray[zzz];
       std::cout << "**** xind= " << xind << " opts.jyomp= " << opts.jyomp << " zStart= " << zStart << std::endl;
       double xStart = opts.psixy[static_cast<int>(xind)][opts.jyomp];
-      double xStart2 = scalarField2DEval(opts.Grid2D, "psixy", vtkm::Vec3f(xind, (double)yStart, 0));
+      double xStart2 = scalarField2DEval(opts.Grid2D, "psixy", viskores::Vec3f(xind, (double)yStart, 0));
 
       //int yind = yStart;
       double zind = INTERP(opts.zarray, opts.ziarray, zStart);
       auto zind2 = scalarField1DEval(opts.ZiArray, opts.ZArray, { zStart });
 
-      //vtkm::Particle p({ xStart, static_cast<vtkm::FloatDefault>(yStart), zStart }, 0);
-      vtkm::Vec3f p0(xStart, static_cast<vtkm::FloatDefault>(yStart), zStart);
+      //viskores::Particle p({ xStart, static_cast<viskores::FloatDefault>(yStart), zStart }, 0);
+      viskores::Vec3f p0(xStart, static_cast<viskores::FloatDefault>(yStart), zStart);
       points.push_back(p0);
     }
 
 
     const auto& grid3D = opts.Grid3D;
     const auto& grid2D = opts.Grid2D;
-    vtkm::cont::CellLocatorRectilinearGrid locator3D, locator2D;
+    viskores::cont::CellLocatorRectilinearGrid locator3D, locator2D;
     locator3D.SetCoordinates(grid3D.GetCoordinateSystem());
     locator3D.SetCellSet(grid3D.GetCellSet());
     locator3D.Update();
     locator2D.SetCoordinates(grid2D.GetCoordinateSystem());
     locator2D.SetCellSet(grid2D.GetCellSet());
     locator2D.Update();
-    vtkm::Id maxPuncs = 100, maxSteps = 10000;
+    viskores::Id maxPuncs = 20, maxSteps = 10000;
 
     RK4Worklet worklet(maxPuncs, maxSteps);
     worklet.grid3DBounds = grid3D.GetCoordinateSystem().GetBounds();
@@ -692,22 +787,79 @@ int main(int argc, char* argv[])
     worklet.ixsep2 = opts.ixsep2;
     BoutppField boutppField(opts.Grid3D, opts.Grid2D, opts.XiArray, opts.XArray, opts.ZiArray, opts.ZArray, opts.ShiftAngle);
 
-    vtkm::cont::Invoker invoker;
-    auto inPts = vtkm::cont::make_ArrayHandle<vtkm::Vec3f>(points, vtkm::CopyFlag::On);
-    vtkm::cont::ArrayHandle<vtkm::FloatDefault> dxdyField, dzdyField, rxyField, zShiftField;
-    vtkm::cont::ArrayHandle<vtkm::Vec3f> result;
-    grid3D.GetField("dxdy").GetData().AsArrayHandle<vtkm::FloatDefault>(dxdyField);
-    grid3D.GetField("dzdy").GetData().AsArrayHandle<vtkm::FloatDefault>(dzdyField);
-    grid2D.GetField("rxy").GetData().AsArrayHandle<vtkm::FloatDefault>(rxyField);
-    grid2D.GetField("zShift").GetData().AsArrayHandle<vtkm::FloatDefault>(zShiftField);
+    viskores::cont::Invoker invoker;
+    auto inPts = viskores::cont::make_ArrayHandle<viskores::Vec3f>(points, viskores::CopyFlag::On);
+    viskores::cont::ArrayHandle<viskores::FloatDefault> dxdyField, dzdyField, rxyField, zShiftField;
+    viskores::cont::ArrayHandle<viskores::Vec3f> result;
+    grid3D.GetField("dxdy").GetData().AsArrayHandle<viskores::FloatDefault>(dxdyField);
+    grid3D.GetField("dzdy").GetData().AsArrayHandle<viskores::FloatDefault>(dzdyField);
+    grid2D.GetField("rxy").GetData().AsArrayHandle<viskores::FloatDefault>(rxyField);
+    grid2D.GetField("zShift").GetData().AsArrayHandle<viskores::FloatDefault>(zShiftField);
 
-    vtkm::cont::ArrayHandle<vtkm::Id> puncIndices;
+    viskores::cont::ArrayHandle<viskores::Id> puncIndices;
+    viskores::cont::ArrayHandle<bool> validSteps, validPuncs;
     result.Allocate(inPts.GetNumberOfValues() * maxSteps);
+    validSteps.AllocateAndFill(inPts.GetNumberOfValues() * maxSteps, false);
+    validPuncs.AllocateAndFill(inPts.GetNumberOfValues() * maxPuncs, false);
     puncIndices.Allocate(inPts.GetNumberOfValues() * maxPuncs);
     //invoker(worklet, inPts, locator3D, grid3D.GetCellSet(), locator2D, grid2D.GetCellSet(), dxdyField, dzdyField, rxyField, zShiftField, puncIndices, result);
-    invoker(worklet, inPts, boutppField, grid3D.GetCellSet(), grid2D.GetCellSet(), puncIndices, result);
-    vtkm::Vec3f pEnd_vtkm = result.ReadPortal().Get(0);
+    invoker(worklet, inPts, boutppField, grid3D.GetCellSet(), grid2D.GetCellSet(), puncIndices, result, validPuncs, validSteps);
 
+    viskores::cont::ArrayHandle<viskores::Vec3f> validResult;
+    viskores::cont::ArrayHandle<viskores::Id> validPuncIndices;
+    viskores::cont::Algorithm::CopyIf(result, validSteps, validResult);
+    viskores::cont::Algorithm::CopyIf(puncIndices, validPuncs, validPuncIndices);
+    //viskores::cont::printSummary_ArrayHandle(validPuncIndices, std::cout, true);
+    //viskores::cont::printSummary_ArrayHandle(validResult, std::cout, true);
+
+    viskores::cont::CubicHermiteSpline trajSpline;
+
+    //compute punctures.
+
+    //Puncture occors between puncIndices and puncIndices+1.
+    auto puncParams1 = viskores::cont::make_ArrayHandleCast<viskores::FloatDefault>(validPuncIndices);
+    auto puncParams0 = viskores::cont::make_ArrayHandleTransform(puncParams1, SubOneFunctor{});
+    //viskores::cont::printSummary_ArrayHandle(puncParams0, std::cout, true);
+    //viskores::cont::printSummary_ArrayHandle(puncParams1, std::cout, true);
+
+    //std::cout << "rs= " << validResult.GetNumberOfValues() << std::endl;
+    std::vector<viskores::FloatDefault> knots(validResult.GetNumberOfValues());
+    std::iota(knots.begin(), knots.end(), 0.0f);
+    trajSpline.SetData(validResult);
+    trajSpline.SetKnots(knots);
+    viskores::cont::ArrayHandle<viskores::Vec3f> puncturePoints;
+    viskores::cont::ArrayHandle<viskores::FloatDefault> punctureParams;
+
+    invoker(ComputePuncturesWorklet{}, puncParams0, puncParams1, trajSpline, punctureParams, puncturePoints);
+
+
+    auto portal = puncturePoints.ReadPortal();
+    auto portali = validPuncIndices.ReadPortal();
+    auto portalt = puncParams0.ReadPortal();
+    for (viskores::Id i = 0; i < portal.GetNumberOfValues(); i++)
+    {
+      auto pt = portal.Get(i);
+      puncSplineFid << 0 << ", " << i << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
+      //std::cout << " PUNC: " << i << " " << portalt.Get(i) << " " << portali.Get(i) << " " << portal.Get(i) << std::endl;
+    }
+
+    //evaluate the points...
+    viskores::Id nEval = 5000;
+    auto k0 = knots[0];
+    auto k1 = knots[knots.size() - 1];
+    auto _n = knots.size();
+    EvaluateSplineWorklet evalWorklet(knots[0], knots[knots.size() - 1], nEval);
+    viskores::cont::ArrayHandle<viskores::Vec3f> evalPoints;
+    viskores::cont::ArrayHandle<viskores::FloatDefault> evalParam;
+    evalPoints.Allocate(nEval);
+    invoker(evalWorklet, trajSpline, evalPoints, evalParam);
+    portal = evalPoints.ReadPortal();
+    auto portal_p = evalParam.ReadPortal();
+    for (viskores::Id i = 0; i < portal.GetNumberOfValues(); i++)
+    {
+      auto pt = portal.Get(i);
+      trajspline << "0, " << portal_p.Get(i) << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << ", 0 " << std::endl;
+    }
 
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
@@ -725,14 +877,14 @@ int main(int argc, char* argv[])
     auto zStart = opts.zarray[zzz];
     std::cout << "**** xind= " << xind << " opts.jyomp= " << opts.jyomp << " zStart= " << zStart << std::endl;
     double xStart = opts.psixy[static_cast<int>(xind)][opts.jyomp];
-    double xStart2 = scalarField2DEval(opts.Grid2D, "psixy", vtkm::Vec3f(xind, (double)yStart, 0));
+    double xStart2 = scalarField2DEval(opts.Grid2D, "psixy", viskores::Vec3f(xind, (double)yStart, 0));
 
     //int yind = yStart;
     double zind = INTERP(opts.zarray, opts.ziarray, zStart);
     auto zind2 = scalarField1DEval(opts.ZiArray, opts.ZArray, { zStart });
 
-    //vtkm::Particle p({ xStart, static_cast<vtkm::FloatDefault>(yStart), zStart }, 0);
-    vtkm::Vec3f p0(xStart, static_cast<vtkm::FloatDefault>(yStart), zStart);
+    //viskores::Particle p({ xStart, static_cast<viskores::FloatDefault>(yStart), zStart }, 0);
+    viskores::Vec3f p0(xStart, static_cast<viskores::FloatDefault>(yStart), zStart);
 
     std::cout << std::setprecision(12);
     std::cout << "   xStart=  " << xStart << std::endl;
@@ -783,7 +935,7 @@ int main(int argc, char* argv[])
         }
 
         //double xEnd, zEnd, yEnd;
-        vtkm::Vec3f p1;
+        viskores::Vec3f p1;
         if (region == 0 && p0[1] >= opts.nypf1 && p0[1] < opts.nypf2 + 1)
         {
           bool dumpFiles = false;

@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.10)
 project(fieldline_tracing)
 
 find_package(NetCDF REQUIRED)
-find_package(VTKm REQUIRED)
+set(Viskores_DIR "/Users/dpn/proj/vtkm/viskores/hermite/install/lib/cmake/viskores-1.0")
+find_package(Viskores REQUIRED QUIET)
 #set(Eigen3_DIR "/Users/dpn/sw/eigen/install/lib")  # Adjust to your installation path
 #find_package(Eigen3 REQUIRED NO_DEFAULT_PATH)
 #include_directories(/Users/dpn/sw/eigen/install/include/eigen3)
@@ -26,5 +27,5 @@ add_executable(fieldline_tracing fieldline_tracing.cxx SplineInterpolation.cxx N
 add_executable(fieldline_tracing_vtkm fieldline_tracing_vtkm.cxx SplineInterpolation.cxx NetCDFLoader.cxx RK4_vtkm.cxx Evaluation.cxx)
 
 #target_link_libraries(fieldline_tracing NetCDF::NetCDF)
-target_link_libraries(fieldline_tracing netcdf alglib ${TINY_SPLINE_LIB} vtkm::cont)
-target_link_libraries(fieldline_tracing_vtkm netcdf alglib ${TINY_SPLINE_LIB} vtkm::cont vtkm::io vtkm::filter_resampling)
+target_link_libraries(fieldline_tracing netcdf alglib ${TINY_SPLINE_LIB} viskores::cont)
+target_link_libraries(fieldline_tracing_vtkm netcdf alglib ${TINY_SPLINE_LIB} viskores::cont viskores::io viskores::filter_resampling)

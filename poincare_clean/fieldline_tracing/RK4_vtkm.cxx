@@ -6,10 +6,10 @@
 #include <fstream>
 #include <iostream>
 
-#include <vtkm/cont/CellLocatorRectilinearGrid.h>
-#include <vtkm/exec/CellInterpolate.h>
-#include <vtkm/worklet/WorkletMapField.h>
-#include <vtkm/cont/Invoker.h>
+#include <viskores/cont/CellLocatorRectilinearGrid.h>
+#include <viskores/exec/CellInterpolate.h>
+#include <viskores/worklet/WorkletMapField.h>
+#include <viskores/cont/Invoker.h>
 
 extern double double_mod(double val, double mod_base);
 
@@ -287,14 +287,14 @@ void splineTest(double xStart, double zStart,
     count++;
 }
 
-vtkm::Vec3f
-RK4_FLT1_vtkm(const vtkm::Vec3f& pStart,
-              const vtkm::cont::DataSet& grid2D,
-              const vtkm::cont::DataSet& grid2D_cfr,
-              const vtkm::cont::DataSet& grid2D_xz,
-              const vtkm::cont::DataSet& grid3D,
-              const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& xarray,
-              const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& zarray,
+viskores::Vec3f
+RK4_FLT1_vtkm(const viskores::Vec3f& pStart,
+              const viskores::cont::DataSet& grid2D,
+              const viskores::cont::DataSet& grid2D_cfr,
+              const viskores::cont::DataSet& grid2D_xz,
+              const viskores::cont::DataSet& grid3D,
+              const viskores::cont::ArrayHandle<viskores::FloatDefault>& xarray,
+              const viskores::cont::ArrayHandle<viskores::FloatDefault>& zarray,
               int region,
               int direction, int nypf1, int nypf2,
               std::ofstream& rk4Out,
@@ -303,27 +303,27 @@ RK4_FLT1_vtkm(const vtkm::Vec3f& pStart,
               bool dumpFiles)
 {
     /*
-    vtkm::cont::CellLocatorRectilinearGrid locator;
+    viskores::cont::CellLocatorRectilinearGrid locator;
     locator.SetCoordinates(grid3D.GetCoordinateSystem());
     locator.SetCellSet(grid3D.GetCellSet());
     locator.Update();
     RK4Worklet worklet(100, 10000);
-    vtkm::cont::Invoker invoker;
-    auto inPts = vtkm::cont::make_ArrayHandle<vtkm::Vec3f>({pStart});
-    //vtkm::cont::ArrayHandle<vtkm::Vec3f> inPts({pStart});
-    vtkm::cont::ArrayHandle<vtkm::FloatDefault> dxdyField, dzdyField;
-    vtkm::cont::ArrayHandle<vtkm::Vec3f> result;
-    grid3D.GetField("dxdy").GetData().AsArrayHandle<vtkm::FloatDefault>(dxdyField);
-    grid3D.GetField("dzdy").GetData().AsArrayHandle<vtkm::FloatDefault>(dzdyField);
+    viskores::cont::Invoker invoker;
+    auto inPts = viskores::cont::make_ArrayHandle<viskores::Vec3f>({pStart});
+    //viskores::cont::ArrayHandle<viskores::Vec3f> inPts({pStart});
+    viskores::cont::ArrayHandle<viskores::FloatDefault> dxdyField, dzdyField;
+    viskores::cont::ArrayHandle<viskores::Vec3f> result;
+    grid3D.GetField("dxdy").GetData().AsArrayHandle<viskores::FloatDefault>(dxdyField);
+    grid3D.GetField("dzdy").GetData().AsArrayHandle<viskores::FloatDefault>(dzdyField);
 
-    vtkm::cont::ArrayHandle<vtkm::Id> puncIndices;
+    viskores::cont::ArrayHandle<viskores::Id> puncIndices;
     invoker(worklet, inPts, locator, grid3D.GetCellSet(), dxdyField, dzdyField, puncIndices, result);
-    vtkm::Vec3f pEnd_vtkm = result.ReadPortal().Get(0);
+    viskores::Vec3f pEnd_vtkm = result.ReadPortal().Get(0);
     return pEnd_vtkm;
     */
 
     std::cout<<"vRK4 begin: "<<pStart[0]<<" "<<pStart[1]<<" "<<pStart[2]<<std::endl;
-    constexpr vtkm::Vec3f yPlus1( 0, 1, 0);
+    constexpr viskores::Vec3f yPlus1( 0, 1, 0);
     const double twoPi = 2.0 * M_PI;
     double h = 1.0;
     double hh = h / 2.0;
@@ -421,11 +421,11 @@ RK4_FLT1_vtkm(const vtkm::Vec3f& pStart,
     //dxdy1 = bilinear_interp2(xarray, zarray, dxdyp, xStart, zStart);
     //dzdy1 = bilinear_interp2(xarray, zarray, dzdyp, xStart, zStart);
     //double x1 = xStart + direction * hh * dxdy1;
-    vtkm::FloatDefault dxdy1 = scalarField3DEval(grid3D, "dxdy", pStart);
-    vtkm::FloatDefault dzdy1 = scalarField3DEval(grid3D, "dzdy", pStart);
+    viskores::FloatDefault dxdy1 = scalarField3DEval(grid3D, "dxdy", pStart);
+    viskores::FloatDefault dzdy1 = scalarField3DEval(grid3D, "dzdy", pStart);
     std::cout<<std::setprecision(12);
 
-    vtkm::Vec3f p1;
+    viskores::Vec3f p1;
     p1[0] = pStart[0] + direction * hh * dxdy1;
     p1[1] = pStart[1];
     p1[2] = pStart[2] + direction * hh * dzdy1;
@@ -439,20 +439,20 @@ RK4_FLT1_vtkm(const vtkm::Vec3f& pStart,
     //dxdy2 = bilinear_interp2(xarray, zarray, dxdyh, x1, z1);
     //dzdy2 = bilinear_interp2(xarray, zarray, dzdyh, x1, z1);
     //double x2 = xStart + direction * hh * dxdy2;
-    vtkm::FloatDefault dxdy2 = scalarField3DEval(grid3D, "dxdy", p1);
+    viskores::FloatDefault dxdy2 = scalarField3DEval(grid3D, "dxdy", p1);
     std::cout<<"p1= "<<p1<<std::endl;
     std::cout<<"0       dxdy2= "<<dxdy2<<std::endl;
     dxdy2 += scalarField3DEval(grid3D, "dxdy", p1 + yPlus1);
     std::cout<<"1       dxdy2= "<<dxdy2<<std::endl;
     dxdy2 /= 2.0;
     std::cout<<"2       dxdy2= "<<dxdy2<<std::endl;
-    vtkm::FloatDefault dzdy2 = scalarField3DEval(grid3D, "dzdy", p1);
+    viskores::FloatDefault dzdy2 = scalarField3DEval(grid3D, "dzdy", p1);
     dzdy2 += scalarField3DEval(grid3D, "dzdy", p1 + yPlus1);
     dzdy2 /= 2.0;
 
-    //vtkm::FloatDefault dxdy2 = scalarField3DEvalFwdAvg(grid3D, "dxdy", p1);
-    //vtkm::FloatDefault dzdy2 = scalarField3DEvalFwdAvg(grid3D, "dzdy", p1);
-    vtkm::Vec3f p2;
+    //viskores::FloatDefault dxdy2 = scalarField3DEvalFwdAvg(grid3D, "dxdy", p1);
+    //viskores::FloatDefault dzdy2 = scalarField3DEvalFwdAvg(grid3D, "dzdy", p1);
+    viskores::Vec3f p2;
 
     p2[0] = pStart[0] + direction * hh * dxdy2;
     p2[1] = pStart[1];
@@ -467,7 +467,7 @@ RK4_FLT1_vtkm(const vtkm::Vec3f& pStart,
     //dzdy3 = bilinear_interp2(xarray, zarray, dzdyh, x2, z2);
     //double x3 = xStart + direction * dxdy3;
 
-    vtkm::FloatDefault dxdy3, dzdy3;
+    viskores::FloatDefault dxdy3, dzdy3;
     dxdy3 = scalarField3DEval(grid3D, "dxdy", p2);
     dxdy3 += scalarField3DEval(grid3D, "dxdy", p2 + yPlus1);
     dxdy3 /= 2.0;
@@ -475,7 +475,7 @@ RK4_FLT1_vtkm(const vtkm::Vec3f& pStart,
     dzdy3 += scalarField3DEval(grid3D, "dzdy", p2+yPlus1);
     dzdy3 /= 2.0;
 
-    vtkm::Vec3f p3;
+    viskores::Vec3f p3;
     p3[0] = pStart[0] + direction * dxdy3;
     p3[1] = pStart[1];
     p3[2] = pStart[2] + direction * dzdy3;
@@ -490,10 +490,10 @@ RK4_FLT1_vtkm(const vtkm::Vec3f& pStart,
     //dxdy4 = bilinear_interp2(xarray, zarray, dxdyn, x3, z3);
     //dzdy4 = bilinear_interp2(xarray, zarray, dzdyn, x3, z3);
     //double xEnd = xStart + direction * h6 * (dxdy1 + 2.0 * dxdy2 + 2.0 * dxdy3 + dxdy4);
-    vtkm::FloatDefault dxdy4 = scalarField3DEval(grid3D, "dxdy", p3 + yPlus1);
-    vtkm::FloatDefault dzdy4 = scalarField3DEval(grid3D, "dzdy", p3 + yPlus1);
+    viskores::FloatDefault dxdy4 = scalarField3DEval(grid3D, "dxdy", p3 + yPlus1);
+    viskores::FloatDefault dzdy4 = scalarField3DEval(grid3D, "dzdy", p3 + yPlus1);
 
-    vtkm::Vec3f pEnd;
+    viskores::Vec3f pEnd;
     pEnd[0] = pStart[0] + direction * h6 * (dxdy1 + 2.0 * dxdy2 + 2.0 * dxdy3 + dxdy4);
     pEnd[1] = pStart[1];
     pEnd[2] = pStart[2] + direction * h6 * (dzdy1 + 2.0 * dzdy2 + 2.0 * dzdy3 + dzdy4);
@@ -504,7 +504,7 @@ RK4_FLT1_vtkm(const vtkm::Vec3f& pStart,
                 /*
     auto diff = pEnd - pEnd_vtkm;
     std::cout<<"****************  DIFF *******************"<<std::endl;
-    std::cout<<"diff= "<<diff<<" pEnd= "<<pEnd<<" vtkm= "<<pEnd_vtkm<<" mag= "<<vtkm::Magnitude(diff)<<std::endl;
+    std::cout<<"diff= "<<diff<<" pEnd= "<<pEnd<<" vtkm= "<<pEnd_vtkm<<" mag= "<<viskores::Magnitude(diff)<<std::endl;
     std::cout<<"****************  DIFF *******************"<<std::endl;
     */
 

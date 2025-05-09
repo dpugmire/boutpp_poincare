@@ -1,10 +1,10 @@
 #pragma once
 
-#include <vtkm/cont/ArrayHandle.h>
-#include <vtkm/cont/CellLocatorRectilinearGrid.h>
-#include <vtkm/cont/DataSet.h>
-#include <vtkm/exec/CellInterpolate.h>
-#include <vtkm/worklet/WorkletMapField.h>
+#include <viskores/cont/ArrayHandle.h>
+#include <viskores/cont/CellLocatorRectilinearGrid.h>
+#include <viskores/cont/DataSet.h>
+#include <viskores/exec/CellInterpolate.h>
+#include <viskores/worklet/WorkletMapField.h>
 
 #include <cmath>
 #include <iostream>
@@ -18,26 +18,26 @@ void writeArray2DToFile(std::vector<std::vector<double>>& array, const std::stri
 
 void writeArray3DToFile(const std::vector<std::vector<std::vector<double>>>& array, const std::string& fname);
 
-vtkm::Vec3f RK4_FLT1_vtkm(const vtkm::Vec3f& pStart,
-                          const vtkm::cont::DataSet& grid2D,
-                          const vtkm::cont::DataSet& grid2D_cfr,
-                          const vtkm::cont::DataSet& grid2D_xz,
-                          const vtkm::cont::DataSet& grid3D,
-                          const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& xarray,
-                          const vtkm::cont::ArrayHandle<vtkm::FloatDefault>& zarray,
-                          int region,
-                          int direction,
-                          int nypf1,
-                          int nypf2,
-                          std::ofstream& rk4Out,
-                          int iline,
-                          int it,
-                          bool dumpFiles);
+viskores::Vec3f RK4_FLT1_vtkm(const viskores::Vec3f& pStart,
+                              const viskores::cont::DataSet& grid2D,
+                              const viskores::cont::DataSet& grid2D_cfr,
+                              const viskores::cont::DataSet& grid2D_xz,
+                              const viskores::cont::DataSet& grid3D,
+                              const viskores::cont::ArrayHandle<viskores::FloatDefault>& xarray,
+                              const viskores::cont::ArrayHandle<viskores::FloatDefault>& zarray,
+                              int region,
+                              int direction,
+                              int nypf1,
+                              int nypf2,
+                              std::ofstream& rk4Out,
+                              int iline,
+                              int it,
+                              bool dumpFiles);
 
 class BoutppFieldExecutionObject
 {
-  using LocatorType = vtkm::exec::CellLocatorRectilinearGrid;
-  using ArrayType = vtkm::cont::ArrayHandle<vtkm::FloatDefault>;
+  using LocatorType = viskores::exec::CellLocatorRectilinearGrid;
+  using ArrayType = viskores::cont::ArrayHandle<viskores::FloatDefault>;
   using ArrayPortalType = typename ArrayType::ReadPortalType;
 
 public:
@@ -75,22 +75,22 @@ public:
   ArrayPortalType XiArray, XArray, ZiArray, ZArray, ShiftAngle;
 };
 
-class BoutppField : public vtkm::cont::ExecutionObjectBase
+class BoutppField : public viskores::cont::ExecutionObjectBase
 {
-  using ArrayType = vtkm::cont::ArrayHandle<vtkm::FloatDefault>;
-  using Structured2DType = vtkm::cont::CellSetStructured<2>;
-  using Structured3DType = vtkm::cont::CellSetStructured<3>;
-  //using Structured3DType = vtkm::exec::CellSetStructured<3>;
-  //using Structured2DType = vtkm::exec::CellSetStructured<2>;
-  //using CellSet2DExecType = vtkm::exec::CellSet<Structured2DType>;
-  //using CellSet3DExecType = vtkm::exec::CellSet<Structured3DType>;
-  //using X2Type = vtkm::exec::ConnectivityStructured<vtkm::TopologyElementTagCell{}, vtkm::TopologyElementTagPoint{}, 2>;
-  //using X3Type = vtkm::exec::ConnectivityStructured<vtkm::TopologyElementTagCell{}, vtkm::TopologyElementTagPoint{}, 3>;
+  using ArrayType = viskores::cont::ArrayHandle<viskores::FloatDefault>;
+  using Structured2DType = viskores::cont::CellSetStructured<2>;
+  using Structured3DType = viskores::cont::CellSetStructured<3>;
+  //using Structured3DType = viskores::exec::CellSetStructured<3>;
+  //using Structured2DType = viskores::exec::CellSetStructured<2>;
+  //using CellSet2DExecType = viskores::exec::CellSet<Structured2DType>;
+  //using CellSet3DExecType = viskores::exec::CellSet<Structured3DType>;
+  //using X2Type = viskores::exec::ConnectivityStructured<viskores::TopologyElementTagCell{}, viskores::TopologyElementTagPoint{}, 2>;
+  //using X3Type = viskores::exec::ConnectivityStructured<viskores::TopologyElementTagCell{}, viskores::TopologyElementTagPoint{}, 3>;
 
 
 public:
-  BoutppField(const vtkm::cont::DataSet& grid3D,
-              const vtkm::cont::DataSet& grid2D,
+  BoutppField(const viskores::cont::DataSet& grid3D,
+              const viskores::cont::DataSet& grid2D,
               const ArrayType& xiarray,
               const ArrayType& xarray,
               const ArrayType& ziarray,
@@ -106,10 +106,10 @@ public:
   {
   }
 
-  VTKM_CONT BoutppFieldExecutionObject PrepareForExecution(vtkm::cont::DeviceAdapterId device, vtkm::cont::Token& token) const
+  VISKORES_CONT BoutppFieldExecutionObject PrepareForExecution(viskores::cont::DeviceAdapterId device, viskores::cont::Token& token) const
   {
-    vtkm::cont::CellLocatorRectilinearGrid locator3D;
-    vtkm::cont::CellLocatorRectilinearGrid locator2D;
+    viskores::cont::CellLocatorRectilinearGrid locator3D;
+    viskores::cont::CellLocatorRectilinearGrid locator2D;
     locator3D.SetCoordinates(this->Grid3D.GetCoordinateSystem());
     locator3D.SetCellSet(this->Grid3D.GetCellSet());
     locator2D.SetCoordinates(this->Grid2D.GetCoordinateSystem());
@@ -118,12 +118,12 @@ public:
     locator2D.Update();
 
     //get the fields.
-    vtkm::cont::ArrayHandle<vtkm::FloatDefault> dxdyField, dzdyField, rxyField, zxyField, zShiftField;
-    this->Grid3D.GetField("dxdy").GetData().AsArrayHandle<vtkm::FloatDefault>(dxdyField);
-    this->Grid3D.GetField("dzdy").GetData().AsArrayHandle<vtkm::FloatDefault>(dzdyField);
-    this->Grid2D.GetField("rxy").GetData().AsArrayHandle<vtkm::FloatDefault>(rxyField);
-    this->Grid2D.GetField("zxy").GetData().AsArrayHandle<vtkm::FloatDefault>(zxyField);
-    this->Grid2D.GetField("zShift").GetData().AsArrayHandle<vtkm::FloatDefault>(zShiftField);
+    viskores::cont::ArrayHandle<viskores::FloatDefault> dxdyField, dzdyField, rxyField, zxyField, zShiftField;
+    this->Grid3D.GetField("dxdy").GetData().AsArrayHandle<viskores::FloatDefault>(dxdyField);
+    this->Grid3D.GetField("dzdy").GetData().AsArrayHandle<viskores::FloatDefault>(dzdyField);
+    this->Grid2D.GetField("rxy").GetData().AsArrayHandle<viskores::FloatDefault>(rxyField);
+    this->Grid2D.GetField("zxy").GetData().AsArrayHandle<viskores::FloatDefault>(zxyField);
+    this->Grid2D.GetField("zShift").GetData().AsArrayHandle<viskores::FloatDefault>(zShiftField);
 
     return BoutppFieldExecutionObject(locator3D.PrepareForExecution(device, token),
                                       locator2D.PrepareForExecution(device, token),
@@ -139,59 +139,72 @@ public:
                                       this->ShiftAngle.PrepareForInput(device, token));
   }
 
-  vtkm::cont::DataSet Grid3D;
-  vtkm::cont::DataSet Grid2D;
+  viskores::cont::DataSet Grid3D;
+  viskores::cont::DataSet Grid2D;
   ArrayType XiArray, XArray;
   ArrayType ZiArray, ZArray;
   ArrayType ShiftAngle;
 };
 
 extern std::ofstream stepOut, trajOut;
-class RK4Worklet : public vtkm::worklet::WorkletMapField
+class RK4Worklet : public viskores::worklet::WorkletMapField
 {
 public:
-  RK4Worklet(vtkm::Id maxPuncs, vtkm::Id maxSteps)
+  RK4Worklet(viskores::Id maxPuncs, viskores::Id maxSteps)
     : MaxPunctures(maxPuncs)
     , MaxSteps(maxSteps)
   {
   }
 
-  vtkm::FloatDefault xMin, xMax;
-  vtkm::Bounds grid3DBounds, grid2DBounds;
+  viskores::FloatDefault xMin, xMax;
+  viskores::Bounds grid3DBounds, grid2DBounds;
   int nypf1, nypf2;
   int ixsep1, ixsep2;
 
-  using ControlSignature =
-    void(FieldIn points, ExecObject boutppField, WholeCellSetIn<> cells3D, WholeCellSetIn<> cells2D, WholeArrayOut puncIndices, WholeArrayOut result);
-  using ExecutionSignature = void(InputIndex, _1, _2, _3, _4, _5, _6);
+  using ControlSignature = void(FieldIn points,
+                                ExecObject boutppField,
+                                WholeCellSetIn<> cells3D,
+                                WholeCellSetIn<> cells2D,
+                                WholeArrayOut puncIndices,
+                                WholeArrayOut result,
+                                WholeArrayInOut validPuncs,
+                                WholeArrayInOut validSteps);
+  using ExecutionSignature = void(InputIndex, _1, _2, _3, _4, _5, _6, _7, _8);
   using InputDomain = _1;
 
-  template <typename BoutppFieldType, typename CellSet3DType, typename CellSet2DType, typename IndexType, typename ResultType>
-  VTKM_EXEC void operator()(const vtkm::Id& idx,
-                            const vtkm::Vec3f& pStart,
-                            BoutppFieldType& boutppField,
-                            const CellSet3DType& cells3D,
-                            const CellSet2DType& cells2D,
-                            IndexType& puncIndex,
-                            ResultType& result) const
+  template <typename BoutppFieldType,
+            typename CellSet3DType,
+            typename CellSet2DType,
+            typename IndexType,
+            typename ResultType,
+            typename ValidPuncType,
+            typename ValidStepType>
+  VISKORES_EXEC void operator()(const viskores::Id& idx,
+                                const viskores::Vec3f& pStart,
+                                BoutppFieldType& boutppField,
+                                const CellSet3DType& cells3D,
+                                const CellSet2DType& cells2D,
+                                IndexType& puncIndex,
+                                ResultType& result,
+                                ValidPuncType& validPuncs,
+                                ValidStepType& validSteps) const
   {
     constexpr double twoPi = 2.0 * M_PI;
-    vtkm::Id numPunc = 0;
-    vtkm::Id numSteps = 0;
+    viskores::Id numPunc = 0;
+    viskores::Id numSteps = 0;
     auto p0 = pStart;
 
-    vtkm::Id stepOffset = idx * this->MaxSteps;
-    vtkm::Id puncOffset = idx * this->MaxPunctures;
+    viskores::Id stepOffset = idx * this->MaxSteps;
+    viskores::Id puncOffset = idx * this->MaxPunctures;
     result.Set(stepOffset, p0);
     //stepOut << idx << ", " << 0 << ", " << p0[0] << ", " << p0[1] << ", " << p0[2] << std::endl;
     int region = 0;
 
-    auto tmp = this->ConvertToCartesian(p0, boutppField, cells2D, 0);
+    viskores::Vec3f pCart0, pCart1;
+    pCart0 = this->ConvertToCartesian(p0, boutppField, cells2D, 0);
 
-    for (vtkm::Id step = 1; region == 0 && step < this->MaxSteps; step++)
+    for (viskores::Id step = 1; region == 0 && step < this->MaxSteps; step++)
     {
-      if (step == 58)
-        std::cout << " ***** Issue." << std::endl;
       auto p1 = this->RK4Step(p0, boutppField, cells3D);
       auto xind = this->LinearInterpolate(boutppField.XArray, boutppField.XiArray, p1[0]);
       if (p1[0] > this->grid2DBounds.X.Max)
@@ -200,7 +213,7 @@ public:
         region = 11;
       else
       {
-        if (xind > static_cast<vtkm::FloatDefault>(this->ixsep1) + 0.5)
+        if (xind > static_cast<viskores::FloatDefault>(this->ixsep1) + 0.5)
           region = 1;
         /*
                 xind = scalarField1DEval(opts.XArray, opts.XiArray, p1[0]);
@@ -223,15 +236,20 @@ public:
       p1[2] = this->floatMod(p1[2], twoPi);
       stepOut << idx << ", " << step << ", " << p1[0] << ", " << p1[1] << ", " << p1[2] << std::endl;
       //convert to cartesian.
-      auto tmp = this->ConvertToCartesian(p1, boutppField, cells2D, step);
+      pCart0 = pCart1;
+      pCart1 = this->ConvertToCartesian(p1, boutppField, cells2D, step);
+
       //trajOut << "0, " << step << " " << tmp[0] << ", " << tmp[1] << ", " << tmp[2] << ", 0, 0, 0, 0" << std::endl;
 
-      result.Set(stepOffset + step, tmp);
+      result.Set(stepOffset + step, pCart1);
+      validSteps.Set(stepOffset + step, true);
 
       //point crosses the X=0 plane.
-      if (p0[0] * p1[0] < 0)
+      if (step > 1 && pCart0[0] * pCart1[0] < 0)
       {
+        //std::cout << "SET_PUNC: " << puncOffset << " " << numPunc << " " << (step - 1) << std::endl;
         puncIndex.Set(puncOffset + numPunc, step - 1);
+        validPuncs.Set(puncOffset + numPunc, true);
         numPunc++;
       }
 
@@ -245,16 +263,16 @@ private:
   //x/zind: [-0.135435384332,55,0.000486567073233] --> 149.790391597 0.019747086487
 
   template <typename BoutppFieldType, typename CellSetType>
-  vtkm::Vec3f ConvertToCartesian(const vtkm::Vec3f& pt, BoutppFieldType& boutppField, const CellSetType& cells, int step) const
+  viskores::Vec3f ConvertToCartesian(const viskores::Vec3f& pt, BoutppFieldType& boutppField, const CellSetType& cells, int step) const
   {
-    vtkm::Vec3f pCart;
-    vtkm::Id yi = static_cast<vtkm::Id>(pt[1]);
+    viskores::Vec3f pCart;
+    viskores::Id yi = static_cast<viskores::Id>(pt[1]);
     auto xind = this->LinearInterpolate(boutppField.XArray, boutppField.XiArray, pt[0]);
     auto traj2 = xind;
     auto zind = this->LinearInterpolate(boutppField.ZArray, boutppField.ZiArray, pt[2]);
     auto traj4 = zind;
-    //vtkm::Vec3f ptXZ(pt[0], pt[2], 0.0);
-    vtkm::Vec3f ptXY(pt[0], pt[1], 0.0);
+    //viskores::Vec3f ptXZ(pt[0], pt[2], 0.0);
+    viskores::Vec3f ptXY(pt[0], pt[1], 0.0);
     auto rxyvalue = this->Evaluate(ptXY, boutppField, boutppField.rxy, cells);
     auto zxyvalue = this->Evaluate(ptXY, boutppField, boutppField.zxy, cells);
 
@@ -264,31 +282,31 @@ private:
 
 
     auto rxy = rxyvalue;
-    vtkm::Vec3f tmp(pt[0], yi, pt[2]);
+    viskores::Vec3f tmp(pt[0], yi, pt[2]);
 
-    vtkm::FloatDefault x3d_tmp = rxyvalue * std::cos(zsvalue);
-    vtkm::FloatDefault y3d_tmp = rxyvalue * std::sin(zsvalue);
+    viskores::FloatDefault x3d_tmp = rxyvalue * std::cos(zsvalue);
+    viskores::FloatDefault y3d_tmp = rxyvalue * std::sin(zsvalue);
 
     // Compute x3d and y3d
-    vtkm::FloatDefault x3d = x3d_tmp * std::cos(zvalue) - y3d_tmp * std::sin(zvalue);
-    vtkm::FloatDefault y3d = x3d_tmp * std::sin(zvalue) + y3d_tmp * std::cos(zvalue);
-    vtkm::FloatDefault z3d = zxyvalue;
+    viskores::FloatDefault x3d = x3d_tmp * std::cos(zvalue) - y3d_tmp * std::sin(zvalue);
+    viskores::FloatDefault y3d = x3d_tmp * std::sin(zvalue) + y3d_tmp * std::cos(zvalue);
+    viskores::FloatDefault z3d = zxyvalue;
     trajOut << "0, " << step << ", " << x3d << ", " << y3d << ", " << z3d << ", 0, " << yi << ", " << zsvalue << ", " << zvalue << std::endl;
 
-    return vtkm::Vec3f(x3d, y3d, z3d);
+    return viskores::Vec3f(x3d, y3d, z3d);
   }
 
   template <typename FieldType1, typename FieldType2>
-  vtkm::FloatDefault LinearInterpolate(const FieldType1& x, const FieldType2& y, const vtkm::FloatDefault val) const
+  viskores::FloatDefault LinearInterpolate(const FieldType1& x, const FieldType2& y, const viskores::FloatDefault val) const
   {
     // Perform binary search to find the interval.
-    vtkm::Id size = x.GetNumberOfValues();
-    vtkm::Id low = 0;
-    vtkm::Id high = size - 1;
+    viskores::Id size = x.GetNumberOfValues();
+    viskores::Id low = 0;
+    viskores::Id high = size - 1;
 
     while (low <= high)
     {
-      vtkm::Id mid = low + (high - low) / 2;
+      viskores::Id mid = low + (high - low) / 2;
 
       if (val >= x.Get(mid) && val <= x.Get(mid + 1))
       {
@@ -316,28 +334,28 @@ private:
     return result;
   }
 
-  vtkm::FloatDefault floatMod(vtkm::FloatDefault val, vtkm::FloatDefault mod_base) const
+  viskores::FloatDefault floatMod(viskores::FloatDefault val, viskores::FloatDefault mod_base) const
   {
-    vtkm::FloatDefault result = std::fmod(val, mod_base);
+    viskores::FloatDefault result = std::fmod(val, mod_base);
     if (result < 0)
       result += mod_base;
     return result;
   }
 
   template <typename BoutppType, typename CellSetType>
-  VTKM_EXEC vtkm::Vec3f RK4Step(const vtkm::Vec3f& pStart, BoutppType& boutppField, const CellSetType& cells) const
+  VISKORES_EXEC viskores::Vec3f RK4Step(const viskores::Vec3f& pStart, BoutppType& boutppField, const CellSetType& cells) const
   {
-    constexpr vtkm::Vec3f yPlus1(0, 1, 0);
+    constexpr viskores::Vec3f yPlus1(0, 1, 0);
     constexpr double twoPi = 2.0 * M_PI;
     constexpr double h = 1.0;
     constexpr double hh = h / 2.0;
     constexpr double h6 = h / 6.0;
     constexpr double direction = 1.0;
 
-    std::cout << "vtkm::RK begin: " << pStart << std::endl;
+    std::cout << "viskores::RK begin: " << pStart << std::endl;
     //Step 1
     auto res1 = this->Evaluate(pStart, boutppField, cells);
-    vtkm::Vec3f p1;
+    viskores::Vec3f p1;
     p1[0] = pStart[0] + direction * hh * res1[0];
     p1[1] = pStart[1];
     p1[2] = pStart[2] + direction * hh * res1[1];
@@ -349,7 +367,7 @@ private:
     res2 += this->Evaluate(p1 + yPlus1, boutppField, cells);
     res2[0] /= 2.0;
     res2[1] /= 2.0;
-    vtkm::Vec3f p2;
+    viskores::Vec3f p2;
     p2[0] = pStart[0] + direction * hh * res2[0];
     p2[1] = pStart[1];
     p2[2] = pStart[2] + direction * hh * res2[1];
@@ -362,7 +380,7 @@ private:
     res3[0] /= 2.0;
     res3[1] /= 2.0;
 
-    vtkm::Vec3f p3;
+    viskores::Vec3f p3;
     p3[0] = pStart[0] + direction * h * res3[0];
     p3[1] = pStart[1];
     p3[2] = pStart[2] + direction * h * res3[1];
@@ -372,7 +390,7 @@ private:
     //Step 4
     auto res4 = this->Evaluate(p3 + yPlus1, boutppField, cells);
 
-    vtkm::Vec3f pEnd;
+    viskores::Vec3f pEnd;
     pEnd[0] = pStart[0] + direction * h6 * (res1[0] + 2.0 * res2[0] + 2.0 * res3[0] + res4[0]);
     pEnd[1] = pStart[1] + 1;
     pEnd[2] = pStart[2] + direction * h6 * (res1[1] + 2.0 * res2[1] + 2.0 * res3[1] + res4[1]);
@@ -380,19 +398,19 @@ private:
   }
 
   template <typename BoutppFieldType, typename CellSetType>
-  VTKM_EXEC bool Locate(const vtkm::Vec3f& pt,
-                        BoutppFieldType& boutppField,
-                        const CellSetType& cells,
-                        vtkm::UInt8& cellShape,
-                        vtkm::IdComponent& numVerts,
-                        vtkm::VecVariable<vtkm::Id, 8>& ptIndices,
-                        vtkm::Vec3f& parametric) const
+  VISKORES_EXEC bool Locate(const viskores::Vec3f& pt,
+                            BoutppFieldType& boutppField,
+                            const CellSetType& cells,
+                            viskores::UInt8& cellShape,
+                            viskores::IdComponent& numVerts,
+                            viskores::VecVariable<viskores::Id, 8>& ptIndices,
+                            viskores::Vec3f& parametric) const
   {
-    vtkm::Id cellId;
+    viskores::Id cellId;
     boutppField.Locator3D.FindCell(pt, cellId, parametric);
     if (cellId == -1)
     {
-      VTKM_ASSERT(false);
+      VISKORES_ASSERT(false);
       std::cout << "Locator failed: " << pt << std::endl;
       return false;
     }
@@ -404,67 +422,70 @@ private:
   }
 
   template <typename BoutppFieldType, typename ArrayType, typename CellSetType>
-  VTKM_EXEC vtkm::FloatDefault Evaluate(const vtkm::Vec3f& pt, BoutppFieldType& boutppField, const ArrayType& field, const CellSetType& cells) const
+  VISKORES_EXEC viskores::FloatDefault Evaluate(const viskores::Vec3f& pt,
+                                                BoutppFieldType& boutppField,
+                                                const ArrayType& field,
+                                                const CellSetType& cells) const
   {
-    vtkm::UInt8 cellShape;
-    vtkm::Vec3f parametric;
-    vtkm::IdComponent numVerts;
-    vtkm::VecVariable<vtkm::Id, 8> ptIndices;
+    viskores::UInt8 cellShape;
+    viskores::Vec3f parametric;
+    viskores::IdComponent numVerts;
+    viskores::VecVariable<viskores::Id, 8> ptIndices;
 
     this->Locate(pt, boutppField, cells, cellShape, numVerts, ptIndices, parametric);
-    vtkm::VecVariable<vtkm::FloatDefault, 8> ptVals;
-    for (vtkm::IdComponent i = 0; i < numVerts; i++)
+    viskores::VecVariable<viskores::FloatDefault, 8> ptVals;
+    for (viskores::IdComponent i = 0; i < numVerts; i++)
       ptVals.Append(field.Get(ptIndices[i]));
 
-    vtkm::FloatDefault val;
-    auto status = vtkm::exec::CellInterpolate(ptVals, parametric, cellShape, val);
+    viskores::FloatDefault val;
+    auto status = viskores::exec::CellInterpolate(ptVals, parametric, cellShape, val);
 
-    if (status != vtkm::ErrorCode::Success)
+    if (status != viskores::ErrorCode::Success)
       this->RaiseError("Evaluate failed.");
     return val;
   }
 
   template <typename BoutppFieldType, typename CellSetType>
-  VTKM_EXEC vtkm::Vec2f Evaluate(const vtkm::Vec3f& pt, BoutppFieldType& boutppField, const CellSetType& cells) const
+  VISKORES_EXEC viskores::Vec2f Evaluate(const viskores::Vec3f& pt, BoutppFieldType& boutppField, const CellSetType& cells) const
   {
-    vtkm::UInt8 cellShape;
-    vtkm::Vec3f parametric;
-    vtkm::IdComponent numVerts;
-    vtkm::VecVariable<vtkm::Id, 8> ptIndices;
+    viskores::UInt8 cellShape;
+    viskores::Vec3f parametric;
+    viskores::IdComponent numVerts;
+    viskores::VecVariable<viskores::Id, 8> ptIndices;
 
     this->Locate(pt, boutppField, cells, cellShape, numVerts, ptIndices, parametric);
 
 #if 0
-      vtkm::Id cellId;
+      viskores::Id cellId;
       boutppField.Locator3D.FindCell(pt, cellId, parametric);
       if (cellId == -1)
       {
         std::cout << "Locator failed: " << pt << std::endl;
-        VTKM_ASSERT(false);
+        VISKORES_ASSERT(false);
         this->RaiseError("Locator.FindCell failed.");
         }
 
         std::cout<<"cellId: "<<cellId<<" nvals= "<<boutppField.dxdy.GetNumberOfValues()<<std::endl;
         auto cellShape = cells.GetCellShape(cellId);
-        vtkm::IdComponent numVerts = cells.GetNumberOfIndices(cellId);
-        vtkm::VecVariable<vtkm::Id, 8> ptIndices = cells.GetIndices(cellId);
+        viskores::IdComponent numVerts = cells.GetNumberOfIndices(cellId);
+        viskores::VecVariable<viskores::Id, 8> ptIndices = cells.GetIndices(cellId);
 #endif
 
-    vtkm::VecVariable<vtkm::FloatDefault, 8> dxdyVals, dzdyVals;
-    for (vtkm::IdComponent i = 0; i < numVerts; i++)
+    viskores::VecVariable<viskores::FloatDefault, 8> dxdyVals, dzdyVals;
+    for (viskores::IdComponent i = 0; i < numVerts; i++)
     {
       dxdyVals.Append(boutppField.dxdy.Get(ptIndices[i]));
       dzdyVals.Append(boutppField.dzdy.Get(ptIndices[i]));
     }
 
-    vtkm::Vec2f result;
-    auto status1 = vtkm::exec::CellInterpolate(dxdyVals, parametric, cellShape, result[0]);
-    auto status2 = vtkm::exec::CellInterpolate(dzdyVals, parametric, cellShape, result[1]);
-    if (status1 != vtkm::ErrorCode::Success || status2 != vtkm::ErrorCode::Success)
+    viskores::Vec2f result;
+    auto status1 = viskores::exec::CellInterpolate(dxdyVals, parametric, cellShape, result[0]);
+    auto status2 = viskores::exec::CellInterpolate(dzdyVals, parametric, cellShape, result[1]);
+    if (status1 != viskores::ErrorCode::Success || status2 != viskores::ErrorCode::Success)
       this->RaiseError("CellInterpolate failed.");
     return result;
   }
 
-  vtkm::Id MaxPunctures;
-  vtkm::Id MaxSteps;
+  viskores::Id MaxPunctures;
+  viskores::Id MaxSteps;
 };
