@@ -1,6 +1,7 @@
 %% matlab script to trace field-lines for poloidal Poincare plot and other analysis
 %  last updated by B. Zhu 12/2023
 
+
 %addpath('~/Documents/MATLAB/utilities')
 %addpath('~/Documents/MATLAB/colormaps')
 
@@ -20,13 +21,21 @@ else
     disp('Running in MATLAB');
 end
 
+doHermite = true
+
 trajFID = fopen('/Users/dpn/traj.m.txt', 'w');
 stepsFID = fopen('/Users/dpn/steps.m.txt', 'w');
 rk4FID = fopen('/Users/dpn/rk4.m.txt', 'w');
-trajSplineFID = fopen('/Users/dpn/trajspline.m.txt', 'w');
+if (doHermite)
+  trajSplineFID = fopen('/Users/dpn/trajhermite.m.txt', 'w');
+  puncSplineFid = fopen('/Users/dpn/punchermite.m.txt', 'w');
+else
+  trajSplineFID = fopen('/Users/dpn/trajspline.m.txt', 'w');
+  puncSplineFid = fopen('/Users/dpn/puncspline.m.txt', 'w');
+end
+
 rawPuncFid = fopen('/Users/dpn/rawpunc.m.txt', 'w');
 puncFid = fopen('/Users/dpn/punc.m.txt', 'w');
-puncSplineFid = fopen('/Users/dpn/puncspline.m.txt', 'w');
 punc_ip_Fid = fopen('/Users/dpn/punc_ip.m.txt', 'w');
 TRAJ_FID = fopen('/Users/dpn/pt_traj.m.txt', 'w');
 
@@ -800,8 +809,14 @@ yiarray = (1:ny);
                 endfor
 
                 px0 = ppval(splineXEval, tZero);
-                splineYEval = spline(_xi, yVals);
-                splineZEval = spline(_xi, zVals);
+                if (doHermite)
+		  splineYEval = pchip(_xi, yVals);
+                  splineZEval = pchip(_xi, zVals);
+		else 
+		  splineYEval = spline(_xi, yVals);
+                  splineZEval = spline(_xi, zVals);
+                end
+                
                 py0 = ppval(splineYEval, tZero);
                 pz0 = ppval(splineZEval, tZero);
                 fprintf(' FOUND Zero: cnt= %d  %d, %f, %f, %f, %f, %d\n', _cnt, iline-1, tZero-1.0, px0, py0, pz0, region);
