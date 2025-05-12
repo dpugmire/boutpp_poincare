@@ -312,9 +312,9 @@ ixsep2 = 260
 ixsep = 195
 nypf1 = 16
 nypf2 = 112
-stepsF = open('steps.p.txt', 'w', buffering=1)
+stepsF = open('/Users/dpn/steps.p.txt', 'w', buffering=1)
 #stepsF.write('ID,YI,iTURN,xStart,yStart,zStart,xind,yind,zind,region\n')
-trajF = open('traj.p.txt', 'w', buffering=1)
+trajF = open('/Users/dpn/traj.p.txt', 'w', buffering=1)
 trajF.write('ID, ITER, X, Y, Z\n')
 
 direction = 1
