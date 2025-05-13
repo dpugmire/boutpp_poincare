@@ -146,7 +146,7 @@ public:
   ArrayType ShiftAngle;
 };
 
-extern std::ofstream stepOut, trajOut;
+extern std::ofstream stepOut, trajOut, tanOut;
 class RK4Worklet : public viskores::worklet::WorkletMapField
 {
 public:
@@ -167,9 +167,10 @@ public:
                                 WholeCellSetIn<> cells2D,
                                 WholeArrayOut puncIndices,
                                 WholeArrayOut result,
+                                WholeArrayOut tangent,
                                 WholeArrayInOut validPuncs,
                                 WholeArrayInOut validSteps);
-  using ExecutionSignature = void(InputIndex, _1, _2, _3, _4, _5, _6, _7, _8);
+  using ExecutionSignature = void(InputIndex, _1, _2, _3, _4, _5, _6, _7, _8, _9);
   using InputDomain = _1;
 
   template <typename BoutppFieldType,
@@ -186,6 +187,7 @@ public:
                                 const CellSet2DType& cells2D,
                                 IndexType& puncIndex,
                                 ResultType& result,
+                                ResultType& tangent,
                                 ValidPuncType& validPuncs,
                                 ValidStepType& validSteps) const
   {
@@ -200,12 +202,19 @@ public:
     //stepOut << idx << ", " << 0 << ", " << p0[0] << ", " << p0[1] << ", " << p0[2] << std::endl;
     int region = 0;
 
-    viskores::Vec3f pCart0, pCart1;
-    pCart0 = this->ConvertToCartesian(p0, boutppField, cells2D, 0);
+    viskores::Vec3f pCart0, pCart1, vCart0;
+
+    //pCart0 = this->ConvertToCartesian(p0, boutppField, cells2D, 0, true);
+    pCart0 = this->ConvertToCartesian(p0, vCart0, boutppField, cells2D, 0, true, vCart0);
+    //vCart0 = this->EvaluateTangent(p0, boutppField, cells2D);
+    tangent.Set(stepOffset, vCart0);
+    tanOut << "0, 0, " << pCart0[0] << ", " << pCart0[1] << ", " << pCart0[2] << ", " << vCart0[0] << ", " << vCart0[1] << ", " << vCart0[2]
+           << std::endl;
 
     for (viskores::Id step = 1; region == 0 && step < this->MaxSteps; step++)
     {
-      auto p1 = this->RK4Step(p0, boutppField, cells3D);
+      viskores::Vec3f p1, tan0, tan1;
+      this->RK4Step(p0, boutppField, cells3D, p1, tan0, tan1);
       auto xind = this->LinearInterpolate(boutppField.XArray, boutppField.XiArray, p1[0]);
       if (p1[0] > this->grid2DBounds.X.Max)
         region = 12;
@@ -237,11 +246,16 @@ public:
       stepOut << idx << ", " << step << ", " << p1[0] << ", " << p1[1] << ", " << p1[2] << std::endl;
       //convert to cartesian.
       pCart0 = pCart1;
-      pCart1 = this->ConvertToCartesian(p1, boutppField, cells2D, step);
+      viskores::Vec3f vCart1;
+      pCart1 = this->ConvertToCartesian(p1, tan1, boutppField, cells2D, step, true, vCart1);
 
       //trajOut << "0, " << step << " " << tmp[0] << ", " << tmp[1] << ", " << tmp[2] << ", 0, 0, 0, 0" << std::endl;
 
       result.Set(stepOffset + step, pCart1);
+      //vCart1 = this->EvaluateTangent(p1, boutppField, cells2D);
+      tangent.Set(stepOffset + step, vCart1);
+      tanOut << "0, " << step << ", " << pCart1[0] << ", " << pCart1[1] << ", " << pCart1[2] << ", " << vCart1[0] << ", " << vCart1[1] << ", "
+             << vCart1[2] << std::endl;
       validSteps.Set(stepOffset + step, true);
 
       //point crosses the X=0 plane.
@@ -263,35 +277,126 @@ private:
   //x/zind: [-0.135435384332,55,0.000486567073233] --> 149.790391597 0.019747086487
 
   template <typename BoutppFieldType, typename CellSetType>
-  viskores::Vec3f ConvertToCartesian(const viskores::Vec3f& pt, BoutppFieldType& boutppField, const CellSetType& cells, int step) const
+  viskores::Vec3f EvaluateTangent(const viskores::Vec3f& pt0, BoutppFieldType& boutppField, const CellSetType& cells) const
   {
-    viskores::Vec3f pCart;
+    constexpr double twoPi = 2.0 * M_PI;
+    auto pt0Cart = this->ConvertToCartesian(pt0, boutppField, cells, -1, false);
+
+    auto vec2d = this->Evaluate(pt0, boutppField, cells);
+    viskores::Vec3f vec0(vec2d[0], 1, vec2d[1]);
+    auto pt1 = pt0 + vec0;
+    pt1[2] = this->floatMod(pt1[2], twoPi);
+    auto pt1Cart = this->ConvertToCartesian(pt1, boutppField, cells, -1, false);
+
+    auto tangent = pt1Cart - pt0Cart;
+    tangent = tangent * 0.75;
+    return tangent;
+  }
+
+  template <typename BoutppFieldType, typename CellSetType>
+  viskores::Vec3f ConvertToCartesian(const viskores::Vec3f& pt,
+                                     const viskores::Vec3f& vec,
+                                     BoutppFieldType& boutppField,
+                                     const CellSetType& cells,
+                                     int step,
+                                     bool outputIt,
+                                     viskores::Vec3f& vecCart) const
+  {
     viskores::Id yi = static_cast<viskores::Id>(pt[1]);
     auto xind = this->LinearInterpolate(boutppField.XArray, boutppField.XiArray, pt[0]);
-    auto traj2 = xind;
     auto zind = this->LinearInterpolate(boutppField.ZArray, boutppField.ZiArray, pt[2]);
-    auto traj4 = zind;
-    //viskores::Vec3f ptXZ(pt[0], pt[2], 0.0);
+
     viskores::Vec3f ptXY(pt[0], pt[1], 0.0);
-    auto rxyvalue = this->Evaluate(ptXY, boutppField, boutppField.rxy, cells);
-    auto zxyvalue = this->Evaluate(ptXY, boutppField, boutppField.zxy, cells);
-
-    auto zsvalue = this->Evaluate(ptXY, boutppField, boutppField.zShift, cells);
-    //double zvalue = INTERP(opts.ziarray, opts.zarray, pt.traj4); traj4 = zind
+    auto rxy = this->Evaluate(ptXY, boutppField, boutppField.rxy, cells);
+    auto zxy = this->Evaluate(ptXY, boutppField, boutppField.zxy, cells);
     auto zvalue = this->LinearInterpolate(boutppField.ZiArray, boutppField.ZArray, zind);
-
-
-    auto rxy = rxyvalue;
-    viskores::Vec3f tmp(pt[0], yi, pt[2]);
-
-    viskores::FloatDefault x3d_tmp = rxyvalue * std::cos(zsvalue);
-    viskores::FloatDefault y3d_tmp = rxyvalue * std::sin(zsvalue);
+    auto zsvalue = this->Evaluate(ptXY, boutppField, boutppField.zShift, cells);
 
     // Compute x3d and y3d
-    viskores::FloatDefault x3d = x3d_tmp * std::cos(zvalue) - y3d_tmp * std::sin(zvalue);
-    viskores::FloatDefault y3d = x3d_tmp * std::sin(zvalue) + y3d_tmp * std::cos(zvalue);
-    viskores::FloatDefault z3d = zxyvalue;
-    trajOut << "0, " << step << ", " << x3d << ", " << y3d << ", " << z3d << ", 0, " << yi << ", " << zsvalue << ", " << zvalue << std::endl;
+    viskores::FloatDefault x3d = rxy * std::cos(zsvalue) * std::cos(zvalue) - rxy * std::sin(zsvalue) * std::sin(zvalue);
+    viskores::FloatDefault y3d = rxy * std::cos(zsvalue) * std::sin(zvalue) + rxy * std::sin(zsvalue) * std::cos(zvalue);
+    viskores::FloatDefault z3d = zxy;
+    if (outputIt)
+      trajOut << "0, " << step << ", " << x3d << ", " << y3d << ", " << z3d << ", 0, " << yi << ", " << zsvalue << ", " << zvalue << std::endl;
+
+    // Compute the tangent vector if requested
+    if (true)
+    {
+      viskores::FloatDefault vr = vec[0];     // Radial component
+      viskores::FloatDefault vtheta = vec[1]; // Angular component
+      viskores::FloatDefault vz = vec[2];     // Z component
+
+      vtheta *= rxy; // This is the critical fix
+
+      // Compute Cartesian vector components
+      viskores::FloatDefault cos_z = std::cos(zvalue);
+      viskores::FloatDefault sin_z = std::sin(zvalue);
+      viskores::FloatDefault cos_zs = std::cos(zsvalue);
+      viskores::FloatDefault sin_zs = std::sin(zsvalue);
+      viskores::FloatDefault cos_zs_z = std::cos(zsvalue + zvalue);
+      viskores::FloatDefault sin_zs_z = std::sin(zsvalue + zvalue);
+
+      vecCart[0] = vr * cos_zs * cos_z - vr * sin_zs * sin_z - rxy * vtheta * sin_zs_z;
+      vecCart[1] = vr * cos_zs * sin_z + vr * sin_zs * cos_z + rxy * vtheta * cos_zs_z;
+      vecCart[2] = vz; // Z component is directly mapped
+      //vecCart = vecCart * 0.50;
+      std::cout << " *********** vecCart= " << vecCart << std::endl;
+    }
+
+    return viskores::Vec3f(x3d, y3d, z3d);
+  }
+
+  template <typename BoutppFieldType, typename CellSetType>
+  viskores::Vec3f ConvertToCartesianWithTangent(const viskores::Vec3f& pt,
+                                                const viskores::Vec3f& tangent,
+                                                BoutppFieldType& boutppField,
+                                                const CellSetType& cells,
+                                                viskores::Vec3f& tangentCartian,
+                                                int step,
+                                                bool outputIt) const
+  {
+    constexpr double twoPi = 2.0 * M_PI;
+    //return this->ConvertToCartesian(pt, boutppField, cells, step, outputIt);
+
+    viskores::Id yi = static_cast<viskores::Id>(pt[1]);
+    auto xind = this->LinearInterpolate(boutppField.XArray, boutppField.XiArray, pt[0]);
+    auto zind = this->LinearInterpolate(boutppField.ZArray, boutppField.ZiArray, pt[2]);
+
+    viskores::Vec3f ptXY(pt[0], pt[1], 0.0);
+    auto rxy = this->Evaluate(ptXY, boutppField, boutppField.rxy, cells);
+    auto zxy = this->Evaluate(ptXY, boutppField, boutppField.zxy, cells);
+    auto zvalue = this->LinearInterpolate(boutppField.ZiArray, boutppField.ZArray, zind);
+    auto zsvalue = this->Evaluate(ptXY, boutppField, boutppField.zShift, cells);
+
+    // Compute Cartesian coordinates
+    viskores::FloatDefault x3d = rxy * std::cos(zsvalue) * std::cos(zvalue) - rxy * std::sin(zsvalue) * std::sin(zvalue);
+    viskores::FloatDefault y3d = rxy * std::cos(zsvalue) * std::sin(zvalue) + rxy * std::sin(zsvalue) * std::cos(zvalue);
+    viskores::FloatDefault z3d = zxy;
+
+    // Jacobian matrix elements for tangent transformation
+    viskores::FloatDefault dx_dr = std::cos(zsvalue) * std::cos(zvalue) - std::sin(zsvalue) * std::sin(zvalue);
+    viskores::FloatDefault dx_dzs = -rxy * std::sin(zsvalue) * std::cos(zvalue) - rxy * std::cos(zsvalue) * std::sin(zvalue);
+    viskores::FloatDefault dx_dz = -rxy * std::cos(zsvalue) * std::sin(zvalue) - rxy * std::sin(zsvalue) * std::cos(zvalue);
+
+    viskores::FloatDefault dy_dr = std::sin(zsvalue) * std::cos(zvalue) + std::cos(zsvalue) * std::sin(zvalue);
+    viskores::FloatDefault dy_dzs = rxy * std::cos(zsvalue) * std::cos(zvalue) - rxy * std::sin(zsvalue) * std::sin(zvalue);
+    viskores::FloatDefault dy_dz = -rxy * std::sin(zsvalue) * std::sin(zvalue) + rxy * std::cos(zsvalue) * std::cos(zvalue);
+
+    viskores::FloatDefault dz_dr = 0.0;
+    viskores::FloatDefault dz_dzs = 0.0;
+    viskores::FloatDefault dz_dz = 1.0;
+
+    // Transform the tangent vector using the Jacobian
+    viskores::FloatDefault vx3d = dx_dr * tangent[0] + dx_dzs * tangent[1] + dx_dz * tangent[2];
+    viskores::FloatDefault vy3d = dy_dr * tangent[0] + dy_dzs * tangent[1] + dy_dz * tangent[2];
+    viskores::FloatDefault vz3d = dz_dr * tangent[0] + dz_dzs * tangent[1] + dz_dz * tangent[2];
+    tangentCartian = viskores::Vec3f(dx_dr, dy_dr, dz_dr);
+
+    if (outputIt)
+    {
+      trajOut << "1, " << step << ", " << x3d << ", " << y3d << ", " << z3d << ", " << vx3d << ", " << vy3d << ", " << vz3d << ", " << yi << ", "
+              << zsvalue << ", " << zvalue << std::endl;
+    }
 
     return viskores::Vec3f(x3d, y3d, z3d);
   }
@@ -343,18 +448,25 @@ private:
   }
 
   template <typename BoutppType, typename CellSetType>
-  VISKORES_EXEC viskores::Vec3f RK4Step(const viskores::Vec3f& pStart, BoutppType& boutppField, const CellSetType& cells) const
+  VISKORES_EXEC void RK4Step(const viskores::Vec3f& pStart,
+                             BoutppType& boutppField,
+                             const CellSetType& cells,
+                             viskores::Vec3f& pEnd,
+                             viskores::Vec3f& tangent0,
+                             viskores::Vec3f& tangent1) const
   {
-    constexpr viskores::Vec3f yPlus1(0, 1, 0);
     constexpr double twoPi = 2.0 * M_PI;
     constexpr double h = 1.0;
     constexpr double hh = h / 2.0;
     constexpr double h6 = h / 6.0;
     constexpr double direction = 1.0;
+    constexpr viskores::Vec3f yPlusH(0, h, 0);
 
     std::cout << "viskores::RK begin: " << pStart << std::endl;
     //Step 1
     auto res1 = this->Evaluate(pStart, boutppField, cells);
+    tangent0 = { res1[0], 1, res1[1] };
+
     viskores::Vec3f p1;
     p1[0] = pStart[0] + direction * hh * res1[0];
     p1[1] = pStart[1];
@@ -364,7 +476,7 @@ private:
 
     //Step 2
     auto res2 = this->Evaluate(p1, boutppField, cells);
-    res2 += this->Evaluate(p1 + yPlus1, boutppField, cells);
+    res2 += this->Evaluate(p1 + yPlusH, boutppField, cells);
     res2[0] /= 2.0;
     res2[1] /= 2.0;
     viskores::Vec3f p2;
@@ -376,7 +488,7 @@ private:
 
     //Step 3
     auto res3 = this->Evaluate(p2, boutppField, cells);
-    res3 += this->Evaluate(p2 + yPlus1, boutppField, cells);
+    res3 += this->Evaluate(p2 + yPlusH, boutppField, cells);
     res3[0] /= 2.0;
     res3[1] /= 2.0;
 
@@ -388,13 +500,13 @@ private:
     std::cout << "step3: " << res3[0] << " " << res3[1] << " :: " << p3[0] << " " << p3[2] << std::endl;
 
     //Step 4
-    auto res4 = this->Evaluate(p3 + yPlus1, boutppField, cells);
+    auto res4 = this->Evaluate(p3 + yPlusH, boutppField, cells);
 
-    viskores::Vec3f pEnd;
+    //viskores::Vec3f pEnd;
     pEnd[0] = pStart[0] + direction * h6 * (res1[0] + 2.0 * res2[0] + 2.0 * res3[0] + res4[0]);
-    pEnd[1] = pStart[1] + 1;
+    pEnd[1] = pStart[1] + h;
     pEnd[2] = pStart[2] + direction * h6 * (res1[1] + 2.0 * res2[1] + 2.0 * res3[1] + res4[1]);
-    return pEnd;
+    tangent1 = pEnd - pStart;
   }
 
   template <typename BoutppFieldType, typename CellSetType>

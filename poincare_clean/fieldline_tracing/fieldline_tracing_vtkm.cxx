@@ -31,6 +31,7 @@ std::ofstream puncFid2("/Users/dpn/punc2.v.txt");
 std::ofstream puncSplineFid("/Users/dpn/puncspline.v.txt");
 std::ofstream rawPunc("/Users/dpn/rawpunc.v.txt", std::ofstream::out);
 std::ofstream trajOut("/Users/dpn/traj.v.txt", std::ofstream::out);
+std::ofstream tanOut("/Users/dpn/tan.v.txt", std::ofstream::out);
 std::ofstream stepOut("/Users/dpn/steps.v.txt", std::ofstream::out);
 std::ofstream rk4Out("/Users/dpn/rk4.v.txt", std::ofstream::out);
 
@@ -703,6 +704,7 @@ int main(int argc, char* argv[])
 
   trajspline << "ID, STEP, X, Y, Z, REGION\n";
   trajOut << "ID, STEP, X, Y, Z, REGION, YI, ZSVALUE, ZVALUE" << std::endl;
+  tanOut << "ID, STEP, X, Y, Z, VX, VY, VZ" << std::endl;
   rawPunc << "ID, STEP, X, Y, Z\n";
   puncFid << "ID, STEP, X, Y, Z\n";
   puncFid2 << "ID, STEP, X, Y, Z\n";
@@ -776,7 +778,7 @@ int main(int argc, char* argv[])
     locator2D.SetCoordinates(grid2D.GetCoordinateSystem());
     locator2D.SetCellSet(grid2D.GetCellSet());
     locator2D.Update();
-    viskores::Id maxPuncs = 20, maxSteps = 10000;
+    viskores::Id maxPuncs = 100, maxSteps = 100000;
 
     RK4Worklet worklet(maxPuncs, maxSteps);
     worklet.grid3DBounds = grid3D.GetCoordinateSystem().GetBounds();
@@ -790,7 +792,7 @@ int main(int argc, char* argv[])
     viskores::cont::Invoker invoker;
     auto inPts = viskores::cont::make_ArrayHandle<viskores::Vec3f>(points, viskores::CopyFlag::On);
     viskores::cont::ArrayHandle<viskores::FloatDefault> dxdyField, dzdyField, rxyField, zShiftField;
-    viskores::cont::ArrayHandle<viskores::Vec3f> result;
+    viskores::cont::ArrayHandle<viskores::Vec3f> result, tangent;
     grid3D.GetField("dxdy").GetData().AsArrayHandle<viskores::FloatDefault>(dxdyField);
     grid3D.GetField("dzdy").GetData().AsArrayHandle<viskores::FloatDefault>(dzdyField);
     grid2D.GetField("rxy").GetData().AsArrayHandle<viskores::FloatDefault>(rxyField);
@@ -799,15 +801,17 @@ int main(int argc, char* argv[])
     viskores::cont::ArrayHandle<viskores::Id> puncIndices;
     viskores::cont::ArrayHandle<bool> validSteps, validPuncs;
     result.Allocate(inPts.GetNumberOfValues() * maxSteps);
+    tangent.Allocate(inPts.GetNumberOfValues() * maxSteps);
     validSteps.AllocateAndFill(inPts.GetNumberOfValues() * maxSteps, false);
     validPuncs.AllocateAndFill(inPts.GetNumberOfValues() * maxPuncs, false);
     puncIndices.Allocate(inPts.GetNumberOfValues() * maxPuncs);
     //invoker(worklet, inPts, locator3D, grid3D.GetCellSet(), locator2D, grid2D.GetCellSet(), dxdyField, dzdyField, rxyField, zShiftField, puncIndices, result);
-    invoker(worklet, inPts, boutppField, grid3D.GetCellSet(), grid2D.GetCellSet(), puncIndices, result, validPuncs, validSteps);
+    invoker(worklet, inPts, boutppField, grid3D.GetCellSet(), grid2D.GetCellSet(), puncIndices, result, tangent, validPuncs, validSteps);
 
-    viskores::cont::ArrayHandle<viskores::Vec3f> validResult;
+    viskores::cont::ArrayHandle<viskores::Vec3f> validResult, validTangent;
     viskores::cont::ArrayHandle<viskores::Id> validPuncIndices;
     viskores::cont::Algorithm::CopyIf(result, validSteps, validResult);
+    viskores::cont::Algorithm::CopyIf(tangent, validSteps, validTangent);
     viskores::cont::Algorithm::CopyIf(puncIndices, validPuncs, validPuncIndices);
     //viskores::cont::printSummary_ArrayHandle(validPuncIndices, std::cout, true);
     //viskores::cont::printSummary_ArrayHandle(validResult, std::cout, true);
@@ -819,6 +823,9 @@ int main(int argc, char* argv[])
     //Puncture occors between puncIndices and puncIndices+1.
     auto puncParams1 = viskores::cont::make_ArrayHandleCast<viskores::FloatDefault>(validPuncIndices);
     auto puncParams0 = viskores::cont::make_ArrayHandleTransform(puncParams1, SubOneFunctor{});
+    //viskores::cont::ArrayHandle<viskores::FloatDefault> puncParams0;
+    //puncParams0.Allocate(validPuncIndices.GetNumberOfValues());
+
     //viskores::cont::printSummary_ArrayHandle(puncParams0, std::cout, true);
     //viskores::cont::printSummary_ArrayHandle(puncParams1, std::cout, true);
 
@@ -827,28 +834,50 @@ int main(int argc, char* argv[])
     std::iota(knots.begin(), knots.end(), 0.0f);
     trajSpline.SetData(validResult);
     trajSpline.SetKnots(knots);
+    //trajSpline.SetTangents(validTangent);
     viskores::cont::ArrayHandle<viskores::Vec3f> puncturePoints;
     viskores::cont::ArrayHandle<viskores::FloatDefault> punctureParams;
+    /*
+    auto _knots = trajSpline.GetKnots().ReadPortal();
+    auto _nk = _knots.GetNumberOfValues();
+    auto _nn = validPuncIndices.GetNumberOfValues();
+    auto _idxPortal = validPuncIndices.ReadPortal();
+    auto _portal0 = puncParams0.WritePortal();
+    auto _portal1 = puncParams1.WritePortal();
+    for (viskores::Id i = 0; i < _idxPortal.GetNumberOfValues(); i++)
+    {
+      viskores::Id idx = _idxPortal.Get(i);
+      if (idx == 0)
+        continue;
+      //_portal0.Set(idx, _knots.Get(idx - 1));
+      _portal0.Set(i, _knots.Get(idx - 1));
+      _portal1.Set(i, _knots.Get(idx));
+    }
+    */
 
     invoker(ComputePuncturesWorklet{}, puncParams0, puncParams1, trajSpline, punctureParams, puncturePoints);
 
 
     auto portal = puncturePoints.ReadPortal();
+    auto portalp = punctureParams.ReadPortal();
     auto portali = validPuncIndices.ReadPortal();
     auto portalt = puncParams0.ReadPortal();
     for (viskores::Id i = 0; i < portal.GetNumberOfValues(); i++)
     {
       auto pt = portal.Get(i);
-      puncSplineFid << 0 << ", " << i << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
+      puncSplineFid << 0 << ", " << portalp.Get(i) << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
       //std::cout << " PUNC: " << i << " " << portalt.Get(i) << " " << portali.Get(i) << " " << portal.Get(i) << std::endl;
     }
 
     //evaluate the points...
-    viskores::Id nEval = 5000;
-    auto k0 = knots[0];
-    auto k1 = knots[knots.size() - 1];
-    auto _n = knots.size();
-    EvaluateSplineWorklet evalWorklet(knots[0], knots[knots.size() - 1], nEval);
+    viskores::Id nEval = 50000;
+    auto k0 = trajSpline.GetKnots().ReadPortal().Get(0);
+    auto _n = trajSpline.GetKnots().GetNumberOfValues();
+    auto k1 = trajSpline.GetKnots().ReadPortal().Get(_n - 1);
+    //auto k0 = knots[0];
+    //auto k1 = knots[knots.size() - 1];
+    //auto _n = knots.size();
+    EvaluateSplineWorklet evalWorklet(k0, k1, nEval);
     viskores::cont::ArrayHandle<viskores::Vec3f> evalPoints;
     viskores::cont::ArrayHandle<viskores::FloatDefault> evalParam;
     evalPoints.Allocate(nEval);
