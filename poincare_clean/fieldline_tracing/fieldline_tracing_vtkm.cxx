@@ -657,7 +657,10 @@ public:
     if (res != viskores::ErrorCode::Success)
       this->RaiseError("Spline evaluation failed.");
     if (p0[0] * p1[0] > 0)
+    {
+      std::cout << " t0/1= " << t0 << " " << t1 << " p0 " << p0[0] << " p1 " << p1[0] << std::endl;
       this->RaiseError("Points not on either side of puncture");
+    }
 
     viskores::Vec3f pMid;
     viskores::FloatDefault tMid;
@@ -768,7 +771,6 @@ int main(int argc, char* argv[])
       points.push_back(p0);
     }
 
-
     const auto& grid3D = opts.Grid3D;
     const auto& grid2D = opts.Grid2D;
     viskores::cont::CellLocatorRectilinearGrid locator3D, locator2D;
@@ -816,15 +818,30 @@ int main(int argc, char* argv[])
     //viskores::cont::printSummary_ArrayHandle(validPuncIndices, std::cout, true);
     //viskores::cont::printSummary_ArrayHandle(validResult, std::cout, true);
 
+    // do with splines.
+    std::vector<viskores::Vec3f> _points;
+    for (viskores::Id i = 0; i < validResult.GetNumberOfValues(); i++)
+    {
+      auto pt = validResult.ReadPortal().Get(i);
+      _points.push_back(pt);
+    }
+    auto puncs = FindPunctures(150, _points);
+    return 0;
+
+
     viskores::cont::CubicHermiteSpline trajSpline;
 
     //compute punctures.
+    viskores::cont::printSummary_ArrayHandle(validPuncIndices, std::cout, true);
 
     //Puncture occors between puncIndices and puncIndices+1.
-    auto puncParams1 = viskores::cont::make_ArrayHandleCast<viskores::FloatDefault>(validPuncIndices);
-    auto puncParams0 = viskores::cont::make_ArrayHandleTransform(puncParams1, SubOneFunctor{});
-    //viskores::cont::ArrayHandle<viskores::FloatDefault> puncParams0;
-    //puncParams0.Allocate(validPuncIndices.GetNumberOfValues());
+    //auto puncParams1 = viskores::cont::make_ArrayHandleCast<viskores::FloatDefault>(validPuncIndices);
+    //auto puncParams0 = viskores::cont::make_ArrayHandleTransform(puncParams1, SubOneFunctor{});
+    viskores::cont::ArrayHandle<viskores::FloatDefault> puncParams0, puncParams1;
+    puncParams0.AllocateAndFill(validPuncIndices.GetNumberOfValues(), -1.0f);
+    puncParams1.AllocateAndFill(validPuncIndices.GetNumberOfValues(), -1.0f);
+
+
 
     //viskores::cont::printSummary_ArrayHandle(puncParams0, std::cout, true);
     //viskores::cont::printSummary_ArrayHandle(puncParams1, std::cout, true);
@@ -833,11 +850,11 @@ int main(int argc, char* argv[])
     std::vector<viskores::FloatDefault> knots(validResult.GetNumberOfValues());
     std::iota(knots.begin(), knots.end(), 0.0f);
     trajSpline.SetData(validResult);
-    trajSpline.SetKnots(knots);
+    //trajSpline.SetKnots(knots);
     //trajSpline.SetTangents(validTangent);
     viskores::cont::ArrayHandle<viskores::Vec3f> puncturePoints;
     viskores::cont::ArrayHandle<viskores::FloatDefault> punctureParams;
-    /*
+
     auto _knots = trajSpline.GetKnots().ReadPortal();
     auto _nk = _knots.GetNumberOfValues();
     auto _nn = validPuncIndices.GetNumberOfValues();
@@ -852,8 +869,16 @@ int main(int argc, char* argv[])
       //_portal0.Set(idx, _knots.Get(idx - 1));
       _portal0.Set(i, _knots.Get(idx - 1));
       _portal1.Set(i, _knots.Get(idx));
+      auto k0 = _knots.Get(idx - 1);
+      auto k1 = _knots.Get(idx);
+      std::cout << "i: " << i << " idx= " << idx << " " << k0 << " " << k1 << std::endl;
+      if (k0 > k1)
+        std::cout << "**** ERROR: k0 > k1" << std::endl;
     }
-    */
+
+    viskores::cont::printSummary_ArrayHandle(puncParams0, std::cout, true);
+    viskores::cont::printSummary_ArrayHandle(puncParams1, std::cout, true);
+
 
     invoker(ComputePuncturesWorklet{}, puncParams0, puncParams1, trajSpline, punctureParams, puncturePoints);
 

@@ -24,7 +24,7 @@ add_subdirectory(alglib)
 
 
 add_executable(fieldline_tracing fieldline_tracing.cxx SplineInterpolation.cxx NetCDFLoader.cxx RK4.cxx )
-add_executable(fieldline_tracing_vtkm fieldline_tracing_vtkm.cxx SplineInterpolation.cxx NetCDFLoader.cxx RK4_vtkm.cxx Evaluation.cxx)
+add_executable(fieldline_tracing_vtkm fieldline_tracing_vtkm.cxx SplineInterpolation.cxx NetCDFLoader.cxx RK4_vtkm.cxx Evaluation.cxx Spline.cxx)
 
 #target_link_libraries(fieldline_tracing NetCDF::NetCDF)
 target_link_libraries(fieldline_tracing netcdf alglib ${TINY_SPLINE_LIB} viskores::cont)
