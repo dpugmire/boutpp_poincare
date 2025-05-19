@@ -557,8 +557,9 @@ std::vector<viskores::Vec3f> FindPunctures(int iline, const std::vector<viskores
     t += 1.0;
   }
 
-  SplineInterpolation splineX(tVals, xVals), splineY(tVals, yVals), splineZ(tVals, zVals);
+  //SplineInterpolation splineX(tVals, xVals), splineY(tVals, yVals), splineZ(tVals, zVals);
   std::vector<viskores::Vec3f> punctures;
+  Spline spl(ptsXYZ);
 
   for (std::size_t i = 1; i < n; i++)
   {
@@ -574,12 +575,12 @@ std::vector<viskores::Vec3f> FindPunctures(int iline, const std::vector<viskores
     viskores::FloatDefault t0 = static_cast<viskores::FloatDefault>(i - 1);
     viskores::FloatDefault t1 = static_cast<viskores::FloatDefault>(i);
 
-    auto x0 = splineX.evaluate(t0);
-    auto x1 = splineX.evaluate(t1);
+    auto x0 = spl.Evaluate(t0)[0];
+    auto x1 = spl.Evaluate(t1)[0];
     for (int cnt = 0; cnt < 100; cnt++)
     {
       viskores::FloatDefault tMid = (t0 + t1) / 2.0;
-      auto xMid = splineX.evaluate(tMid);
+      auto xMid = spl.Evaluate(tMid)[0];
       if (xMid * x0 < 0.0)
       {
         t1 = tMid;
@@ -595,7 +596,8 @@ std::vector<viskores::Vec3f> FindPunctures(int iline, const std::vector<viskores
         break;
     }
     viskores::FloatDefault tVal = (t0 + t1) / 2.0;
-    viskores::Vec3f pt(splineX.evaluate(tVal), splineY.evaluate(tVal), splineZ.evaluate(tVal));
+    //viskores::Vec3f pt(splineX.evaluate(tVal), splineY.evaluate(tVal), splineZ.evaluate(tVal));
+    auto pt = spl.Evaluate(tVal);
     VISKORES_ASSERT(viskores::Abs(pt[0]) <= viskores::Epsilon<viskores::FloatDefault>());
     puncSplineFid << iline << ", " << tVal << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
     punctures.push_back(pt);
