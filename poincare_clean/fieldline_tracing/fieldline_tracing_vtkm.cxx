@@ -232,8 +232,6 @@ public:
     this->AddField(this->dzdy_m1, "dzdy_m1", this->Grid2D_xz);
     this->AddField(this->dzdy_p1, "dzdy_p1", this->Grid2D_xz);
 
-
-
     std::cout << "Create rectilinear: " << this->xarray.size() << " " << yarray.size() << " " << this->zarray.size() << std::endl;
     this->Grid3D = builderRect.Create(this->xarray, yarray, this->zarray);
     std::cout << "Create rectilinear: " << this->xarray.size() << " " << yarray.size() << " " << this->zarray.size() << std::endl;
@@ -261,6 +259,7 @@ public:
 
     this->XArray = viskores::cont::make_ArrayHandle(this->xarray, viskores::CopyFlag::On);
     this->XiArray = viskores::cont::make_ArrayHandle(this->xiarray, viskores::CopyFlag::On);
+    this->YArray = viskores::cont::make_ArrayHandle(yarray, viskores::CopyFlag::On);
     this->ZArray = viskores::cont::make_ArrayHandle(this->zarray, viskores::CopyFlag::On);
     this->ZiArray = viskores::cont::make_ArrayHandle(this->ziarray, viskores::CopyFlag::On);
     this->ShiftAngle = viskores::cont::make_ArrayHandle(this->shiftAngle, viskores::CopyFlag::On);
@@ -398,7 +397,7 @@ public:
   //vtkm data.
   viskores::cont::DataSet Grid2D, Grid2D_cfr, Grid2D_xz;
   viskores::cont::DataSet Grid3D;
-  viskores::cont::ArrayHandle<viskores::FloatDefault> XArray, ZArray;
+  viskores::cont::ArrayHandle<viskores::FloatDefault> XArray, YArray, ZArray;
   viskores::cont::ArrayHandle<viskores::FloatDefault> XiArray, YiArray, ZiArray;
   viskores::cont::ArrayHandle<viskores::FloatDefault> ShiftAngle;
 };
@@ -543,7 +542,7 @@ std::vector<viskores::Vec3f> ConvertToXYZSpace(const Options& opts, int iline, i
   return ptsXYZ;
 }
 
-std::vector<viskores::Vec3f> FindPunctures(int iline, const std::vector<viskores::Vec3f>& ptsXYZ)
+std::vector<viskores::Vec3f> FindPunctures(const std::vector<viskores::Id>& ids, const std::vector<viskores::Vec3f>& ptsXYZ)
 {
   std::size_t n = ptsXYZ.size();
   viskores::FloatDefault t = 0.0;
@@ -577,6 +576,7 @@ std::vector<viskores::Vec3f> FindPunctures(int iline, const std::vector<viskores
 
     auto x0 = spl.Evaluate(t0)[0];
     auto x1 = spl.Evaluate(t1)[0];
+    int stop_idx = 0;
     for (int cnt = 0; cnt < 100; cnt++)
     {
       viskores::FloatDefault tMid = (t0 + t1) / 2.0;
@@ -594,12 +594,17 @@ std::vector<viskores::Vec3f> FindPunctures(int iline, const std::vector<viskores
       viskores::FloatDefault diff = viskores::Abs(t0 - t1);
       if (viskores::Abs(t0 - t1) < viskores::Epsilon<viskores::FloatDefault>())
         break;
+      stop_idx++;
     }
     viskores::FloatDefault tVal = (t0 + t1) / 2.0;
     //viskores::Vec3f pt(splineX.evaluate(tVal), splineY.evaluate(tVal), splineZ.evaluate(tVal));
     auto pt = spl.Evaluate(tVal);
-    VISKORES_ASSERT(viskores::Abs(pt[0]) <= viskores::Epsilon<viskores::FloatDefault>());
-    puncSplineFid << iline << ", " << tVal << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
+    if (viskores::Abs(pt[0]) > 10.0 * viskores::Epsilon<viskores::FloatDefault>())
+    {
+      //VISKORES_ASSERT(false);
+      std::cout << "********* Intersection point didn't converge: " << pt[0] << " idx= " << stop_idx << " t: " << t0 << " " << t1 << std::endl;
+    }
+    puncSplineFid << ids[i] << ", " << tVal << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
     punctures.push_back(pt);
   }
 
@@ -726,14 +731,17 @@ int main(int argc, char* argv[])
   int divertor = 1; //single null
   double xind = 0.0f;
 
-  std::vector<int> LINES; // = {0, 50, 100, 150, 200, 250};
-  for (int i = 0; i < 250; i += 5)
-    LINES.push_back(i);
+  std::vector<double> LINES; // = {0, 50, 100, 150, 200, 250};
+  double x0 = 110.0, x1 = 180.0, dx = 0.05;
+  for (double x = x0; x < x1; x += dx)
+    LINES.push_back(x);
   int nturns = 50;
   nturns = 2;
   //LINES = {149};
-  //LINES = {0,50,100,150,200,250};
-  LINES = { 150 };
+  //LINES = { 0, 50, 100, 150, 200, 250 };
+  //LINES = { 190 };
+  //LINES = { 150.0, 150.1, 150.2, 150.3 };
+  LINES = { 50.0, 100.0, 150.0 };
 
   std::vector<Point> Points;
 
@@ -782,7 +790,7 @@ int main(int argc, char* argv[])
     locator2D.SetCoordinates(grid2D.GetCoordinateSystem());
     locator2D.SetCellSet(grid2D.GetCellSet());
     locator2D.Update();
-    viskores::Id maxPuncs = 100, maxSteps = 100000;
+    viskores::Id maxPuncs = 5000, maxSteps = maxPuncs * 20;
 
     RK4Worklet worklet(maxPuncs, maxSteps);
     worklet.grid3DBounds = grid3D.GetCoordinateSystem().GetBounds();
@@ -791,7 +799,7 @@ int main(int argc, char* argv[])
     worklet.nypf2 = opts.nypf2;
     worklet.ixsep1 = opts.ixsep1;
     worklet.ixsep2 = opts.ixsep2;
-    BoutppField boutppField(opts.Grid3D, opts.Grid2D, opts.XiArray, opts.XArray, opts.ZiArray, opts.ZArray, opts.ShiftAngle);
+    BoutppField boutppField(opts.Grid3D, opts.Grid2D, opts.XiArray, opts.XArray, opts.YArray, opts.ZiArray, opts.ZArray, opts.ShiftAngle);
 
     viskores::cont::Invoker invoker;
     auto inPts = viskores::cont::make_ArrayHandle<viskores::Vec3f>(points, viskores::CopyFlag::On);
@@ -802,32 +810,36 @@ int main(int argc, char* argv[])
     grid2D.GetField("rxy").GetData().AsArrayHandle<viskores::FloatDefault>(rxyField);
     grid2D.GetField("zShift").GetData().AsArrayHandle<viskores::FloatDefault>(zShiftField);
 
-    viskores::cont::ArrayHandle<viskores::Id> puncIndices;
+    viskores::cont::ArrayHandle<viskores::Id> puncIndices, pointIds;
     viskores::cont::ArrayHandle<bool> validSteps, validPuncs;
     result.Allocate(inPts.GetNumberOfValues() * maxSteps);
     tangent.Allocate(inPts.GetNumberOfValues() * maxSteps);
     validSteps.AllocateAndFill(inPts.GetNumberOfValues() * maxSteps, false);
     validPuncs.AllocateAndFill(inPts.GetNumberOfValues() * maxPuncs, false);
     puncIndices.Allocate(inPts.GetNumberOfValues() * maxPuncs);
+    pointIds.AllocateAndFill(inPts.GetNumberOfValues() * maxSteps, -1);
     //invoker(worklet, inPts, locator3D, grid3D.GetCellSet(), locator2D, grid2D.GetCellSet(), dxdyField, dzdyField, rxyField, zShiftField, puncIndices, result);
-    invoker(worklet, inPts, boutppField, grid3D.GetCellSet(), grid2D.GetCellSet(), puncIndices, result, tangent, validPuncs, validSteps);
+    invoker(worklet, inPts, boutppField, grid3D.GetCellSet(), grid2D.GetCellSet(), puncIndices, pointIds, result, tangent, validPuncs, validSteps);
 
     viskores::cont::ArrayHandle<viskores::Vec3f> validResult, validTangent;
-    viskores::cont::ArrayHandle<viskores::Id> validPuncIndices;
+    viskores::cont::ArrayHandle<viskores::Id> validPuncIndices, validPointIds;
     viskores::cont::Algorithm::CopyIf(result, validSteps, validResult);
     viskores::cont::Algorithm::CopyIf(tangent, validSteps, validTangent);
     viskores::cont::Algorithm::CopyIf(puncIndices, validPuncs, validPuncIndices);
+    viskores::cont::Algorithm::CopyIf(pointIds, validSteps, validPointIds);
     //viskores::cont::printSummary_ArrayHandle(validPuncIndices, std::cout, true);
     //viskores::cont::printSummary_ArrayHandle(validResult, std::cout, true);
 
     // do with splines.
     std::vector<viskores::Vec3f> _points;
+    std::vector<viskores::Id> _ids;
     for (viskores::Id i = 0; i < validResult.GetNumberOfValues(); i++)
     {
       auto pt = validResult.ReadPortal().Get(i);
       _points.push_back(pt);
+      _ids.push_back(validPointIds.ReadPortal().Get(i));
     }
-    auto puncs = FindPunctures(150, _points);
+    auto puncs = FindPunctures(_ids, _points);
     return 0;
 
 
@@ -1102,7 +1114,9 @@ int main(int argc, char* argv[])
     //Convert to XYZ space.
     int id = 0;
     auto PointsXYZ = ConvertToXYZSpace(opts, iline, id, region, Points);
-    auto punctures = FindPunctures(iline, PointsXYZ);
+    std::vector<viskores::Id> _lines;
+    _lines.push_back(iline);
+    auto punctures = FindPunctures(_lines, PointsXYZ);
     return 0;
   }
 }

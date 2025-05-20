@@ -50,6 +50,7 @@ public:
                              const ArrayPortalType& _zshift,
                              const ArrayPortalType& xiarray,
                              const ArrayPortalType& xarray,
+                             const ArrayPortalType& yarray,
                              const ArrayPortalType& ziarray,
                              const ArrayPortalType& zarray,
                              const ArrayPortalType& shiftAngle)
@@ -63,6 +64,7 @@ public:
     , zShift(_zshift)
     , XiArray(xiarray)
     , XArray(xarray)
+    , YArray(yarray)
     , ZiArray(ziarray)
     , ZArray(zarray)
     , ShiftAngle(shiftAngle)
@@ -72,7 +74,7 @@ public:
   LocatorType Locator2D, Locator3D;
   ArrayPortalType dxdy, dzdy;
   ArrayPortalType rxy, zxy, zShift;
-  ArrayPortalType XiArray, XArray, ZiArray, ZArray, ShiftAngle;
+  ArrayPortalType XiArray, XArray, YArray, ZiArray, ZArray, ShiftAngle;
 };
 
 class BoutppField : public viskores::cont::ExecutionObjectBase
@@ -93,6 +95,7 @@ public:
               const viskores::cont::DataSet& grid2D,
               const ArrayType& xiarray,
               const ArrayType& xarray,
+              const ArrayType& yarray,
               const ArrayType& ziarray,
               const ArrayType& zarray,
               const ArrayType& shiftAngle)
@@ -100,6 +103,7 @@ public:
     , Grid2D(grid2D)
     , XiArray(xiarray)
     , XArray(xarray)
+    , YArray(yarray)
     , ZiArray(ziarray)
     , ZArray(zarray)
     , ShiftAngle(shiftAngle)
@@ -134,6 +138,7 @@ public:
                                       zShiftField.PrepareForInput(device, token),
                                       this->XiArray.PrepareForInput(device, token),
                                       this->XArray.PrepareForInput(device, token),
+                                      this->YArray.PrepareForInput(device, token),
                                       this->ZiArray.PrepareForInput(device, token),
                                       this->ZArray.PrepareForInput(device, token),
                                       this->ShiftAngle.PrepareForInput(device, token));
@@ -142,6 +147,7 @@ public:
   viskores::cont::DataSet Grid3D;
   viskores::cont::DataSet Grid2D;
   ArrayType XiArray, XArray;
+  ArrayType YArray;
   ArrayType ZiArray, ZArray;
   ArrayType ShiftAngle;
 };
@@ -166,11 +172,12 @@ public:
                                 WholeCellSetIn<> cells3D,
                                 WholeCellSetIn<> cells2D,
                                 WholeArrayOut puncIndices,
+                                WholeArrayOut pointId,
                                 WholeArrayOut result,
                                 WholeArrayOut tangent,
                                 WholeArrayInOut validPuncs,
                                 WholeArrayInOut validSteps);
-  using ExecutionSignature = void(InputIndex, _1, _2, _3, _4, _5, _6, _7, _8, _9);
+  using ExecutionSignature = void(InputIndex, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10);
   using InputDomain = _1;
 
   template <typename BoutppFieldType,
@@ -186,6 +193,7 @@ public:
                                 const CellSet3DType& cells3D,
                                 const CellSet2DType& cells2D,
                                 IndexType& puncIndex,
+                                IndexType& pointId,
                                 ResultType& result,
                                 ResultType& tangent,
                                 ValidPuncType& validPuncs,
@@ -217,13 +225,24 @@ public:
       this->RK4Step(p0, boutppField, cells3D, p1, tan0, tan1);
       auto xind = this->LinearInterpolate(boutppField.XArray, boutppField.XiArray, p1[0]);
       if (p1[0] > this->grid2DBounds.X.Max)
+      {
         region = 12;
+        std::cout << "p1= " << p1 << " *** region 12" << std::endl;
+        VISKORES_ASSERT(false);
+      }
       else if (p1[0] < this->grid2DBounds.X.Min)
+      {
         region = 11;
+        std::cout << "p1= " << p1 << " *** region 11" << std::endl;
+        VISKORES_ASSERT(false);
+      }
       else
       {
         if (xind > static_cast<viskores::FloatDefault>(this->ixsep1) + 0.5)
           region = 1;
+        //        std::cout << "p1= " << p1 << std::endl;
+        //std::cout << "Region 1: xind= " << xind << std::endl;
+        //VISKORES_ASSERT(false);
         /*
                 xind = scalarField1DEval(opts.XArray, opts.XiArray, p1[0]);
                 std::cout<<"   vINTERP:  xind "<<xind<<std::endl;
@@ -257,6 +276,7 @@ public:
       tanOut << "0, " << step << ", " << pCart1[0] << ", " << pCart1[1] << ", " << pCart1[2] << ", " << vCart1[0] << ", " << vCart1[1] << ", "
              << vCart1[2] << std::endl;
       validSteps.Set(stepOffset + step, true);
+      pointId.Set(stepOffset + step, idx);
 
       //point crosses the X=0 plane.
       if (step > 1 && pCart0[0] * pCart1[0] < 0)
@@ -340,7 +360,7 @@ private:
       vecCart[1] = vr * cos_zs * sin_z + vr * sin_zs * cos_z + rxy * vtheta * cos_zs_z;
       vecCart[2] = vz; // Z component is directly mapped
       //vecCart = vecCart * 0.50;
-      std::cout << " *********** vecCart= " << vecCart << std::endl;
+      //std::cout << " *********** vecCart= " << vecCart << std::endl;
     }
 
     return viskores::Vec3f(x3d, y3d, z3d);
@@ -462,7 +482,7 @@ private:
     constexpr double direction = 1.0;
     constexpr viskores::Vec3f yPlusH(0, h, 0);
 
-    std::cout << "viskores::RK begin: " << pStart << std::endl;
+    //std::cout << "viskores::RK begin: " << pStart << std::endl;
     //Step 1
     auto res1 = this->Evaluate(pStart, boutppField, cells);
     tangent0 = { res1[0], 1, res1[1] };
@@ -472,7 +492,7 @@ private:
     p1[1] = pStart[1];
     p1[2] = pStart[2] + direction * hh * res1[1];
     p1[2] = this->floatMod(p1[2], twoPi);
-    std::cout << "step1: " << res1[0] << " " << res1[1] << " :: " << p1[0] << " " << p1[2] << std::endl;
+    //std::cout << "step1: " << res1[0] << " " << res1[1] << " :: " << p1[0] << " " << p1[2] << std::endl;
 
     //Step 2
     auto res2 = this->Evaluate(p1, boutppField, cells);
@@ -484,7 +504,7 @@ private:
     p2[1] = pStart[1];
     p2[2] = pStart[2] + direction * hh * res2[1];
     p2[2] = this->floatMod(p2[2], twoPi);
-    std::cout << "step2: " << res2[0] << " " << res2[1] << " :: " << p2[0] << " " << p2[2] << std::endl;
+    //std::cout << "step2: " << res2[0] << " " << res2[1] << " :: " << p2[0] << " " << p2[2] << std::endl;
 
     //Step 3
     auto res3 = this->Evaluate(p2, boutppField, cells);
@@ -497,7 +517,7 @@ private:
     p3[1] = pStart[1];
     p3[2] = pStart[2] + direction * h * res3[1];
     p3[2] = this->floatMod(p3[2], twoPi);
-    std::cout << "step3: " << res3[0] << " " << res3[1] << " :: " << p3[0] << " " << p3[2] << std::endl;
+    //std::cout << "step3: " << res3[0] << " " << res3[1] << " :: " << p3[0] << " " << p3[2] << std::endl;
 
     //Step 4
     auto res4 = this->Evaluate(p3 + yPlusH, boutppField, cells);
@@ -522,8 +542,8 @@ private:
     boutppField.Locator3D.FindCell(pt, cellId, parametric);
     if (cellId == -1)
     {
-      VISKORES_ASSERT(false);
       std::cout << "Locator failed: " << pt << std::endl;
+      VISKORES_ASSERT(false);
       return false;
     }
 

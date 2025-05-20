@@ -21,7 +21,7 @@ else
     disp('Running in MATLAB');
 end
 
-doHermite = true
+doHermite = false
 
 trajFID = fopen('/Users/dpn/traj.m.txt', 'w');
 stepsFID = fopen('/Users/dpn/steps.m.txt', 'w');
@@ -450,6 +450,7 @@ yiarray = (1:ny);
     LINES = [150];
     LINES = [151];
     %LINES = [1,51, 101, 151, 201, 251];
+    LINES = 1:50:nlines;
 
     YVALS = 1:ny-1;
     %YVALS = [60];
