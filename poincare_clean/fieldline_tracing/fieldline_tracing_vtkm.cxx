@@ -9,6 +9,7 @@
 #include <iostream>
 #include <numeric>
 
+#include <viskores/cont/Initialize.h>
 #include <viskores/Particle.h>
 #include <viskores/cont/Algorithm.h>
 #include <viskores/cont/ArrayHandleTransform.h>
@@ -26,6 +27,7 @@
 #include <viskores/worklet/WorkletMapField.h>
 
 std::ofstream trajsplineFid("./trajspline.v.txt", std::ofstream::out);
+std::ofstream trajspline("./trajspline.v.txt", std::ofstream::out);
 std::ofstream puncFid("./punc.v.txt");
 std::ofstream punc_ip_Fid("./punc_ip.v.txt");
 std::ofstream puncFid2("./punc2.v.txt");
@@ -675,7 +677,7 @@ public:
     {
 #ifndef VISKORES_HIP
       std::cout << " t0/1= " << t0 << " " << t1 << " p0 " << p0[0] << " p1 " << p1[0] << std::endl;
-#endif
+#endif      
       this->RaiseError("Points not on either side of puncture");
     }
 
@@ -723,8 +725,15 @@ int main(int argc, char* argv[])
   double x1 = (double)std::stof(argv[2]);
   int nlines = std::stoi(argv[3]);
   viskores::Id maxPuncs = std::stoi(argv[4]);
-  std::cout << "Running lines: " << x0 << " " << x1 << " #= " << nlines << std::endl;
-  double dx = (x1 - x0) / (double)(nlines - 1);
+  std::cout<<"Running lines: "<<x0<<" "<<x1<<" #= "<<nlines<<std::endl;
+  double dx = (x1-x0) / (double)(nlines-1);
+
+  if (doVTKm)
+  {
+      auto opts = viskores::cont::InitializeOptions::DefaultAnyDevice;
+      auto config = viskores::cont::Initialize(argc, argv, opts);
+      viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagKokkos{});
+  }
 
   if (doVTKm)
   {
@@ -747,7 +756,7 @@ int main(int argc, char* argv[])
   fprintf(TRAJ_FID, "IT, xind, yEnd, zind, REG, zEnd\n");
 
   std::string fname = "/Users/dpn/proj/bout++/poincare/boutpp_poincare/poincare_clean/stuff.nc";
-  //fname = "/lustre/orion/csc143/proj-shared/pugmire/stuff.nc";
+  fname = "/lustre/orion/csc143/proj-shared/pugmire/stuff.nc";
   Options opts(fname);
 
   int divertor = 1; //single null
@@ -838,7 +847,6 @@ int main(int argc, char* argv[])
 
     auto start = std::chrono::high_resolution_clock::now();
 
-
     viskores::cont::ArrayHandle<viskores::Id> puncIndices, pointIds;
     viskores::cont::ArrayHandle<bool> validSteps, validPuncs;
     result.Allocate(inPts.GetNumberOfValues() * maxSteps);
@@ -868,12 +876,10 @@ int main(int argc, char* argv[])
       _points.push_back(pt);
       _ids.push_back(validPointIds.ReadPortal().Get(i));
     }
-
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
-    std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
-    std::cout << " NUM particles= " << LINES.size() << " numPunc= " << maxPuncs << std::endl;
-
+        std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+	std::cout<<" NUM particles= "<< LINES.size()<<" numPunc= "<<maxPuncs<<std::endl;
     auto puncs = FindPunctures(_ids, _points, true);
     return 0;
 
@@ -965,9 +971,9 @@ int main(int argc, char* argv[])
       std::cout << " dumping: " << pt << std::endl;
     }
 
-    //    auto end = std::chrono::high_resolution_clock::now();
-    //    std::chrono::duration<double> elapsed = end - start;
-    //    std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+//    auto end = std::chrono::high_resolution_clock::now();
+//    std::chrono::duration<double> elapsed = end - start;
+//    std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
 
     return 0;
   }

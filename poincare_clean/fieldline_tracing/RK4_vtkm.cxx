@@ -100,7 +100,6 @@ void writeArray1DToFile(std::vector<double>& array, const std::string& fname)
   auto nx = array.size();
   out << "(" << nx << ")" << std::endl;
 
-  //  out << std::scientific << std::setprecision(10);
   int cnt = 0;
   for (size_t i = 0; i < nx; i++)
   {
@@ -122,7 +121,6 @@ void writeArray2DToFile(std::vector<std::vector<double>>& array, const std::stri
   auto ny = array[0].size();
   out << "(" << nx << ", " << ny << ")" << std::endl;
 
-  //  out << std::scientific << std::setprecision(10);
   size_t x0 = 0, x1 = nx, y0 = 0, y1 = ny;
   int cnt = 0;
   int maxCnt = 5000;
@@ -154,7 +152,6 @@ void writeArray3DToFile(const std::vector<std::vector<std::vector<double>>>& arr
   auto nz = array[0][0].size();
   out << "(" << nx << ", " << ny << ", " << nz << ")" << std::endl;
 
-  //  out << std::scientific << std::setprecision(10);
   size_t x0 = 0, x1 = nx, y0 = 0, y1 = ny, z0 = 0, z1 = nz;
 
   x1 /= 2;
@@ -301,8 +298,7 @@ void splineTest(double xStart,
   std::cout << "***** MAX: " << maxErrx1 << " " << maxErrz1 << " " << maxErrx2 << " " << maxErrz2 << std::endl;
   std::cout << "        max1 at: " << maxX1 << " " << maxZ1 << std::endl;
   std::cout << "        max2 at: " << maxX2 << " " << maxZ2 << std::endl << std::endl;
-#endif
-
+  #endif
   count++;
 }
 
@@ -444,16 +440,12 @@ viskores::Vec3f RK4_FLT1_vtkm(const viskores::Vec3f& pStart,
   viskores::FloatDefault dxdy1 = scalarField3DEval(grid3D, "dxdy", pStart);
   viskores::FloatDefault dzdy1 = scalarField3DEval(grid3D, "dzdy", pStart);
 
-
-  //  std::cout << std::setprecision(12);
-
   viskores::Vec3f p1;
   p1[0] = pStart[0] + direction * hh * dxdy1;
   p1[1] = pStart[1];
   p1[2] = pStart[2] + direction * hh * dzdy1;
   p1[2] = double_mod(p1[2], twoPi);
 
-  //  std::cout << std::setprecision(12);
   std::cout << "vRK4 step1: " << dxdy1 << " " << dzdy1 << " :: " << p1[0] << " " << p1[2] << std::endl << std::endl;
 
   // RK4 Step 2
@@ -480,7 +472,6 @@ viskores::Vec3f RK4_FLT1_vtkm(const viskores::Vec3f& pStart,
   p2[1] = pStart[1];
   p2[2] = pStart[2] + direction * hh * dzdy2;
   p2[2] = double_mod(p2[2], twoPi);
-  //  std::cout << std::setprecision(12);
   std::cout << "vRK4 step2: " << dxdy2 << " " << dzdy2 << " :: " << p2[0] << " " << p2[2] << std::endl << std::endl;
 
   // RK4 Step 3

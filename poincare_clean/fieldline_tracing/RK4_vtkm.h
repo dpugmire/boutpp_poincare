@@ -318,13 +318,14 @@ private:
   }
 
   template <typename BoutppFieldType, typename CellSetType>
-  VISKORES_EXEC viskores::Vec3f ConvertToCartesian(const viskores::Vec3f& pt,
-                                                   const viskores::Vec3f& vec,
-                                                   BoutppFieldType& boutppField,
-                                                   const CellSetType& cells,
-                                                   int step,
-                                                   bool outputIt,
-                                                   viskores::Vec3f& vecCart) const
+  VISKORES_EXEC
+  viskores::Vec3f ConvertToCartesian(const viskores::Vec3f& pt,
+                                     const viskores::Vec3f& vec,
+                                     BoutppFieldType& boutppField,
+                                     const CellSetType& cells,
+                                     int step,
+                                     bool outputIt,
+                                     viskores::Vec3f& vecCart) const
   {
     viskores::Id yi = static_cast<viskores::Id>(pt[1]);
     auto xind = this->LinearInterpolate(boutppField.XArray, boutppField.XiArray, pt[0]);
@@ -376,13 +377,14 @@ private:
   }
 
   template <typename BoutppFieldType, typename CellSetType>
-  VISKORES_EXEC viskores::Vec3f ConvertToCartesianWithTangent(const viskores::Vec3f& pt,
-                                                              const viskores::Vec3f& tangent,
-                                                              BoutppFieldType& boutppField,
-                                                              const CellSetType& cells,
-                                                              viskores::Vec3f& tangentCartian,
-                                                              int step,
-                                                              bool outputIt) const
+  VISKORES_EXEC  
+  viskores::Vec3f ConvertToCartesianWithTangent(const viskores::Vec3f& pt,
+                                                const viskores::Vec3f& tangent,
+                                                BoutppFieldType& boutppField,
+                                                const CellSetType& cells,
+                                                viskores::Vec3f& tangentCartian,
+                                                int step,
+                                                bool outputIt) const
   {
     constexpr double twoPi = 2.0 * M_PI;
     //return this->ConvertToCartesian(pt, boutppField, cells, step, outputIt);
@@ -431,7 +433,8 @@ private:
   }
 
   template <typename FieldType1, typename FieldType2>
-  VISKORES_EXEC viskores::FloatDefault LinearInterpolate(const FieldType1& x, const FieldType2& y, const viskores::FloatDefault val) const
+  VISKORES_EXEC  
+  viskores::FloatDefault LinearInterpolate(const FieldType1& x, const FieldType2& y, const viskores::FloatDefault val) const
   {
     // Perform binary search to find the interval.
     viskores::Id size = x.GetNumberOfValues();
@@ -559,7 +562,6 @@ private:
     boutppField.Locator3D.FindCell(pt, cellId, parametric);
     if (cellId == -1)
     {
-      //std::cout << "Locator failed: " << pt << std::endl;
       VISKORES_ASSERT(false);
       return false;
     }
