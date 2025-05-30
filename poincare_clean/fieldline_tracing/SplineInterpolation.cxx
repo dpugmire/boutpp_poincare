@@ -1,9 +1,9 @@
 #include "SplineInterpolation.h"
-#include "alglib/src/interpolation.h"
-#include <tinysplinecxx.h>
+//#include "alglib/src/interpolation.h"
+//#include <tinysplinecxx.h>
 #include <vector>
 
-using namespace tinyspline;
+//using namespace tinyspline;
 
 viskores::FloatDefault interp2Spline(const std::vector<viskores::FloatDefault>& x,
                                      const std::vector<viskores::FloatDefault>& y,
@@ -11,6 +11,7 @@ viskores::FloatDefault interp2Spline(const std::vector<viskores::FloatDefault>& 
                                      viskores::FloatDefault xi,
                                      viskores::FloatDefault yi)
 {
+#if 0
   int nx = x.size();
   int ny = y.size();
 
@@ -38,6 +39,7 @@ viskores::FloatDefault interp2Spline(const std::vector<viskores::FloatDefault>& 
   //std::vector<tsReal> result = net.result();
 
   //return result[2]; // Return interpolated Z value
+  #endif
 }
 
 viskores::FloatDefault alglib_spline(const std::vector<viskores::FloatDefault>& x,

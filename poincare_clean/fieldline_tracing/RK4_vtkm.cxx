@@ -94,12 +94,13 @@ std::vector<double> flatten(const std::vector<std::vector<std::vector<double>>>&
 
 void writeArray1DToFile(std::vector<double>& array, const std::string& fname)
 {
+#ifndef VISKORES_HIP
   auto fname2 = "/Users/dpn/" + fname + ".c.txt";
   std::ofstream out(fname2, std::ofstream::out);
   auto nx = array.size();
   out << "(" << nx << ")" << std::endl;
 
-  out << std::scientific << std::setprecision(10);
+  //  out << std::scientific << std::setprecision(10);
   int cnt = 0;
   for (size_t i = 0; i < nx; i++)
   {
@@ -110,6 +111,7 @@ void writeArray1DToFile(std::vector<double>& array, const std::string& fname)
   }
 
   out.close();
+#endif
 }
 
 void writeArray2DToFile(std::vector<std::vector<double>>& array, const std::string& fname)
@@ -120,7 +122,7 @@ void writeArray2DToFile(std::vector<std::vector<double>>& array, const std::stri
   auto ny = array[0].size();
   out << "(" << nx << ", " << ny << ")" << std::endl;
 
-  out << std::scientific << std::setprecision(10);
+  //  out << std::scientific << std::setprecision(10);
   size_t x0 = 0, x1 = nx, y0 = 0, y1 = ny;
   int cnt = 0;
   int maxCnt = 5000;
@@ -152,7 +154,7 @@ void writeArray3DToFile(const std::vector<std::vector<std::vector<double>>>& arr
   auto nz = array[0][0].size();
   out << "(" << nx << ", " << ny << ", " << nz << ")" << std::endl;
 
-  out << std::scientific << std::setprecision(10);
+  //  out << std::scientific << std::setprecision(10);
   size_t x0 = 0, x1 = nx, y0 = 0, y1 = ny, z0 = 0, z1 = nz;
 
   x1 /= 2;
@@ -287,6 +289,7 @@ void splineTest(double xStart,
     maxZ2 = zStart;
   }
 
+#if 0
   std::cout << "*************************************" << std::endl;
   std::cout << "pt: " << xStart << " " << zStart << std::endl;
   std::cout << " Linear: " << linear_dxdy << " " << linear_dzdy << std::endl;
@@ -298,6 +301,8 @@ void splineTest(double xStart,
   std::cout << "***** MAX: " << maxErrx1 << " " << maxErrz1 << " " << maxErrx2 << " " << maxErrz2 << std::endl;
   std::cout << "        max1 at: " << maxX1 << " " << maxZ1 << std::endl;
   std::cout << "        max2 at: " << maxX2 << " " << maxZ2 << std::endl << std::endl;
+#endif
+
   count++;
 }
 
@@ -438,7 +443,9 @@ viskores::Vec3f RK4_FLT1_vtkm(const viskores::Vec3f& pStart,
   //double x1 = xStart + direction * hh * dxdy1;
   viskores::FloatDefault dxdy1 = scalarField3DEval(grid3D, "dxdy", pStart);
   viskores::FloatDefault dzdy1 = scalarField3DEval(grid3D, "dzdy", pStart);
-  std::cout << std::setprecision(12);
+
+
+  //  std::cout << std::setprecision(12);
 
   viskores::Vec3f p1;
   p1[0] = pStart[0] + direction * hh * dxdy1;
@@ -446,7 +453,7 @@ viskores::Vec3f RK4_FLT1_vtkm(const viskores::Vec3f& pStart,
   p1[2] = pStart[2] + direction * hh * dzdy1;
   p1[2] = double_mod(p1[2], twoPi);
 
-  std::cout << std::setprecision(12);
+  //  std::cout << std::setprecision(12);
   std::cout << "vRK4 step1: " << dxdy1 << " " << dzdy1 << " :: " << p1[0] << " " << p1[2] << std::endl << std::endl;
 
   // RK4 Step 2
@@ -473,7 +480,7 @@ viskores::Vec3f RK4_FLT1_vtkm(const viskores::Vec3f& pStart,
   p2[1] = pStart[1];
   p2[2] = pStart[2] + direction * hh * dzdy2;
   p2[2] = double_mod(p2[2], twoPi);
-  std::cout << std::setprecision(12);
+  //  std::cout << std::setprecision(12);
   std::cout << "vRK4 step2: " << dxdy2 << " " << dzdy2 << " :: " << p2[0] << " " << p2[2] << std::endl << std::endl;
 
   // RK4 Step 3
@@ -495,8 +502,10 @@ viskores::Vec3f RK4_FLT1_vtkm(const viskores::Vec3f& pStart,
   p3[1] = pStart[1];
   p3[2] = pStart[2] + direction * dzdy3;
   p3[2] = double_mod(p3[2], twoPi);
+#ifndef VISKORES_HIP
   std::cout << std::setprecision(12);
   std::cout << "vRK4 step3: " << dxdy3 << " " << dzdy3 << " :: " << p3[0] << " " << p3[2] << std::endl << std::endl;
+#endif
 
   // RK4 Step 4
   //dxdyn = dxdy[x,yStart+1,z]
@@ -510,7 +519,9 @@ viskores::Vec3f RK4_FLT1_vtkm(const viskores::Vec3f& pStart,
   pEnd[0] = pStart[0] + direction * h6 * (dxdy1 + 2.0 * dxdy2 + 2.0 * dxdy3 + dxdy4);
   pEnd[1] = pStart[1];
   pEnd[2] = pStart[2] + direction * h6 * (dzdy1 + 2.0 * dzdy2 + 2.0 * dzdy3 + dzdy4);
+#ifndef VISKORES_HIP
   std::cout << "vRK4 step4: " << dxdy4 << " " << dzdy4 << " :: " << pEnd[0] << " " << pEnd[2] << std::endl << std::endl;
+#endif
 
   /*
     auto diff = pEnd - pEnd_vtkm;

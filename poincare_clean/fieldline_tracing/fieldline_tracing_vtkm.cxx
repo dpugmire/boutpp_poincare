@@ -18,22 +18,23 @@
 #include <viskores/cont/DataSetBuilderExplicit.h>
 #include <viskores/cont/DataSetBuilderRectilinear.h>
 #include <viskores/cont/DataSetBuilderUniform.h>
+#include <viskores/cont/Initialize.h>
 #include <viskores/exec/CellInterpolate.h>
 #include <viskores/filter/flow/worklet/CellInterpolationHelper.h>
 #include <viskores/filter/resampling/Probe.h>
 #include <viskores/io/VTKDataSetWriter.h>
 #include <viskores/worklet/WorkletMapField.h>
 
-std::ofstream trajspline("/Users/dpn/trajspline.v.txt", std::ofstream::out);
-std::ofstream puncFid("/Users/dpn/punc.v.txt");
-std::ofstream punc_ip_Fid("/Users/dpn/punc_ip.v.txt");
-std::ofstream puncFid2("/Users/dpn/punc2.v.txt");
-std::ofstream puncSplineFid("/Users/dpn/puncspline.v.txt");
-std::ofstream rawPunc("/Users/dpn/rawpunc.v.txt", std::ofstream::out);
-std::ofstream trajOut("/Users/dpn/traj.v.txt", std::ofstream::out);
-std::ofstream tanOut("/Users/dpn/tan.v.txt", std::ofstream::out);
-std::ofstream stepOut("/Users/dpn/steps.v.txt", std::ofstream::out);
-std::ofstream rk4Out("/Users/dpn/rk4.v.txt", std::ofstream::out);
+std::ofstream trajsplineFid("./trajspline.v.txt", std::ofstream::out);
+std::ofstream puncFid("./punc.v.txt");
+std::ofstream punc_ip_Fid("./punc_ip.v.txt");
+std::ofstream puncFid2("./punc2.v.txt");
+std::ofstream puncSplineFid("./puncspline.v.txt");
+std::ofstream rawPunc("./rawpunc.v.txt", std::ofstream::out);
+std::ofstream trajOut("./traj.v.txt", std::ofstream::out);
+std::ofstream tanOut("./tan.v.txt", std::ofstream::out);
+std::ofstream stepOut("./steps.v.txt", std::ofstream::out);
+std::ofstream rk4Out("./rk4.v.txt", std::ofstream::out);
 
 double double_mod(double val, double mod_base)
 {
@@ -126,10 +127,8 @@ public:
     std::cout << "*********************************************************************************"
                  "**********"
               << std::endl;
-    std::cout << __FILE__ << " " << __LINE__ << std::endl;
     std::cout << " Fix me. zarray length issue..." << std::endl;
     std::cout << "      Right now using dz = (zmax - zmin) / (nzG-1)" << std::endl;
-    std::cout << __FILE__ << " " << __LINE__ << std::endl;
     std::cout << "*********************************************************************************"
                  "**********"
               << std::endl;
@@ -200,6 +199,8 @@ public:
 
     //VTKm stuff.
     viskores::cont::DataSetBuilderRectilinear builderRect;
+    viskores::cont::DataSetBuilderUniform builder;
+
     std::vector<viskores::FloatDefault> yarray;
     yarray.reserve(this->ny);
     for (int i = 0; i < this->ny; i++)
@@ -207,7 +208,6 @@ public:
 
     this->Grid2D = builderRect.Create(this->xarray, yarray);
 
-    viskores::cont::DataSetBuilderUniform builder;
     viskores::Id3 dims(this->nx, this->ny, 1);
     viskores::Vec3f origin(0.0, 0.0, 0.0), spacing(1.0, 1.0, 1.0);
     //this->Grid2D = builder.Create(dims, origin, spacing);
@@ -234,12 +234,19 @@ public:
 
     std::cout << "Create rectilinear: " << this->xarray.size() << " " << yarray.size() << " " << this->zarray.size() << std::endl;
     this->Grid3D = builderRect.Create(this->xarray, yarray, this->zarray);
+    //viskores::Id3 dims3d(this->xarray.size(), yarray.size(), this->zarray.size());
+    //viskores::Vec3f origin3d(this->xarray[0], yarray[0], this->zarray[0]);
+    //viskores::Vec3f spacing3d(this->xarray[1] - origin3d[0], yarray[1] - origin3d[1], this->zarray[1] - origin3d[2]);
+    //this->Grid3D = builder.Create(dims3d, origin3d, spacing3d);
+
     std::cout << "Create rectilinear: " << this->xarray.size() << " " << yarray.size() << " " << this->zarray.size() << std::endl;
     this->AddField(this->dxdy, "dxdy", this->Grid3D);
     this->AddField(this->dzdy, "dzdy", this->Grid3D);
+#ifndef VISKORES_HIP
     std::cout << std::setprecision(15) << "Grid3d bounds: " << this->Grid3D.GetCoordinateSystem().GetBounds() << std::endl;
     std::cout << "  dz= " << this->dz << " z0: " << this->zarray[0] << " " << this->zarray[1] << " ... " << this->zarray[this->zarray.size() - 2]
               << " " << this->zarray[this->zarray.size() - 1] << std::endl;
+#endif
 
 
 #if 0
@@ -463,7 +470,7 @@ void dumpTrajSamples(int iline, const std::vector<viskores::Vec3f>& points)
     double x = splineX.evaluate(t);
     double y = splineY.evaluate(t);
     double z = splineZ.evaluate(t);
-    trajspline << iline << ", " << t << ", " << x << ", " << y << ", " << z << ", " << region << std::endl;
+    trajsplineFid << iline << ", " << t << ", " << x << ", " << y << ", " << z << ", " << region << std::endl;
     if (id > 0 && x * x0 < 0.0 && y > 0.0)
       puncFid << iline << ", " << t << ", " << x << ", " << y << ", " << z << std::endl;
     x0 = x;
@@ -479,8 +486,8 @@ std::vector<viskores::Vec3f> ConvertToXYZSpace(const Options& opts, int iline, i
 {
   std::vector<viskores::Vec3f> ptsXYZ;
 
-  auto _fid = fopen("/Users/dpn/problem.c.txt", "w");
-  auto trajvals_fid = fopen("/Users/dpn/trajvals.c.txt", "w");
+  auto _fid = fopen("./problem.c.txt", "w");
+  auto trajvals_fid = fopen("./trajvals.c.txt", "w");
   fprintf(trajvals_fid, "iter, xind, yend, zind, zend, x3d, y3d, z3d\n");
 
   for (const auto& pt : pts)
@@ -542,7 +549,7 @@ std::vector<viskores::Vec3f> ConvertToXYZSpace(const Options& opts, int iline, i
   return ptsXYZ;
 }
 
-std::vector<viskores::Vec3f> FindPunctures(const std::vector<viskores::Id>& ids, const std::vector<viskores::Vec3f>& ptsXYZ)
+std::vector<viskores::Vec3f> FindPunctures(const std::vector<viskores::Id>& ids, const std::vector<viskores::Vec3f>& ptsXYZ, bool dumpPts)
 {
   std::size_t n = ptsXYZ.size();
   viskores::FloatDefault t = 0.0;
@@ -604,7 +611,8 @@ std::vector<viskores::Vec3f> FindPunctures(const std::vector<viskores::Id>& ids,
       //VISKORES_ASSERT(false);
       std::cout << "********* Intersection point didn't converge: " << pt[0] << " idx= " << stop_idx << " t: " << t0 << " " << t1 << std::endl;
     }
-    puncSplineFid << ids[i] << ", " << tVal << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
+    if (dumpPts)
+      puncSplineFid << ids[i] << ", " << tVal << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
     punctures.push_back(pt);
   }
 
@@ -665,7 +673,9 @@ public:
       this->RaiseError("Spline evaluation failed.");
     if (p0[0] * p1[0] > 0)
     {
+#ifndef VISKORES_HIP
       std::cout << " t0/1= " << t0 << " " << t1 << " p0 " << p0[0] << " p1 " << p1[0] << std::endl;
+#endif
       this->RaiseError("Points not on either side of puncture");
     }
 
@@ -707,12 +717,23 @@ struct SubOneFunctor
 
 int main(int argc, char* argv[])
 {
-  bool doVTKm = false;
-  if (argc == 2)
-    doVTKm = true;
+  bool doVTKm = true;
 
+  double x0 = (double)std::stof(argv[1]);
+  double x1 = (double)std::stof(argv[2]);
+  int nlines = std::stoi(argv[3]);
+  viskores::Id maxPuncs = std::stoi(argv[4]);
+  std::cout << "Running lines: " << x0 << " " << x1 << " #= " << nlines << std::endl;
+  double dx = (x1 - x0) / (double)(nlines - 1);
 
-  trajspline << "ID, STEP, X, Y, Z, REGION\n";
+  if (doVTKm)
+  {
+    auto opts = viskores::cont::InitializeOptions::DefaultAnyDevice;
+    auto config = viskores::cont::Initialize(argc, argv, opts);
+    //viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagKokkos{});
+  }
+
+  trajsplineFid << "ID, STEP, X, Y, Z, REGION\n";
   trajOut << "ID, STEP, X, Y, Z, REGION, YI, ZSVALUE, ZVALUE" << std::endl;
   tanOut << "ID, STEP, X, Y, Z, VX, VY, VZ" << std::endl;
   rawPunc << "ID, STEP, X, Y, Z\n";
@@ -721,27 +742,27 @@ int main(int argc, char* argv[])
   puncSplineFid << "ID, STEP, X, Y, Z\n";
   punc_ip_Fid << "ID, STEP, X, Y, Z\n";
   stepOut << "ID, STEP, X, Y, Z\n";
-  rk4Out << "ID, STEP, X, Y, Z\n" << std::scientific << std::setprecision(6);
-  auto TRAJ_FID = fopen("/Users/dpn/pt_traj.c.txt", "w");
+  rk4Out << "ID, STEP, X, Y, Z\n";
+  auto TRAJ_FID = fopen("./pt_traj.c.txt", "w");
   fprintf(TRAJ_FID, "IT, xind, yEnd, zind, REG, zEnd\n");
 
   std::string fname = "/Users/dpn/proj/bout++/poincare/boutpp_poincare/poincare_clean/stuff.nc";
+  //fname = "/lustre/orion/csc143/proj-shared/pugmire/stuff.nc";
   Options opts(fname);
 
   int divertor = 1; //single null
   double xind = 0.0f;
 
   std::vector<double> LINES; // = {0, 50, 100, 150, 200, 250};
-  double x0 = 110.0, x1 = 180.0, dx = 0.05;
   for (double x = x0; x < x1; x += dx)
     LINES.push_back(x);
   int nturns = 50;
-  nturns = 2;
+  nturns = 50;
   //LINES = {149};
   //LINES = { 0, 50, 100, 150, 200, 250 };
   //LINES = { 190 };
   //LINES = { 150.0, 150.1, 150.2, 150.3 };
-  LINES = { 50.0, 100.0, 150.0 };
+  //LINES = { 50.0, 100.0, 150.0 };
 
   std::vector<Point> Points;
 
@@ -768,31 +789,35 @@ int main(int argc, char* argv[])
       int yStart = opts.jyomp;
       int zzz = 0;
       auto zStart = opts.zarray[zzz];
-      std::cout << "**** xind= " << xind << " opts.jyomp= " << opts.jyomp << " zStart= " << zStart << std::endl;
+      //std::cout << "**** xind= " << xind << " opts.jyomp= " << opts.jyomp << " zStart= " << zStart << std::endl;
       double xStart = opts.psixy[static_cast<int>(xind)][opts.jyomp];
-      double xStart2 = scalarField2DEval(opts.Grid2D, "psixy", viskores::Vec3f(xind, (double)yStart, 0));
+      //double xStart2 = scalarField2DEval(opts.Grid2D, "psixy", viskores::Vec3f(xind, (double)yStart, 0));
 
       //int yind = yStart;
-      double zind = INTERP(opts.zarray, opts.ziarray, zStart);
-      auto zind2 = scalarField1DEval(opts.ZiArray, opts.ZArray, { zStart });
+      //double zind = INTERP(opts.zarray, opts.ziarray, zStart);
+      //auto zind2 = scalarField1DEval(opts.ZiArray, opts.ZArray, { zStart });
 
       //viskores::Particle p({ xStart, static_cast<viskores::FloatDefault>(yStart), zStart }, 0);
       viskores::Vec3f p0(xStart, static_cast<viskores::FloatDefault>(yStart), zStart);
       points.push_back(p0);
     }
+    std::cout << "numPts= " << points.size() << std::endl;
+    std::cout << "numPuncs= " << maxPuncs << std::endl;
 
     const auto& grid3D = opts.Grid3D;
     const auto& grid2D = opts.Grid2D;
-    viskores::cont::CellLocatorRectilinearGrid locator3D, locator2D;
+    viskores::cont::CellLocatorRectilinearGrid locator2D, locator3D;
     locator3D.SetCoordinates(grid3D.GetCoordinateSystem());
     locator3D.SetCellSet(grid3D.GetCellSet());
     locator3D.Update();
     locator2D.SetCoordinates(grid2D.GetCoordinateSystem());
     locator2D.SetCellSet(grid2D.GetCellSet());
     locator2D.Update();
-    viskores::Id maxPuncs = 5000, maxSteps = maxPuncs * 20;
+    viskores::Id maxSteps = maxPuncs * 20;
 
     RK4Worklet worklet(maxPuncs, maxSteps);
+    worklet.ds3D = grid3D;
+    worklet.ds2D = grid2D;
     worklet.grid3DBounds = grid3D.GetCoordinateSystem().GetBounds();
     worklet.grid2DBounds = grid2D.GetCoordinateSystem().GetBounds();
     worklet.nypf1 = opts.nypf1;
@@ -810,6 +835,10 @@ int main(int argc, char* argv[])
     grid2D.GetField("rxy").GetData().AsArrayHandle<viskores::FloatDefault>(rxyField);
     grid2D.GetField("zShift").GetData().AsArrayHandle<viskores::FloatDefault>(zShiftField);
 
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+
     viskores::cont::ArrayHandle<viskores::Id> puncIndices, pointIds;
     viskores::cont::ArrayHandle<bool> validSteps, validPuncs;
     result.Allocate(inPts.GetNumberOfValues() * maxSteps);
@@ -819,6 +848,7 @@ int main(int argc, char* argv[])
     puncIndices.Allocate(inPts.GetNumberOfValues() * maxPuncs);
     pointIds.AllocateAndFill(inPts.GetNumberOfValues() * maxSteps, -1);
     //invoker(worklet, inPts, locator3D, grid3D.GetCellSet(), locator2D, grid2D.GetCellSet(), dxdyField, dzdyField, rxyField, zShiftField, puncIndices, result);
+
     invoker(worklet, inPts, boutppField, grid3D.GetCellSet(), grid2D.GetCellSet(), puncIndices, pointIds, result, tangent, validPuncs, validSteps);
 
     viskores::cont::ArrayHandle<viskores::Vec3f> validResult, validTangent;
@@ -829,7 +859,6 @@ int main(int argc, char* argv[])
     viskores::cont::Algorithm::CopyIf(pointIds, validSteps, validPointIds);
     //viskores::cont::printSummary_ArrayHandle(validPuncIndices, std::cout, true);
     //viskores::cont::printSummary_ArrayHandle(validResult, std::cout, true);
-
     // do with splines.
     std::vector<viskores::Vec3f> _points;
     std::vector<viskores::Id> _ids;
@@ -839,7 +868,13 @@ int main(int argc, char* argv[])
       _points.push_back(pt);
       _ids.push_back(validPointIds.ReadPortal().Get(i));
     }
-    auto puncs = FindPunctures(_ids, _points);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+    std::cout << " NUM particles= " << LINES.size() << " numPunc= " << maxPuncs << std::endl;
+
+    auto puncs = FindPunctures(_ids, _points, true);
     return 0;
 
 
@@ -926,12 +961,13 @@ int main(int argc, char* argv[])
     for (viskores::Id i = 0; i < portal.GetNumberOfValues(); i++)
     {
       auto pt = portal.Get(i);
-      trajspline << "0, " << portal_p.Get(i) << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << ", 0 " << std::endl;
+      trajsplineFid << "0, " << portal_p.Get(i) << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << ", 0 " << std::endl;
+      std::cout << " dumping: " << pt << std::endl;
     }
 
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = end - start;
-    std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+    //    auto end = std::chrono::high_resolution_clock::now();
+    //    std::chrono::duration<double> elapsed = end - start;
+    //    std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
 
     return 0;
   }
@@ -954,17 +990,19 @@ int main(int argc, char* argv[])
     //viskores::Particle p({ xStart, static_cast<viskores::FloatDefault>(yStart), zStart }, 0);
     viskores::Vec3f p0(xStart, static_cast<viskores::FloatDefault>(yStart), zStart);
 
+#ifndef VISKORES_HIP
     std::cout << std::setprecision(12);
     std::cout << "   xStart=  " << xStart << std::endl;
     std::cout << "   xStart2= " << xStart2 << std::endl;
     std::cout << "   zind= " << zind << std::endl;
     std::cout << "   zind2= " << zind << std::endl;
+#endif
 
     int region = opts.GetRegion(xind, p0[1]);
     int region_ = opts.GetRegion(p0);
     int iturn = 0, it = 0;
 
-    auto zindFID = fopen("/Users/dpn/zind.c.txt", "w");
+    auto zindFID = fopen("./zind.c.txt", "w");
     std::cout << "Region= " << region << std::endl;
     int step = 0;
     while (region < 10 && iturn < nturns)
@@ -1116,7 +1154,7 @@ int main(int argc, char* argv[])
     auto PointsXYZ = ConvertToXYZSpace(opts, iline, id, region, Points);
     std::vector<viskores::Id> _lines;
     _lines.push_back(iline);
-    auto punctures = FindPunctures(_lines, PointsXYZ);
+    auto punctures = FindPunctures(_lines, PointsXYZ, true);
     return 0;
   }
 }
