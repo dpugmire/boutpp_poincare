@@ -50,10 +50,30 @@ fprintf(rk4FID, 'ID, STEP, X, Y, Z\n');
 fprintf(TRAJ_FID, "IT, xind, yEnd, zind, REG, zEnd\n");
 
 %%% STEP 0: user setup
+%gridfile =  'kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
+%gridfile =  '../data/kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
+saveFields = 1; % save out computed fields for the python version.
+stuffFile = '';
 
 % BOUT++ grid file
-%gridfile =  'kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
-gridfile =  '../data/kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
+args = argv();
+n = length(args);
+if (n == 0)
+    printf("Error: grid file name required\n");
+    quit(1)
+end
+gridfile = args{1};
+if (n == 2)
+    stuffFile = args{2};
+    saveFields = 1;
+end
+
+%% debug gui
+if (args{1} == "--gui")
+  gridfile =  '../data/kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
+end
+
+
 
 % Mesh resolution info
 nx = 260; ny = 128; nz = 256; zperiod = 1;
@@ -72,7 +92,6 @@ np = 1250; % maximum puncture points, rougly nturns*q
 % Output option
 save_traj = 1;  % save trajectory of each field line
 save_pp = 1;    % save puncture point of each field line
-saveFields = 0; % save out computed fields for the python version.
 saveHighResTraj = 1;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -106,11 +125,12 @@ yiarray = (1:ny);
 
     vid = netcdf.inqVarID(fid, 'Rxy'); rxy = netcdf.getVar(fid, vid); rxy = double(rxy); rxy = permute(rxy, [2 1]);
     vid = netcdf.inqVarID(fid, 'Zxy'); zxy = netcdf.getVar(fid, vid); zxy = double(zxy); zxy = permute(zxy, [2 1]);
-    vid = netcdf.inqVarID(fid, 'psixy'); psixy = netcdf.getVar(fid, vid); psixy = double(psixy); psixy = permute(psixy, [2 1]);
-    vid = netcdf.inqVarID(fid, 'rmag'); rmag = netcdf.getVar(fid, vid);
 
+    vid = netcdf.inqVarID(fid, 'psixy'); psixy = netcdf.getVar(fid, vid); psixy = double(psixy); psixy = permute(psixy, [2 1]);
+    %vid = netcdf.inqVarID(fid, 'rmag'); rmag = netcdf.getVar(fid, vid);
     vid = netcdf.inqVarID(fid, 'ixseps1');  ixsep1 = netcdf.getVar(fid, vid);
     vid = netcdf.inqVarID(fid, 'ixseps2');  ixsep2 = netcdf.getVar(fid, vid);
+
     if (ixsep2 < nx)
         divertor = 2; % double null
         fprintf('\tDouble null configration\n');
@@ -429,7 +449,7 @@ yiarray = (1:ny);
         %printEval(dxdy, 14, 100, 28);
 
         %fprintf('ixseps: %d  jyseps: %d %d %d %d  nyfp1,2: %d %d\n', ixsep1, ixsep2, jyseps1_1, jyseps1_2, jyseps2_1, jyseps2_2, nypf1, nypf2);
-        dump_fieldline_data('stuff.nc', nx, ny, nz, rxy, zxy, rxy_cfr, zxy_cfr, sa, zShift, zs_cfr, psixy, dxdy, dzdy, dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1);
+        dump_fieldline_data(stuffFile, nx, ny, nz, rxy, zxy, rxy_cfr, zxy_cfr, sa, zShift, zs_cfr, psixy, dxdy, dzdy, dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1);
         return;
     end
 
@@ -813,11 +833,11 @@ yiarray = (1:ny);
                 if (doHermite)
 		  splineYEval = pchip(_xi, yVals);
                   splineZEval = pchip(_xi, zVals);
-		else 
+		else
 		  splineYEval = spline(_xi, yVals);
                   splineZEval = spline(_xi, zVals);
                 end
-                
+
                 py0 = ppval(splineYEval, tZero);
                 pz0 = ppval(splineZEval, tZero);
                 fprintf(' FOUND Zero: cnt= %d  %d, %f, %f, %f, %f, %d\n', _cnt, iline-1, tZero-1.0, px0, py0, pz0, region);

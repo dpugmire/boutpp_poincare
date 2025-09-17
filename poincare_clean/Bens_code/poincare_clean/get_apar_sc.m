@@ -70,7 +70,7 @@ function [apar,dapardx,dapardy,dapardz] = ...
             apars(i,j,:)=real(ifft(fft(squeeze(apar(i,j,:))).*exp(-ci*zs(i,j)*kz)));
         end
     end
-    
+
     if (deriv_opt == 0)
     % numerical differentiate, less accurate
         fprintf('Central finite difference for Apar.\n');
@@ -84,7 +84,7 @@ function [apar,dapardx,dapardy,dapardz] = ...
         for k=1:nz
             dapardx(:,:,k)=dapardpsi(:,:,k)+sinty.*dapardz(:,:,k);
         end
-    
+
         % d/dy is a little tricky
         for i=1:nx
             dapardy(i,iy_cfr(2:end-1),:)=0.5*(apar(i,iy_cfr(3:end),:)-apar(i,iy_cfr(1:end-2),:))/dy0;

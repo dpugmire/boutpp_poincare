@@ -1,3 +1,6 @@
+to run:
+octave ./fieldline_tracing.m  ../data/kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc
+
 diff --speed-large-files --suppress-common-lines <(cut -c 1-5 A3.m.txt) <(cut -c 1-5 A3.p.txt)
 
 

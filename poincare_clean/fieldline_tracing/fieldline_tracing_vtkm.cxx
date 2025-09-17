@@ -9,7 +9,6 @@
 #include <iostream>
 #include <numeric>
 
-#include <viskores/cont/Initialize.h>
 #include <viskores/Particle.h>
 #include <viskores/cont/Algorithm.h>
 #include <viskores/cont/ArrayHandleTransform.h>
@@ -98,29 +97,48 @@ public:
 class Options
 {
 public:
-  Options(const std::string& fileName)
+  Options(const std::string& fileName, bool transpose = false)
     : loader(fileName)
   {
+    std::cout << "Options from: " << fileName << std::endl;
+
     this->nx = this->loader.getDim("nx");
     this->ny = this->loader.getDim("ny");
     this->nz = this->loader.getDim("nz");
+
     this->nx_cfr = this->loader.getDim("nx_cfr");
     this->ny_cfr = this->loader.getDim("ny_cfr");
 
-    this->rxy = this->loader.read2DVariable("rxy");
-    this->zxy = this->loader.read2DVariable("zxy");
-    this->rxy_cfr = this->loader.read2DVariable("rxy_cfr");
-    this->zxy_cfr = this->loader.read2DVariable("zxy_cfr");
-    this->psixy = this->loader.read2DVariable("psixy");
-    this->zShift = this->loader.read2DVariable("zShift");
-    this->zShift_cfr = this->loader.read2DVariable("zShift_cfr");
+    std::cout << "****** skipping scalars!!" << std::endl;
+    /*
+    this->ixseps1 = this->loader.readScalar("ixseps1");
+    this->ixseps2 = this->loader.readScalar("ixseps2");
+    this->ixsep = this->ixseps1;
+    this->jyseps1_1 = this->loader.readScalar("jyseps1_1");
+    this->jyseps1_2 = this->loader.readScalar("jyseps1_2");
+    this->jyseps2_1 = this->loader.readScalar("jyseps2_1");
+    this->jyseps2_2 = this->loader.readScalar("jyseps2_2");
+    this->nypf1 = this->jyseps1_1;
+    this->nypf2 = this->jyseps2_1;
+    */
+
+
+    this->rxy = this->loader.read2DVariable("rxy", transpose);
+    this->zxy = this->loader.read2DVariable("zxy", transpose);
+    this->rxy_cfr = this->loader.read2DVariable("rxy_cfr", transpose);
+    this->zxy_cfr = this->loader.read2DVariable("zxy_cfr", transpose);
+    this->psixy = this->loader.read2DVariable("psixy", transpose);
+    this->zShift = this->loader.read2DVariable("zShift", transpose);
+
+    this->zShift_cfr = this->loader.read2DVariable("zShift_cfr", transpose);
     this->shiftAngle = this->loader.read1DVariable("shiftAngle");
-    this->dxdy = this->loader.read3DVariable("dxdy");
-    this->dzdy = this->loader.read3DVariable("dzdy");
-    this->dxdy_m1 = this->loader.read2DVariable("dxdy_m1");
-    this->dxdy_p1 = this->loader.read2DVariable("dxdy_p1");
-    this->dzdy_m1 = this->loader.read2DVariable("dzdy_m1");
-    this->dzdy_p1 = this->loader.read2DVariable("dzdy_p1");
+    this->dxdy = this->loader.read3DVariable("dxdy", transpose);
+    this->dzdy = this->loader.read3DVariable("dzdy", transpose);
+
+    this->dxdy_m1 = this->loader.read2DVariable("dxdy_m1", transpose);
+    this->dxdy_p1 = this->loader.read2DVariable("dxdy_p1", transpose);
+    this->dzdy_m1 = this->loader.read2DVariable("dzdy_m1", transpose);
+    this->dzdy_p1 = this->loader.read2DVariable("dzdy_p1", transpose);
     this->nzG = this->nz * this->zperiod;
 
     std::cout << "*********************************************************************************"
@@ -379,9 +397,11 @@ public:
   double dz;
   int zperiod = 1;
   int jyseps1_1 = 16;
+  int jyseps1_2 = -1;
+  int jyseps2_1 = -1;
   int jyseps2_2 = 112;
-  int ixsep1 = 195;
-  int ixsep2 = 260;
+  int ixseps1 = 195;
+  int ixseps2 = 260;
   int ixsep = 195;
   int nypf1 = 16;
   int nypf2 = 112;
@@ -677,7 +697,7 @@ public:
     {
 #ifndef VISKORES_HIP
       std::cout << " t0/1= " << t0 << " " << t1 << " p0 " << p0[0] << " p1 " << p1[0] << std::endl;
-#endif      
+#endif
       this->RaiseError("Points not on either side of puncture");
     }
 
@@ -717,6 +737,8 @@ struct SubOneFunctor
   VISKORES_EXEC viskores::FloatDefault operator()(viskores::FloatDefault x) const { return x - 1.0f; }
 };
 
+
+//./fieldline_tracing_vtkm 180 200 10 100
 int main(int argc, char* argv[])
 {
   bool doVTKm = true;
@@ -725,21 +747,17 @@ int main(int argc, char* argv[])
   double x1 = (double)std::stof(argv[2]);
   int nlines = std::stoi(argv[3]);
   viskores::Id maxPuncs = std::stoi(argv[4]);
-  std::cout<<"Running lines: "<<x0<<" "<<x1<<" #= "<<nlines<<std::endl;
-  double dx = (x1-x0) / (double)(nlines-1);
+  std::string stuffFileName = argv[5];
+  std::cout << "Running lines: " << x0 << " " << x1 << " #= " << nlines << std::endl;
+  double dx = (x1 - x0) / (double)(nlines - 1);
 
-  if (doVTKm)
-  {
-      auto opts = viskores::cont::InitializeOptions::DefaultAnyDevice;
-      auto config = viskores::cont::Initialize(argc, argv, opts);
-      viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagKokkos{});
-  }
-
-  if (doVTKm)
+  if (true)
   {
     auto opts = viskores::cont::InitializeOptions::DefaultAnyDevice;
     auto config = viskores::cont::Initialize(argc, argv, opts);
     //viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagKokkos{});
+    viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagTBB{});
+    std::cout << "Using TBB" << std::endl;
   }
 
   trajsplineFid << "ID, STEP, X, Y, Z, REGION\n";
@@ -756,8 +774,17 @@ int main(int argc, char* argv[])
   fprintf(TRAJ_FID, "IT, xind, yEnd, zind, REG, zEnd\n");
 
   std::string fname = "/Users/dpn/proj/bout++/poincare/boutpp_poincare/poincare_clean/stuff.nc";
-  fname = "/lustre/orion/csc143/proj-shared/pugmire/stuff.nc";
-  Options opts(fname);
+  //fname = "/lustre/orion/csc143/proj-shared/pugmire/stuff.nc";
+  fname = "/Users/dpn/proj/bout++/poincare/boutpp_poincare/poincare_clean/python.27.Aug/stuff_python.nc";
+  fname = "/Users/dpn/proj/bout++/poincare/boutpp_poincare/poincare_clean/utils/stuff.nc";
+
+  fname = stuffFileName;
+
+  bool transpose = true;
+  if (stuffFileName.find("python") != std::string::npos)
+    transpose = true;
+
+  Options opts(fname, transpose);
 
   int divertor = 1; //single null
   double xind = 0.0f;
@@ -799,6 +826,7 @@ int main(int argc, char* argv[])
       int zzz = 0;
       auto zStart = opts.zarray[zzz];
       //std::cout << "**** xind= " << xind << " opts.jyomp= " << opts.jyomp << " zStart= " << zStart << std::endl;
+      std::cout << "xind= " << (int)xind << " jyomp= " << opts.jyomp << " dims: " << opts.psixy.size() << " " << opts.psixy[0].size() << std::endl;
       double xStart = opts.psixy[static_cast<int>(xind)][opts.jyomp];
       //double xStart2 = scalarField2DEval(opts.Grid2D, "psixy", viskores::Vec3f(xind, (double)yStart, 0));
 
@@ -831,8 +859,8 @@ int main(int argc, char* argv[])
     worklet.grid2DBounds = grid2D.GetCoordinateSystem().GetBounds();
     worklet.nypf1 = opts.nypf1;
     worklet.nypf2 = opts.nypf2;
-    worklet.ixsep1 = opts.ixsep1;
-    worklet.ixsep2 = opts.ixsep2;
+    worklet.ixsep1 = opts.ixseps1;
+    worklet.ixsep2 = opts.ixseps2;
     BoutppField boutppField(opts.Grid3D, opts.Grid2D, opts.XiArray, opts.XArray, opts.YArray, opts.ZiArray, opts.ZArray, opts.ShiftAngle);
 
     viskores::cont::Invoker invoker;
@@ -878,8 +906,8 @@ int main(int argc, char* argv[])
     }
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
-        std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
-	std::cout<<" NUM particles= "<< LINES.size()<<" numPunc= "<<maxPuncs<<std::endl;
+    std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+    std::cout << " NUM particles= " << LINES.size() << " numPunc= " << maxPuncs << std::endl;
     auto puncs = FindPunctures(_ids, _points, true);
     return 0;
 
@@ -971,9 +999,9 @@ int main(int argc, char* argv[])
       std::cout << " dumping: " << pt << std::endl;
     }
 
-//    auto end = std::chrono::high_resolution_clock::now();
-//    std::chrono::duration<double> elapsed = end - start;
-//    std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+    //    auto end = std::chrono::high_resolution_clock::now();
+    //    std::chrono::duration<double> elapsed = end - start;
+    //    std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
 
     return 0;
   }
@@ -1091,7 +1119,7 @@ int main(int argc, char* argv[])
           // interpoloated index from the x value (p1[0]).
           xind = scalarField1DEval(opts.XArray, opts.XiArray, p1[0]);
           std::cout << "XIND: " << p1 << " --> " << xind << std::endl;
-          if (xind > static_cast<double>(opts.ixsep1) + 0.5)
+          if (xind > static_cast<double>(opts.ixseps1) + 0.5)
           {
             region = 1;
             std::cout << "  Starting xind= " << xind << " line= " << iline << " enters the SOL." << std::endl;

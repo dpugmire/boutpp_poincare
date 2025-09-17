@@ -12,10 +12,23 @@ set(groot,'DefaultAxesFontSize',20);
 set(groot,'DefaultTextFontSize',20);
 set(groot,'DefaultLineMarkerSize',12);
 
+% Check if running in Octave
+if exist('OCTAVE_VERSION', 'builtin') ~= 0
+    disp('Running in Octave');
+    pkg load netcdf; %% for octave
+else
+    disp('Running in MATLAB');
+end
+
+
 %%% STEP 0: user setup
 
 % BOUT++ grid file
 gridfile =  '../kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
+gridfile = '/Users/dpn/proj/bout++/poincare/boutpp_poincare/data/kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
+saveFields = 1;
+stuffFile = 'stuff.nc'
+
 % Mesh resolution info
 nx = 260; ny = 128; nz = 256; zperiod = 1; 
 % Field-line tracing direction: 1 (y index increasing); -1 (y index decreasing)
@@ -246,7 +259,7 @@ yiarray = (1:ny);
     JJ = 4.*pi*1.e-7*bpxy./hthe./(bxy.^2).*jpar0;
     
     fprintf('Loading perturbed field information ...\n');
-    % this script use BOUT++ output psi, note apar=psi*B0 -- refer to idl script  
+    % this script use BOUT++ output psi, note apar=psi*B0 -- refer to idl script
     apar    = zeros(nx,ny,nzG);
     dapardx = zeros(nx,ny,nzG);
     dapardy = zeros(nx,ny,nzG);
@@ -290,16 +303,17 @@ yiarray = (1:ny);
     %parpool('local',8);
 
     % load BOUT++ psi data or Apar data somewhere
-    p=restore_idl('./psi.sav');
-    psi=p.PSI;
+    rmp=load('/Users/dpn/proj/bout++/poincare/boutpp_poincare/data/apar_kstar_30306_7850_psi085105_nx260ny128_f2_nz256.mat');
+    #p=restore_idl('./psi.sav');
+    #psi=p.PSI;
 
     if (divertor == 0)
         [apar0,dapardx0,dapardy0,dapardz0] = ...
-            get_apar_sc(psi,bxy,psixy,zShift,sa,sinty,dy0,dz,...
+            get_apar_sc(rmp.apar,bxy,psixy,zShift,sa,sinty,dy0,dz,...
             zperiod,0,1,0);
     elseif (divertor == 1)
         [apar0,dapardx0,dapardy0,dapardz0] = ...
-            get_apar_sn(psi,bxy,psixy,zShift,sa,sinty,dy0,dz,...
+            get_apar_sn(rmp.apar,bxy,psixy,zShift,sa,sinty,dy0,dz,...
             ixsep,nypf1,nypf2,zperiod,0,1,0);
     else
         fprintf('\tConfiguration to be implemented!');
@@ -364,8 +378,18 @@ yiarray = (1:ny);
     for ix=1:ixsep
         zarray_rshift=mod(zarray(1:nzG)-sa(ix),zmax);
         dxdy_m1(ix,:)=spline(zarray,dxdyt(ix,:),zarray_rshift);
-        dzdy_m1(ix,:)=spline(zarray,dzdyt(ix,:),zarray_rshift); 
+        dzdy_m1(ix,:)=spline(zarray,dzdyt(ix,:),zarray_rshift);
     end
+
+
+    %% save out tracing data to netcdf.
+    if saveFields == 1
+        fprintf('Saving out fields....\n');
+        dump_fieldline_data(stuffFile, nx, ny, nz, rxy, zxy, rxy_cfr, zxy_cfr, sa, zShift, zs_cfr, psixy, dxdy, dzdy, dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1);
+        return;
+    end
+
+
     
     fprintf('Starting field-line tracing ...\n');
     fprintf('\n');
@@ -398,7 +422,7 @@ yiarray = (1:ny);
         else
             region = 1;
         end
-        
+
         yind = yStart;
         zind = interp1(zarray, ziarray, zStart);
         
@@ -431,7 +455,7 @@ yiarray = (1:ny);
         while (region < 10 && iturn < nturns)
 
             if (mod(iturn,50) == 1) 
-                fprintf('\t\t line%i, turn %i/%i ...\n',iyz,iturn,nturns); 
+                fprintf('\t\t line%i, turn %i/%i ...\n',iyz,iturn,nturns);
             end
 
             % start field-line tracing
@@ -550,7 +574,7 @@ yiarray = (1:ny);
                         region = 0;
                     elseif (xind < double(ixsep1)+0.5 && (yEnd > nypf2-1 || yEnd < nypf1))
                         if (region~=2) % if not already in the PFR
-                            fprintf('\tending xind=%f, line %i enters the PFR\n',xind,iyz); 
+                            fprintf('\tending xind=%f, line %i enters the PFR\n',xind,iyz);
                         end
                         region = 2;  
                     end
@@ -786,7 +810,7 @@ yiarray = (1:ny);
                 pxp,pyp,pzp,ptp,ppp,traj0,lc,region);
         end
     end
-    
+
     end % end itmax>1
     
     %clear traj fl_x3d fl_y3d fl_z3d fit ffl_x3d iit px py pz ptheta ppsi pxp pyp pzp ptp ppp traj0 lc region

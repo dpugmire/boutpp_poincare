@@ -8,7 +8,7 @@ function [apar,dapardx,dapardy,dapardz] = ...
     ixsep,nypf1,nypf2,zperiod,interp_opt,deriv_opt,true_apar)
 
     [nx,ny,nz]=size(psi);
-    
+
     apar=zeros(nx,ny,nz);    dapardx=zeros(nx,ny,nz);
     dapardy=zeros(nx,ny,nz); dapardz=zeros(nx,ny,nz);
     ny_cfr=nypf2-nypf1+1;
@@ -25,7 +25,7 @@ function [apar,dapardx,dapardy,dapardz] = ...
         psis_tmp=squeeze(psi(i,nypf1+1,:)); psis_tmp(end+1)=psis_tmp(1);
         psisp1(i,1,:)=spline(zarrayp,psis_tmp,zarray_shift);
     end
-    
+
     if (interp_opt == 0)
     % linear interpolation
     fprintf('Linear interpolation of psi back to cell center.\n');
@@ -42,7 +42,8 @@ function [apar,dapardx,dapardy,dapardz] = ...
             psi(i,ny,:)=1.5*psis(i,ny,:)-0.5*psis(i,ny-1,:); % simple linear extrapolation
         end
     end
-    
+    fprintf("Done with linear interpolation\n");
+
     elseif (interp_opt == 1)
     % cubic spline interpolation
     fprintf('Cubic spline interpolation of psi back to cell center.\n');
@@ -68,28 +69,44 @@ function [apar,dapardx,dapardy,dapardz] = ...
     else
         fprintf('Unknown interpolation method for psi!\n');
     end
-    
+
+    fprintf("A\n");
     % step2, apar=psi*bxy unless psi is truly apar
     for k=1:nz
         apar(:,:,k)=psi(:,:,k).*bxy;
     end
-    
+
     else % if the input is a true apar in the cell center
 	    apar=psi;
     end
+    fprintf("AA\n");
 
     % step 3, get apar derivatives
-    
+
     % first shift to flux coordinate for d/dpsi
     apars=zeros(nx,ny,nz); dapardpsi=zeros(nx,ny,nz);
-    kz=[0:nz/2 -nz/2+1:1:-1]*zperiod; kz=kz';
+
+    %% DRP. This doesn't work if nz is odd.
+    %kz=[0:nz/2 -nz/2+1:1:-1]*zperiod;
+    if mod(nz,2) == 0
+        % even
+        kz = [0:(nz/2-1)  -nz/2:-1];
+    else
+        % odd
+        kz = [0:((nz-1)/2)  -((nz-1)/2):-1];
+    end
+    kz=kz';
+    kz = kz * zperiod;
+    %% DRP- end.
+
     ci=sqrt(-1);
+
     for i=1:nx
         for j=1:ny
             apars(i,j,:)=real(ifft(fft(squeeze(apar(i,j,:))).*exp(-ci*zs(i,j)*kz)));
         end
     end
-    
+
     if (deriv_opt == 0)
     % numerical differentiate, less accurate
     fprintf('Central finite difference for Apar.\n');
@@ -99,11 +116,11 @@ function [apar,dapardx,dapardy,dapardz] = ...
     dapardz(:,:,1)=0.5*(apar(:,:,2)-apar(:,:,nz))/dz;
     dapardz(:,:,2:nz-1)=0.5*(apar(:,:,3:nz)-apar(:,:,1:nz-2))/dz;
     dapardz(:,:,nz)=0.5*(apar(:,:,1)-apar(:,:,nz-1))/dz;
-    
+
     for k=1:nz
         dapardx(:,:,k)=dapardpsi(:,:,k)+sinty.*dapardz(:,:,k);
     end
-    
+
     % d/dy is a little tricky
     for i=1:nx
         if (i<ixsep+1)
@@ -116,7 +133,7 @@ function [apar,dapardx,dapardy,dapardz] = ...
             % then forward shift first point to be added to last point -- becomes ny+1 cell
             zarray_shift=mod(zarray+sa(i),zmax);
             apar_tmp=squeeze(apar(i,nypf1+1,:)); apar_tmp(end+1)=apar_tmp(1);
-            aparp1(1,1,:)=spline(zarrayp,apar_tmp,zarray_shift);           
+            aparp1(1,1,:)=spline(zarrayp,apar_tmp,zarray_shift);
             dapardy(i,nypf2,:)=0.5*(aparp1-apar(i,nypf2-1,:))/dy0;
             % assume parallel gradient vanishes at divertor target
             dapardy(i,iy_pfr(2:end-1),:)=0.5*(apar(i,iy_pfr(3:end),:)-apar(i,iy_pfr(1:end-2),:))/dy0;
@@ -125,16 +142,16 @@ function [apar,dapardx,dapardy,dapardz] = ...
             dapardy(i,2:ny-1,:)=0.5*(apar(i,3:ny,:)-apar(i,1:ny-2,:))/dy0;
         end
     end
-    
+
     %or 4th order cfd (to be implemented)
     %dapardx(3:nx-2,:,:)=(-apar(5:nx,:,:)+8.*apar(4:nx-1,:,:)-8.*apar(2:nx-3)+apar(1:nx-4,:,:))/12./dx;
-    
+
     elseif (deriv_opt == 1)
     % analytical differentiate based on cubic spline interpolation that
     % ensures first and second order derivatives are continous across the
     % cell boundaries
     fprintf('Cubic spline fit then differentiation of Apar.\n');
-    
+
     for k=1:nz
         for j=1:ny
             apar_tmp=apars(:,j,k);
@@ -143,8 +160,8 @@ function [apar,dapardx,dapardy,dapardz] = ...
             pp=spline(xarray,apar_tmp);
             dapardpsi(:,j,k)=pp.coefs(:,3);
         end
-    end    
-    
+    end
+
     % d/dy again is a little tricky
     yiarray_sol=double(1:ny+1);yiarray_cfr=double(1:ny_cfr);
     for k=1:nz
@@ -171,7 +188,7 @@ function [apar,dapardx,dapardy,dapardz] = ...
         end
     end
     dapardy=dapardy/dy0;
-    
+
     for j=1:ny
         for i=1:nx
             apar_tmp=squeeze(apar(i,j,:));
@@ -180,11 +197,11 @@ function [apar,dapardx,dapardy,dapardz] = ...
             dapardz(i,j,:)=pp.coefs(:,3);
         end
     end
-    
+
     for k=1:nz
         dapardx(:,:,k)=-dapardpsi(:,:,k)+sinty.*dapardz(:,:,k);
     end
-    
+
     end
-    
+
 end

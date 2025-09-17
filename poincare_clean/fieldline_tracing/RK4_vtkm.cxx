@@ -142,8 +142,8 @@ void writeArray2DToFile(std::vector<std::vector<double>>& array, const std::stri
 
 void writeArray3DToFile(const std::vector<std::vector<std::vector<double>>>& array, const std::string& fname)
 {
-  auto val0 = array[123][79][101];
-  auto val1 = array[192][47][200];
+  //auto val0 = array[123][79][101];
+  //auto val1 = array[192][47][200];
 
   auto fname2 = "/Users/dpn/" + fname + ".c.txt";
   std::ofstream out(fname2, std::ofstream::out);
@@ -298,7 +298,7 @@ void splineTest(double xStart,
   std::cout << "***** MAX: " << maxErrx1 << " " << maxErrz1 << " " << maxErrx2 << " " << maxErrz2 << std::endl;
   std::cout << "        max1 at: " << maxX1 << " " << maxZ1 << std::endl;
   std::cout << "        max2 at: " << maxX2 << " " << maxZ2 << std::endl << std::endl;
-  #endif
+#endif
   count++;
 }
 
