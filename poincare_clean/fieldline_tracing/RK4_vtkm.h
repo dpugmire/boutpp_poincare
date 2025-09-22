@@ -14,6 +14,18 @@
 #include <utility>
 #include <vector>
 
+static bool approxLT(viskores::FloatDefault a, viskores::FloatDefault b, viskores::FloatDefault tol = 1e-6)
+{
+  if (a < (b - tol))
+    return true;
+  return false;
+}
+static bool approxGT(viskores::FloatDefault a, viskores::FloatDefault b, viskores::FloatDefault tol = 1e-6)
+{
+  if (a > (b + tol))
+    return true;
+  return false;
+}
 
 void writeArray1DToFile(std::vector<double>& array, const std::string& fname);
 
@@ -212,8 +224,9 @@ public:
     viskores::Id stepOffset = idx * this->MaxSteps;
     viskores::Id puncOffset = idx * this->MaxPunctures;
     result.Set(stepOffset, p0);
-    //stepOut << idx << ", " << 0 << ", " << p0[0] << ", " << p0[1] << ", " << p0[2] << std::endl;
+    stepOut << idx << ", " << 0 << ", " << p0[0] << ", " << p0[1] << ", " << p0[2] << std::endl;
     int region = 0;
+    int direction = 1;
 
     viskores::Vec3f pCart0, pCart1, vCart0;
 
@@ -223,22 +236,32 @@ public:
     tangent.Set(stepOffset, vCart0);
     //    tanOut << "0, 0, " << pCart0[0] << ", " << pCart0[1] << ", " << pCart0[2] << ", " << vCart0[0] << ", " << vCart0[1] << ", " << vCart0[2]           << std::endl;
 
+    //std::cout << "Begin: idx= " << idx << " pt= " << p0 << std::endl;
+    std::ostringstream filename;
+    filename << "steps." << std::setw(3) << std::setfill('0') << idx << ".txt";
+    std::ofstream fout(filename.str());
+    fout << "IT, XIND, X, Y, Z, REGION" << std::endl;
+    fout << "0, " << idx << ", " << p0[0] << ", " << (int)p0[1] << ", " << p0[2] << ", " << region << std::endl;
+
     for (viskores::Id step = 1; region == 0 && step < this->MaxSteps; step++)
     {
       viskores::Vec3f p1, tan0, tan1;
       this->RK4Step(p0, boutppField, cells3D, p1, tan0, tan1);
       auto xind = this->LinearInterpolate(boutppField.XArray, boutppField.XiArray, p1[0]);
-      if (p1[0] > this->grid2DBounds.X.Max)
+      //std::cout << "  ---> " << p1[0] << "  " << this->grid2DBounds.X << std::endl;
+      auto xdiffs0 = p1[0] - this->grid2DBounds.X.Max;
+      auto xdiffs1 = p1[0] - this->grid2DBounds.X.Min;
+      if (approxGT(p1[0], this->grid2DBounds.X.Max))
       {
         region = 12;
         //std::cout << "p1= " << p1 << " *** region 12" << std::endl;
         VISKORES_ASSERT(false);
       }
-      else if (p1[0] < this->grid2DBounds.X.Min)
+      else if (approxLT(p1[0], this->grid2DBounds.X.Min))
       {
         region = 11;
-        //std::cout << "p1= " << p1 << " *** region 11" << std::endl;
-        VISKORES_ASSERT(false);
+        std::cout << idx << ": p1= " << p1 << " *** region 11" << " step= " << step << std::endl;
+        fout << ".  ***** xdelta = " << p1[0] - this->grid2DBounds.X.Min << std::endl;
       }
       else
       {
@@ -253,6 +276,16 @@ public:
                 if (xind > static_cast<double>(opts.ixsep1) + 0.5)
                     region = 1;
                 */
+      }
+      if (direction == 1 && p1[1] == this->grid2DBounds.Y.Max - 1)
+      {
+        // particle reaches the outer diverter.
+        region = 14;
+      }
+      else if (direction == -1 && p1[1] == 0)
+      {
+        // particle reaches the inner diverter.
+        region = 13;
       }
 
       //do zshift stuff.
@@ -290,6 +323,8 @@ public:
         validPuncs.Set(puncOffset + numPunc, true);
         numPunc++;
       }
+
+      fout << step << ", " << xind << ", " << p1[0] << ", " << (int)p1[1] << ", " << p1[2] << ", " << region << std::endl;
 
       p0 = p1;
       if (numPunc == this->MaxPunctures)

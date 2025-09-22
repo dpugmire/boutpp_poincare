@@ -109,18 +109,15 @@ public:
     this->nx_cfr = this->loader.getDim("nx_cfr");
     this->ny_cfr = this->loader.getDim("ny_cfr");
 
-    std::cout << "****** skipping scalars!!" << std::endl;
-    /*
-    this->ixseps1 = this->loader.readScalar("ixseps1");
-    this->ixseps2 = this->loader.readScalar("ixseps2");
+    this->ixseps1 = this->loader.readScalar("ixsep1");
+    this->ixseps2 = this->loader.readScalar("ixsep2");
     this->ixsep = this->ixseps1;
     this->jyseps1_1 = this->loader.readScalar("jyseps1_1");
     this->jyseps1_2 = this->loader.readScalar("jyseps1_2");
     this->jyseps2_1 = this->loader.readScalar("jyseps2_1");
     this->jyseps2_2 = this->loader.readScalar("jyseps2_2");
     this->nypf1 = this->jyseps1_1;
-    this->nypf2 = this->jyseps2_1;
-    */
+    this->nypf2 = this->jyseps2_2;
 
 
     this->rxy = this->loader.read2DVariable("rxy", transpose);
@@ -759,6 +756,8 @@ int main(int argc, char* argv[])
     viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagTBB{});
     std::cout << "Using TBB" << std::endl;
   }
+  else
+    viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagSerial{});
 
   trajsplineFid << "ID, STEP, X, Y, Z, REGION\n";
   trajOut << "ID, STEP, X, Y, Z, REGION, YI, ZSVALUE, ZVALUE" << std::endl;
@@ -789,11 +788,12 @@ int main(int argc, char* argv[])
   int divertor = 1; //single null
   double xind = 0.0f;
 
-  std::vector<double> LINES; // = {0, 50, 100, 150, 200, 250};
-  for (double x = x0; x < x1; x += dx)
+  std::vector<viskores::FloatDefault> LINES; // = {0, 50, 100, 150, 200, 250};
+  for (viskores::FloatDefault x = x0; x < x1; x += dx)
     LINES.push_back(x);
-  int nturns = 50;
-  nturns = 50;
+  //LINES = { 0, 1, 2 };
+  int nturns = 20;
+
   //LINES = {149};
   //LINES = { 0, 50, 100, 150, 200, 250 };
   //LINES = { 190 };
@@ -818,9 +818,11 @@ int main(int argc, char* argv[])
   if (doVTKm)
   {
     std::vector<viskores::Vec3f> points;
+    int idx = 0;
     for (const auto& iline : LINES)
     {
-      xind = static_cast<double>(iline);
+      xind = static_cast<viskores::FloatDefault>(iline);
+      std::cout << "idx: " << idx++ << " xind= " << xind << std::endl;
       int yyy = opts.jyomp;
       int yStart = opts.jyomp;
       int zzz = 0;
@@ -865,6 +867,7 @@ int main(int argc, char* argv[])
 
     viskores::cont::Invoker invoker;
     auto inPts = viskores::cont::make_ArrayHandle<viskores::Vec3f>(points, viskores::CopyFlag::On);
+    auto xinds = viskores::cont::make_ArrayHandle<viskores::FloatDefault>(LINES, viskores::CopyFlag::On);
     viskores::cont::ArrayHandle<viskores::FloatDefault> dxdyField, dzdyField, rxyField, zShiftField;
     viskores::cont::ArrayHandle<viskores::Vec3f> result, tangent;
     grid3D.GetField("dxdy").GetData().AsArrayHandle<viskores::FloatDefault>(dxdyField);

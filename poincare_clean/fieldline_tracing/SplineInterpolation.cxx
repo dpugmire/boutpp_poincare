@@ -39,7 +39,8 @@ viskores::FloatDefault interp2Spline(const std::vector<viskores::FloatDefault>& 
   //std::vector<tsReal> result = net.result();
 
   //return result[2]; // Return interpolated Z value
-  #endif
+#endif
+  return 0.0f;
 }
 
 viskores::FloatDefault alglib_spline(const std::vector<viskores::FloatDefault>& x,
