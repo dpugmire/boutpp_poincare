@@ -153,27 +153,3 @@ private:
   // Helper for 2D spline coefficients
   void compute2DSplineCoefficients();
 };
-
-
-class Spline
-{
-public:
-  // Constructor for 1D interpolation
-  Spline(const std::vector<viskores::Vec3f>& pts);
-
-  // Evaluate 1D interpolation
-  viskores::Vec3f Evaluate(viskores::FloatDefault t) const;
-
-private:
-  std::vector<viskores::FloatDefault> T;
-  std::vector<viskores::Vec3f> Points;
-  std::vector<viskores::Vec3f> A, B, C, D;
-  //std::vector<viskores::FloatDefault> X, Y, Z;
-  //std::vector<viskores::FloatDefault> A[3], B[3], C[3], D[3];
-
-  // Helper for 1D spline coefficients
-  void ComputeSplineCoefficients();
-
-  // Helper for 1D evaluation
-  size_t FindInterval(viskores::FloatDefault val) const;
-};

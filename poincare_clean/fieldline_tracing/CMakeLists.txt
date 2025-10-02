@@ -8,7 +8,7 @@ find_package(Viskores REQUIRED QUIET)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(fieldline_tracing_vtkm fieldline_tracing_vtkm.cxx SplineInterpolation.cxx NetCDFLoader.cxx RK4_vtkm.cxx Evaluation.cxx)
+add_executable(fieldline_tracing_vtkm fieldline_tracing_vtkm.cxx SplineInterpolation.cxx Spline.cxx NetCDFLoader.cxx RK4_vtkm.cxx Evaluation.cxx)
 
 
 # Allow user-specified paths to override
@@ -27,3 +27,10 @@ target_include_directories(fieldline_tracing_vtkm PRIVATE ${NETCDF_INCLUDE_DIR})
 
 target_link_libraries(fieldline_tracing_vtkm ${NETCDF_LIBRARIES})
 target_link_libraries(fieldline_tracing_vtkm viskores::cont viskores::io viskores::filter_resampling)
+
+
+add_executable(test_spline test_spline.cxx Spline.cxx)
+target_link_libraries(test_spline viskores::cont viskores::io viskores::filter_resampling)
+
+add_executable(test_spline3d test_spline3d.cxx Spline.cxx)
+target_link_libraries(test_spline3d viskores::cont viskores::io viskores::filter_resampling)

@@ -2,6 +2,7 @@
 #include "NetCDFLoader.h"
 #include "RK4.h"
 #include "RK4_vtkm.h"
+#include "Spline.h"
 #include "SplineInterpolation.h"
 #include <chrono>
 #include <cmath>
@@ -36,6 +37,32 @@ std::ofstream trajOut("./traj.v.txt", std::ofstream::out);
 std::ofstream tanOut("./tan.v.txt", std::ofstream::out);
 std::ofstream stepOut("./steps.v.txt", std::ofstream::out);
 std::ofstream rk4Out("./rk4.v.txt", std::ofstream::out);
+
+
+template <typename T>
+void printArray(const std::string& name, const T& arr)
+{
+  std::cout << name << ": [";
+  auto n = arr.GetNumberOfValues();
+  auto portal = arr.ReadPortal();
+  for (size_t i = 0; i < n; ++i)
+  {
+    std::cout << portal.Get(i);
+    if (i < n - 1)
+      std::cout << ", ";
+  }
+  //arr.PrintSummary(std::cout);
+  /*
+  for (size_t i = 0; i < arr.size(); i++)
+  {
+    std::cout << arr[i];
+    if (i < arr.size() - 1)
+      std::cout << ", ";
+  }
+      */
+  std::cout << "]" << std::endl;
+}
+
 
 double double_mod(double val, double mod_base)
 {
@@ -118,6 +145,8 @@ public:
     this->jyseps2_2 = this->loader.readScalar("jyseps2_2");
     this->nypf1 = this->jyseps1_1;
     this->nypf2 = this->jyseps2_2;
+    this->zperiod = this->loader.readScalar("zperiod");
+    this->zperiod = 1;
 
 
     this->rxy = this->loader.read2DVariable("rxy", transpose);
@@ -392,16 +421,16 @@ public:
   double zmin = 0.0;
   double zmax = 2.0 * M_PI;
   double dz;
-  int zperiod = 1;
-  int jyseps1_1 = 16;
+  int zperiod = -1;
+  int jyseps1_1 = -1;
   int jyseps1_2 = -1;
   int jyseps2_1 = -1;
-  int jyseps2_2 = 112;
-  int ixseps1 = 195;
-  int ixseps2 = 260;
-  int ixsep = 195;
-  int nypf1 = 16;
-  int nypf2 = 112;
+  int jyseps2_2 = -1;
+  int ixseps1 = -1;
+  int ixseps2 = -1;
+  int ixsep = -1;
+  int nypf1 = -1;
+  int nypf2 = -1;
 
   int direction = 1;
 
@@ -568,7 +597,169 @@ std::vector<viskores::Vec3f> ConvertToXYZSpace(const Options& opts, int iline, i
   return ptsXYZ;
 }
 
-std::vector<viskores::Vec3f> FindPunctures(const std::vector<viskores::Id>& ids, const std::vector<viskores::Vec3f>& ptsXYZ, bool dumpPts)
+
+
+viskores::Vec3f Conv(const BoutppField& boutppField, const Options& opts, const viskores::Vec3f& pt)
+{
+  int yi = pt[1];
+  std::vector<double> rxy_column(opts.rxy.size());
+  for (size_t i = 0; i < opts.rxy.size(); ++i)
+    rxy_column[i] = opts.rxy[i][yi];
+  std::vector<double> zShift_column(opts.zShift.size());
+  for (size_t i = 0; i < opts.zShift.size(); ++i)
+    zShift_column[i] = opts.zShift[i][yi];
+
+  auto xind = pt[0];
+  auto yind = pt[1];
+  auto zind = pt[2];
+
+  viskores::Vec3f pp;
+  return pp;
+}
+
+class ToCartesian : public viskores::worklet::WorkletMapField
+{
+public:
+  using ControlSignature = void(FieldIn, ExecObject, WholeCellSetIn<> cells3D, WholeCellSetIn<> cells2D, FieldOut);
+  using ExecutionSignature = void(InputIndex, _1, _2, _3, _4, _5);
+  using InputDomain = _1;
+
+  ToCartesian() {}
+  template <typename T, typename BoutppFieldType, typename CellSet3DType, typename CellSet2DType>
+  VISKORES_EXEC void operator()(const viskores::Id& idx,
+                                const T& input,
+                                const BoutppFieldType& boutppField,
+                                const CellSet3DType& cells3D,
+                                const CellSet2DType& cells2D,
+                                T& output) const
+  {
+    auto xind = input[0];
+    auto yind = input[1];
+    auto z = input[2];
+    //DRP Fix me.....
+    if (z > 319.0)
+      z = 318.9;
+    auto xval = this->LinearInterpolate(boutppField.XiArray, boutppField.XArray, xind);
+
+    viskores::Vec3f ptXY(xval, yind, 0.0f);
+
+
+    auto rxy = this->EvaluateLinear(ptXY, boutppField, boutppField.rxy, cells2D);
+    auto zxy = this->EvaluateLinear(ptXY, boutppField, boutppField.zxy, cells2D);
+    auto zvalue = this->LinearInterpolate(boutppField.ZiArray, boutppField.ZArray, z);
+    auto zsvalue = this->EvaluateLinear(ptXY, boutppField, boutppField.zShift, cells2D);
+
+    viskores::FloatDefault x3d = rxy * std::cos(zsvalue) * std::cos(zvalue) - rxy * std::sin(zsvalue) * std::sin(zvalue);
+    viskores::FloatDefault y3d = rxy * std::cos(zsvalue) * std::sin(zvalue) + rxy * std::sin(zsvalue) * std::cos(zvalue);
+    viskores::FloatDefault z3d = zxy;
+    output[0] = x3d;
+    output[1] = y3d;
+    output[2] = z3d;
+    //auto zvalue = this->LinearInterpolate(boutppField.ZiArray, boutppField.ZArray, zind);
+  }
+
+  template <typename FieldType1, typename FieldType2>
+  VISKORES_EXEC viskores::FloatDefault LinearInterpolate(const FieldType1& x, const FieldType2& y, const viskores::FloatDefault val) const
+  {
+    // Perform binary search to find the interval.
+    viskores::Id size = x.GetNumberOfValues();
+    viskores::Id low = 0;
+    viskores::Id high = size - 1;
+
+    while (low <= high)
+    {
+      viskores::Id mid = low + (high - low) / 2;
+
+      if (val >= x.Get(mid) && val <= x.Get(mid + 1))
+      {
+        auto x1 = x.Get(mid);
+        auto x2 = x.Get(mid + 1);
+        auto y1 = y.Get(mid);
+        auto y2 = y.Get(mid + 1);
+
+        auto result = y1 + (y2 - y1) * (val - x1) / (x2 - x1);
+        return result;
+      }
+      else if (val < x.Get(mid))
+        high = mid - 1;
+      else
+        low = mid + 1;
+    }
+
+    // Handle edge cases if the value is outside the range
+    auto x1 = x.Get(0);
+    auto x2 = x.Get(size - 1);
+    auto y1 = y.Get(0);
+    auto y2 = y.Get(size - 1);
+
+    auto result = y1 + (y2 - y1) * (val - x1) / (x2 - x1);
+    return result;
+  }
+
+  template <typename BoutppFieldType, typename ArrayType, typename CellSetType>
+  VISKORES_EXEC viskores::FloatDefault EvaluateLinear(const viskores::Vec3f& pt,
+                                                      BoutppFieldType& boutppField,
+                                                      const ArrayType& field,
+                                                      const CellSetType& cells) const
+  {
+    viskores::UInt8 cellShape;
+    viskores::Vec3f parametric;
+    viskores::IdComponent numVerts;
+    viskores::VecVariable<viskores::Id, 8> ptIndices;
+
+    this->Locate(pt, boutppField, cells, cellShape, numVerts, ptIndices, parametric);
+    viskores::VecVariable<viskores::FloatDefault, 8> ptVals;
+    for (viskores::IdComponent i = 0; i < numVerts; i++)
+      ptVals.Append(field.Get(ptIndices[i]));
+
+    viskores::FloatDefault val;
+    auto status = viskores::exec::CellInterpolate(ptVals, parametric, cellShape, val);
+
+    if (status != viskores::ErrorCode::Success)
+      this->RaiseError("Evaluate failed.");
+    return val;
+  }
+
+
+  template <typename BoutppFieldType, typename CellSetType>
+  VISKORES_EXEC bool Locate(const viskores::Vec3f& pt,
+                            BoutppFieldType& boutppField,
+                            const CellSetType& cells,
+                            viskores::UInt8& cellShape,
+                            viskores::IdComponent& numVerts,
+                            viskores::VecVariable<viskores::Id, 8>& ptIndices,
+                            viskores::Vec3f& parametric) const
+  {
+    viskores::Id cellId;
+    boutppField.Locator3D.FindCell(pt, cellId, parametric);
+    if (cellId == -1)
+    {
+      auto pt1 = pt - viskores::Vec3f(0, 1e-5, 0);
+      auto pt2 = pt + viskores::Vec3f(0, 1e-5, 0);
+      if (boutppField.Locator3D.IsInside(pt1))
+        boutppField.Locator3D.FindCell(pt1, cellId, parametric);
+      else if (boutppField.Locator3D.IsInside(pt2))
+        boutppField.Locator3D.FindCell(pt2, cellId, parametric);
+      else
+      {
+        VISKORES_ASSERT(false);
+        return false;
+      }
+    }
+
+    cellShape = cells.GetCellShape(cellId).Id;
+    numVerts = cells.GetNumberOfIndices(cellId);
+    ptIndices = cells.GetIndices(cellId);
+    return true;
+  }
+};
+
+std::vector<viskores::Vec3f> FindPunctures(const BoutppField& boutppField,
+                                           const Options& opts,
+                                           const std::vector<viskores::Id>& ids,
+                                           const std::vector<viskores::Vec3f>& ptsXYZ,
+                                           const std::vector<viskores::Vec3f>& ptsIdx,
+                                           bool dumpPts)
 {
   std::size_t n = ptsXYZ.size();
   viskores::FloatDefault t = 0.0;
@@ -583,9 +774,11 @@ std::vector<viskores::Vec3f> FindPunctures(const std::vector<viskores::Id>& ids,
   }
 
   //SplineInterpolation splineX(tVals, xVals), splineY(tVals, yVals), splineZ(tVals, zVals);
-  std::vector<viskores::Vec3f> punctures;
-  Spline spl(ptsXYZ);
+  std::vector<viskores::Vec3f> punctures, puncturesIndex;
+  SplineORIG spl(ptsXYZ), splIdx(ptsIdx);
+  //ParametricSpline3D spl(ptsXYZ), splIdx(ptsIdx);
 
+  int pcnt = 0;
   for (std::size_t i = 1; i < n; i++)
   {
     const auto& p0 = ptsXYZ[i - 1];
@@ -595,6 +788,9 @@ std::vector<viskores::Vec3f> FindPunctures(const std::vector<viskores::Id>& ids,
 
     if (p0[1] < 0.0 || p1[1] < 0.0)
       continue;
+    const auto& pi0 = ptsIdx[i - 1];
+    const auto& pi1 = ptsIdx[i];
+    //std::cout << i << " Punc: " << pcnt << std::endl;
 
     //crosses the x=0 plane between i-1 and i.
     viskores::FloatDefault t0 = static_cast<viskores::FloatDefault>(i - 1);
@@ -625,18 +821,71 @@ std::vector<viskores::Vec3f> FindPunctures(const std::vector<viskores::Id>& ids,
     viskores::FloatDefault tVal = (t0 + t1) / 2.0;
     //viskores::Vec3f pt(splineX.evaluate(tVal), splineY.evaluate(tVal), splineZ.evaluate(tVal));
     auto pt = spl.Evaluate(tVal);
+    auto ptIdx = splIdx.Evaluate(tVal);
+    puncturesIndex.push_back(ptIdx);
+    pcnt++;
+
+    /*
+    Point _p;
+    _p.traj1 = 0;
+    _p.traj2 = ptIdx[0];
+    _p.traj3 = ptIdx[1];
+    _p.traj5 = 0;
+    _p.traj7 = ptIdx[2];
+    std::vector<Point> _pts = { _p };
+    auto ptXYZ = ConvertToXYZSpace(opts, 50, 50, 0, _pts);
+    std::cout << " ---> " << pt << std::endl;
+    */
     if (viskores::Abs(pt[0]) > 10.0 * viskores::Epsilon<viskores::FloatDefault>())
     {
       //VISKORES_ASSERT(false);
       std::cout << "********* Intersection point didn't converge: " << pt[0] << " idx= " << stop_idx << " t: " << t0 << " " << t1 << std::endl;
     }
+
+    //convert point in xind,yind,zind space to cartesian.
     if (dumpPts)
+    {
       puncSplineFid << ids[i] << ", " << tVal << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
+      //puncSplineFid << ids[i] << ", " << tVal << ", " << ptIdx[0] << ", " << ptIdx[1] << ", " << ptIdx[2] << std::endl;
+    }
     punctures.push_back(pt);
+
+    t0 = static_cast<viskores::FloatDefault>(0);
+    t1 = static_cast<viskores::FloatDefault>(ptsXYZ.size() - 1);
+    auto dt = (t1 - t0) / 10000.f;
+    //dt = 0.005;
+    auto t = t0;
+    while (t < t1)
+    {
+      auto p = spl.Evaluate(t);
+      trajsplineFid << ids[i] << ", " << t << ", " << p[0] << ", " << p[1] << ", " << p[2] << ", " << -1 << std::endl;
+      t += dt;
+    }
   }
 
   return punctures;
+
+#if 0
+  auto puncturesIndexAH = viskores::cont::make_ArrayHandle<viskores::Vec3f>(puncturesIndex, viskores::CopyFlag::On);
+  viskores::cont::ArrayHandle<viskores::Vec3f> puncturesCartesian;
+  viskores::cont::Invoker invoker;
+  ToCartesian worklet;
+  invoker(worklet, puncturesIndexAH, boutppField, opts.Grid3D.GetCellSet(), opts.Grid2D.GetCellSet(), puncturesCartesian);
+
+  std::vector<viskores::Vec3f> puncXYZ;
+  auto portal = puncturesCartesian.ReadPortal();
+  for (viskores::Id i = 0; i < portal.GetNumberOfValues(); i++)
+  {
+    auto pt = portal.Get(i);
+    puncXYZ.push_back(pt);
+    if (dumpPts)
+      puncSplineFid << ids[i] << ", " << i << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
+  }
+
+  return puncXYZ;
+#endif
 }
+
 class EvaluateSplineWorklet : public viskores::worklet::WorkletMapField
 {
 public:
@@ -760,7 +1009,7 @@ int main(int argc, char* argv[])
     viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagSerial{});
 
   trajsplineFid << "ID, STEP, X, Y, Z, REGION\n";
-  trajOut << "ID, STEP, X, Y, Z, REGION, YI, ZSVALUE, ZVALUE" << std::endl;
+  trajOut << "ID, STEP, X, Y, Z" << std::endl;
   tanOut << "ID, STEP, X, Y, Z, VX, VY, VZ" << std::endl;
   rawPunc << "ID, STEP, X, Y, Z\n";
   puncFid << "ID, STEP, X, Y, Z\n";
@@ -789,16 +1038,19 @@ int main(int argc, char* argv[])
   double xind = 0.0f;
 
   std::vector<viskores::FloatDefault> LINES; // = {0, 50, 100, 150, 200, 250};
+  dx = 1.0;
   for (viskores::FloatDefault x = x0; x < x1; x += dx)
     LINES.push_back(x);
   //LINES = { 0, 1, 2 };
   int nturns = 20;
 
   //LINES = {149};
-  //LINES = { 0, 50, 100, 150, 200, 250 };
+  //LINES = { 10, 20, 30, 40, 50, 60 };
   //LINES = { 190 };
   //LINES = { 150.0, 150.1, 150.2, 150.3 };
   //LINES = { 50.0, 100.0, 150.0 };
+  LINES = { 1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 30, 40, 50, 55, 60 };
+  LINES = { 20 };
 
   std::vector<Point> Points;
 
@@ -863,13 +1115,15 @@ int main(int argc, char* argv[])
     worklet.nypf2 = opts.nypf2;
     worklet.ixsep1 = opts.ixseps1;
     worklet.ixsep2 = opts.ixseps2;
+    //printArray("ZiArray", opts.ZiArray);
+    //printArray("ZArray", opts.ZArray);
     BoutppField boutppField(opts.Grid3D, opts.Grid2D, opts.XiArray, opts.XArray, opts.YArray, opts.ZiArray, opts.ZArray, opts.ShiftAngle);
 
     viskores::cont::Invoker invoker;
     auto inPts = viskores::cont::make_ArrayHandle<viskores::Vec3f>(points, viskores::CopyFlag::On);
     auto xinds = viskores::cont::make_ArrayHandle<viskores::FloatDefault>(LINES, viskores::CopyFlag::On);
     viskores::cont::ArrayHandle<viskores::FloatDefault> dxdyField, dzdyField, rxyField, zShiftField;
-    viskores::cont::ArrayHandle<viskores::Vec3f> result, tangent;
+    viskores::cont::ArrayHandle<viskores::Vec3f> resultCart, resultIndex;
     grid3D.GetField("dxdy").GetData().AsArrayHandle<viskores::FloatDefault>(dxdyField);
     grid3D.GetField("dzdy").GetData().AsArrayHandle<viskores::FloatDefault>(dzdyField);
     grid2D.GetField("rxy").GetData().AsArrayHandle<viskores::FloatDefault>(rxyField);
@@ -880,38 +1134,52 @@ int main(int argc, char* argv[])
 
     viskores::cont::ArrayHandle<viskores::Id> puncIndices, pointIds;
     viskores::cont::ArrayHandle<bool> validSteps, validPuncs;
-    result.Allocate(inPts.GetNumberOfValues() * maxSteps);
-    tangent.Allocate(inPts.GetNumberOfValues() * maxSteps);
+    resultCart.Allocate(inPts.GetNumberOfValues() * maxSteps);
+    resultIndex.Allocate(inPts.GetNumberOfValues() * maxSteps);
     validSteps.AllocateAndFill(inPts.GetNumberOfValues() * maxSteps, false);
     validPuncs.AllocateAndFill(inPts.GetNumberOfValues() * maxPuncs, false);
     puncIndices.Allocate(inPts.GetNumberOfValues() * maxPuncs);
     pointIds.AllocateAndFill(inPts.GetNumberOfValues() * maxSteps, -1);
     //invoker(worklet, inPts, locator3D, grid3D.GetCellSet(), locator2D, grid2D.GetCellSet(), dxdyField, dzdyField, rxyField, zShiftField, puncIndices, result);
 
-    invoker(worklet, inPts, boutppField, grid3D.GetCellSet(), grid2D.GetCellSet(), puncIndices, pointIds, result, tangent, validPuncs, validSteps);
+    invoker(worklet,
+            inPts,
+            xinds,
+            boutppField,
+            grid3D.GetCellSet(),
+            grid2D.GetCellSet(),
+            puncIndices,
+            pointIds,
+            resultCart,
+            resultIndex,
+            validPuncs,
+            validSteps);
 
-    viskores::cont::ArrayHandle<viskores::Vec3f> validResult, validTangent;
+    viskores::cont::ArrayHandle<viskores::Vec3f> validCart, validIndex;
     viskores::cont::ArrayHandle<viskores::Id> validPuncIndices, validPointIds;
-    viskores::cont::Algorithm::CopyIf(result, validSteps, validResult);
-    viskores::cont::Algorithm::CopyIf(tangent, validSteps, validTangent);
+    viskores::cont::Algorithm::CopyIf(resultCart, validSteps, validCart);
+    viskores::cont::Algorithm::CopyIf(resultIndex, validSteps, validIndex);
     viskores::cont::Algorithm::CopyIf(puncIndices, validPuncs, validPuncIndices);
     viskores::cont::Algorithm::CopyIf(pointIds, validSteps, validPointIds);
     //viskores::cont::printSummary_ArrayHandle(validPuncIndices, std::cout, true);
     //viskores::cont::printSummary_ArrayHandle(validResult, std::cout, true);
     // do with splines.
-    std::vector<viskores::Vec3f> _points;
+    std::vector<viskores::Vec3f> _pointsCart, _pointsIdx;
     std::vector<viskores::Id> _ids;
-    for (viskores::Id i = 0; i < validResult.GetNumberOfValues(); i++)
+    for (viskores::Id i = 0; i < validCart.GetNumberOfValues(); i++)
     {
-      auto pt = validResult.ReadPortal().Get(i);
-      _points.push_back(pt);
+      auto pt = validCart.ReadPortal().Get(i);
+      _pointsCart.push_back(pt);
+      pt = validIndex.ReadPortal().Get(i);
+      _pointsIdx.push_back(pt);
       _ids.push_back(validPointIds.ReadPortal().Get(i));
+      trajOut << "0, " << i << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
     }
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
     std::cout << " NUM particles= " << LINES.size() << " numPunc= " << maxPuncs << std::endl;
-    auto puncs = FindPunctures(_ids, _points, true);
+    auto puncs = FindPunctures(boutppField, opts, _ids, _pointsCart, _pointsIdx, true);
     return 0;
 
 
@@ -933,9 +1201,9 @@ int main(int argc, char* argv[])
     //viskores::cont::printSummary_ArrayHandle(puncParams1, std::cout, true);
 
     //std::cout << "rs= " << validResult.GetNumberOfValues() << std::endl;
-    std::vector<viskores::FloatDefault> knots(validResult.GetNumberOfValues());
+    std::vector<viskores::FloatDefault> knots(resultCart.GetNumberOfValues());
     std::iota(knots.begin(), knots.end(), 0.0f);
-    trajSpline.SetData(validResult);
+    trajSpline.SetData(resultCart);
     //trajSpline.SetKnots(knots);
     //trajSpline.SetTangents(validTangent);
     viskores::cont::ArrayHandle<viskores::Vec3f> puncturePoints;
@@ -1191,7 +1459,7 @@ int main(int argc, char* argv[])
     auto PointsXYZ = ConvertToXYZSpace(opts, iline, id, region, Points);
     std::vector<viskores::Id> _lines;
     _lines.push_back(iline);
-    auto punctures = FindPunctures(_lines, PointsXYZ, true);
+    //auto punctures = FindPunctures(boutppField, _lines, PointsXYZ, {}, true);
     return 0;
   }
 }
