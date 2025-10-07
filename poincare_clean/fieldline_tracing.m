@@ -488,7 +488,7 @@ yiarray = (1:ny);
         yyy = jyomp;
         yStart = jyomp;
         zzz = 1;
-	      zStart = zarray(zzz);
+	    zStart = zarray(zzz);
 
         % declare trajectory and puncture points arrays for this field-line
         traj=zeros(7,nsteps);fl_x3d=zeros(nsteps,1);fl_y3d=zeros(nsteps,1);fl_z3d=zeros(nsteps,1);
