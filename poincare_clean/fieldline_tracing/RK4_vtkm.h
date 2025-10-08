@@ -254,6 +254,7 @@ public:
     //    tanOut << "0, 0, " << pCart0[0] << ", " << pCart0[1] << ", " << pCart0[2] << ", " << vCart0[0] << ", " << vCart0[1] << ", " << vCart0[2]           << std::endl;
     //std::cout << "Begin: idx= " << idx << " pt= " << p0 << std::endl;
 
+    int cnt = 0;
     for (viskores::Id step = 1; region < 10 && step < this->MaxSteps; step++)
     {
       bool inCFR =
@@ -382,6 +383,7 @@ public:
         viskores::FloatDefault puncStep;
         auto puncPt = this->FindPuncture(step, p0, p1, boutppField, cells2D, puncStep);
         result.Set(puncOffset + numPunc, puncPt);
+        resultStep.Set(puncOffset + numPunc, puncStep);
         rootPuncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << std::endl;
         puncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << ", 0.0, 0.0, 0.0" << std::endl;
         //std::cout << std::setprecision(5);
@@ -402,7 +404,10 @@ public:
         std::cout << idx << " Finished" << std::endl;
         break;
       }
+      cnt++;
     }
+
+    std::cout << "Done. region= " << region << " #punc= " << numPunc << " #steps= " << cnt << std::endl;
   }
 
 private:

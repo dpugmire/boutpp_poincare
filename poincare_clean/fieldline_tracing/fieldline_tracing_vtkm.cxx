@@ -1171,12 +1171,21 @@ int main(int argc, char* argv[])
     viskores::cont::ArrayHandle<bool> validPuncs;
     validPuncs.AllocateAndFill(inPts.GetNumberOfValues() * cliOpts.maxpunc, false);
 
+    //viskores::cont::printSummary_ArrayHandle(validPuncs, std::cout, true);
     invoker(worklet, inPts, xinds, boutppField, grid3D.GetCellSet(), grid2D.GetCellSet(), validPuncs, result, resultStep, resultIndices);
+    //viskores::cont::printSummary_ArrayHandle(validPuncs, std::cout, true);
 
     viskores::cont::ArrayHandle<viskores::Vec3f> validResult;
     viskores::cont::ArrayHandle<viskores::Id> validResultIndices;
+    viskores::cont::ArrayHandle<viskores::FloatDefault> validStep;
+
+    //viskores::cont::printSummary_ArrayHandle(resultStep, std::cout, true);
+
     viskores::cont::Algorithm::CopyIf(result, validPuncs, validResult);
+    viskores::cont::Algorithm::CopyIf(resultStep, validPuncs, validStep);
+
     viskores::cont::Algorithm::CopyIf(resultIndices, validPuncs, validResultIndices);
+    std::cout << "******** " << result.GetNumberOfValues() << " ----> " << validResult.GetNumberOfValues() << std::endl;
 
 //viskores::cont::Algorithm::CopyIf(pointIds, validSteps, validPointIds);
 //viskores::cont::printSummary_ArrayHandle(validPuncIndices, std::cout, true);
@@ -1201,11 +1210,15 @@ int main(int argc, char* argv[])
     std::cout << " NUM particles= " << cliOpts.xind.size() << " numPunc= " << cliOpts.maxpunc << std::endl;
 
     //output all punctures.
-    for (viskores::Id i = 0; i < validPuncs.GetNumberOfValues(); i++)
+    std::cout << "numValid puncs: " << validPuncs.GetNumberOfValues() << " # valid results " << validResult.GetNumberOfValues() << std::endl;
+    //viskores::cont::printSummary_ArrayHandle(validPuncs, std::cout, true);
+
+    for (viskores::Id i = 0; i < validResult.GetNumberOfValues(); i++)
     {
       auto pt = validResult.ReadPortal().Get(i);
+      auto step = validStep.ReadPortal().Get(i);
       auto id = validResultIndices.ReadPortal().Get(i);
-      puncSplineFid << id << ", " << id << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
+      puncSplineFid << id << ", " << step << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
     }
 
 
