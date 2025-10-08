@@ -229,15 +229,15 @@ public:
     viskores::Id puncOffset = idx * this->MaxPunctures;
     //resultCart.Set(stepOffset, p0);
     std::ostringstream oss;
-    oss << "steps." << std::setw(3) << std::setfill('0') << int(xind) << ".txt";
+    oss << "steps." << std::setw(3) << std::setfill('0') << int(idx) << ".txt";
     auto stepOut = std::ofstream(oss.str());
-    stepOut << "ID, STEP, X, Y, Z, REGION" << std::endl;
+    stepOut << "Xind0, STEP, X, Y, Z, REGION" << std::endl;
     stepOut << xind << ", " << 0 << ", " << p0[0] << ", " << p0[1] << ", " << p0[2] << ", " << region << std::endl;
     std::ostringstream oss2;
-    oss2 << "punc." << std::setw(3) << std::setfill('0') << int(xind) << ".txt";
+    oss2 << "punc." << std::setw(3) << std::setfill('0') << int(idx) << ".txt";
     std::cout << " ********** " << oss2.str() << std::endl;
     auto puncOut = std::ofstream(oss2.str());
-    puncOut << "ID, STEP, X, Y, Z, Rxy, Zxy, Zvalue" << std::endl;
+    puncOut << "Xind0, STEP, X, Y, Z, Rxy, Zxy, Zvalue" << std::endl;
 
     auto rootPuncOut = std::ofstream("rootPunc.v.txt");
     rootPuncOut << "ID, STEP, X, Y, Z" << std::endl;
@@ -360,8 +360,8 @@ public:
       zvalue = this->LinearInterpolate(boutppField.ZiArray, boutppField.ZArray, zind);
 
 
-      stepOut << xind << ", " << step << ", " << p1[0] << ", " << p1[1] << ", " << p1[2] << ", (" << zind << "), " << region << ", " << rxyVal << ", "
-              << zxyVal << ", " << zvalue << std::endl;
+      stepOut << xindIn << ", " << step << ", " << p1[0] << ", " << p1[1] << ", " << p1[2] << ", (" << zind << "), " << region << ", " << rxyVal
+              << ", " << zxyVal << ", " << zvalue << std::endl;
       //convert to cartesian.
       pCart0 = pCart1;
       viskores::Vec3f vCart;
@@ -761,7 +761,6 @@ private:
                              viskores::Vec3f& tangent1) const
   {
     constexpr double twoPi = 2.0 * M_PI;
-    //constexpr double h = 1.0;
     constexpr double h = 1.0;
     constexpr double hh = h / 2.0;
     constexpr double h6 = h / 6.0;

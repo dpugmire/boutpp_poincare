@@ -1,5 +1,5 @@
 #pragma once
-// cli_args.h  — header-only CLI parser for --xind, --maxpunc, --apar
+// cli_args.h — header-only CLI parser for --xind, --maxpunc, --apar
 // C++17
 
 #include <cmath> // std::lround
@@ -20,7 +20,7 @@ struct Options
   std::string apar;      // value from --apar (empty if not provided)
 };
 
-// ---------- helpers (header-only for templates) ----------
+// ---------- helpers ----------
 inline bool isOption(const std::string& s)
 {
   // Exactly two starting dashes means "option". A single dash (e.g., "-3") is a value.
@@ -91,20 +91,25 @@ inline T castVal(double v)
   }
 }
 
+// Floating linspace with EXACTLY `count` samples, including endpoints.
+// For count <= 0: error; for count == 1: returns {a}.
 template <typename T>
-inline std::vector<T> linspace(double a, double b, long interior)
+inline std::vector<T> linspaceCount(double a, double b, long count)
 {
-  // total points = interior + 2; endpoints included
-  const long total = interior + 2;
+  if (count < 0)
+    throw std::runtime_error("linspace count must be >= 0");
   std::vector<T> out;
-  out.reserve(static_cast<size_t>(total));
-  if (total <= 1)
+  if (count == 0)
+    return out;
+  if (count == 1)
   {
     out.push_back(castVal<T>(a));
     return out;
   }
-  const double n = static_cast<double>(total - 1);
-  for (long i = 0; i < total; ++i)
+
+  out.reserve(static_cast<size_t>(count));
+  const double n = static_cast<double>(count - 1);
+  for (long i = 0; i < count; ++i)
   {
     const double t = static_cast<double>(i) / n;
     const double v = (1.0 - t) * a + t * b;
@@ -190,14 +195,14 @@ inline void parseArgs(int argc, char** argv, Options<T>& opts)
         opts.xind = makeIntegerRange<T>(i0, i1);
       }
       else
-      { // 3
-        // --xind x0 x1 n -> n interior points (total n+2), include endpoints
+      { // 3 values
+        // --xind x0 x1 n -> EXACTLY n values between x0 and x1, endpoints included
         const double x0 = parseDouble(vals[0], "--xind");
         const double x1 = parseDouble(vals[1], "--xind");
         const long n = parseLong(vals[2], "--xind n");
         if (n < 0)
           throw std::runtime_error("--xind: n must be >= 0");
-        opts.xind = linspace<T>(x0, x1, n);
+        opts.xind = linspaceCount<T>(x0, x1, n);
       }
 
       opts.haveXind = true;

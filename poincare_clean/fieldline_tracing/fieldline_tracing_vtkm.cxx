@@ -216,6 +216,7 @@ public:
 
     this->init_array(this->yiarray_cfr, this->nypf1 + 1 - 1, this->nypf2 + 2 - 1);
 
+    writeArray1DToFile(this->xiarray, "xiarray");
     writeArray1DToFile(this->xiarray_cfr, "xiarray_cfr");
     writeArray1DToFile(this->yiarray_cfr, "yiarray_cfr");
     writeArray2DToFile(this->zShift_cfr, "zshift_cfr");
@@ -507,6 +508,8 @@ double INTERP(const std::vector<double>& X, const std::vector<double>& Y, double
 
   return y_i;
 }
+
+
 
 void dumpTrajSamples(int iline, const std::vector<viskores::Vec3f>& points)
 {
@@ -1002,13 +1005,43 @@ struct SubOneFunctor
   VISKORES_EXEC viskores::FloatDefault operator()(viskores::FloatDefault x) const { return x - 1.0f; }
 };
 
+// Interpolate psixy[i][j] along i (x-index). i in [0..nx-1], j in [0..ny-1].
+template <typename T>
+inline T IndexInterp(const std::vector<std::vector<T>>& psixy, double xind, int jy)
+{
+  static_assert(std::is_arithmetic<T>::value, "T must be arithmetic");
+
+  const size_t nx = psixy.size();
+  if (nx == 0)
+    throw std::invalid_argument("psixy has zero rows");
+  if (jy < 0 || psixy[0].empty() || static_cast<size_t>(jy) >= psixy[0].size())
+    throw std::out_of_range("jy out of range");
+
+  // Clamp to edges
+  if (xind <= 0.0)
+    return psixy[0][static_cast<size_t>(jy)];
+  if (xind >= double(nx - 1))
+    return psixy[nx - 1][static_cast<size_t>(jy)];
+
+  const size_t i0 = static_cast<size_t>(std::floor(xind));
+  const size_t i1 = i0 + 1;
+  const double t = xind - double(i0); // in [0,1)
+
+  using U = typename std::common_type<T, double>::type; // widen for math
+  const U v0 = static_cast<U>(psixy[i0][static_cast<size_t>(jy)]);
+  const U v1 = static_cast<U>(psixy[i1][static_cast<size_t>(jy)]);
+  const U v = v0 + static_cast<U>(t) * (v1 - v0);
+  return static_cast<T>(v);
+}
 
 //./fieldline_tracing_vtkm 180 200 10 100
 int main(int argc, char* argv[])
 {
   cli::Options<viskores::FloatDefault> cliOpts;
   cli::parseArgs<viskores::FloatDefault>(argc, argv, cliOpts);
+  std::cout << "Options: " << std::endl;
   printArray("xind: ", cliOpts.xind);
+  std::cout << std::endl << std::endl;
   std::cout << "apar:: " << cliOpts.apar << std::endl;
   std::cout << "maxPunc:: " << cliOpts.maxpunc << std::endl;
   bool doVTKm = true;
@@ -1040,7 +1073,7 @@ int main(int argc, char* argv[])
   rawPunc << "ID, STEP, X, Y, Z\n";
   puncFid << "ID, STEP, X, Y, Z\n";
   puncFid2 << "ID, STEP, X, Y, Z\n";
-  puncSplineFid << "ID, STEP, X, Y, Z\n";
+  puncSplineFid << "Xind0, STEP, X, Y, Z\n";
   punc_ip_Fid << "ID, STEP, X, Y, Z\n";
   stepOut << "ID, STEP, X, Y, Z\n";
   rk4Out << "ID, STEP, X, Y, Z\n";
@@ -1094,8 +1127,10 @@ int main(int argc, char* argv[])
       auto zStart = opts.zarray[zzz];
       //std::cout << "**** xind= " << xind << " opts.jyomp= " << opts.jyomp << " zStart= " << zStart << std::endl;
       std::cout << "xind= " << (int)xind << " jyomp= " << opts.jyomp << " dims: " << opts.psixy.size() << " " << opts.psixy[0].size() << std::endl;
-      double xStart = opts.psixy[static_cast<int>(xind)][opts.jyomp];
+      //double xStart = opts.psixy[static_cast<int>(xind)][opts.jyomp];
+
       //double xStart2 = scalarField2DEval(opts.Grid2D, "psixy", viskores::Vec3f(xind, (double)yStart, 0));
+      auto xStart = IndexInterp(opts.psixy, xind, opts.jyomp);
 
       //int yind = yStart;
       //double zind = INTERP(opts.zarray, opts.ziarray, zStart);
@@ -1138,6 +1173,7 @@ int main(int argc, char* argv[])
     viskores::cont::Invoker invoker;
     auto inPts = viskores::cont::make_ArrayHandle<viskores::Vec3f>(points, viskores::CopyFlag::On);
     auto xinds = viskores::cont::make_ArrayHandle<viskores::FloatDefault>(cliOpts.xind, viskores::CopyFlag::On);
+    viskores::cont::printSummary_ArrayHandle(xinds, std::cout, true);
     viskores::cont::ArrayHandle<viskores::FloatDefault> dxdyField, dzdyField, rxyField, zShiftField;
     viskores::cont::ArrayHandle<viskores::Vec3f> puncturesCart, resultIndex;
     grid3D.GetField("dxdy").GetData().AsArrayHandle<viskores::FloatDefault>(dxdyField);
@@ -1165,7 +1201,7 @@ int main(int argc, char* argv[])
     result.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
     resultStep.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
 
-    viskores::cont::ArrayHandle<viskores::Id> resultIndices;
+    viskores::cont::ArrayHandle<viskores::FloatDefault> resultIndices;
     resultIndices.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
 
     viskores::cont::ArrayHandle<bool> validPuncs;
@@ -1176,7 +1212,7 @@ int main(int argc, char* argv[])
     //viskores::cont::printSummary_ArrayHandle(validPuncs, std::cout, true);
 
     viskores::cont::ArrayHandle<viskores::Vec3f> validResult;
-    viskores::cont::ArrayHandle<viskores::Id> validResultIndices;
+    viskores::cont::ArrayHandle<viskores::FloatDefault> validResultIndices;
     viskores::cont::ArrayHandle<viskores::FloatDefault> validStep;
 
     //viskores::cont::printSummary_ArrayHandle(resultStep, std::cout, true);
@@ -1217,8 +1253,8 @@ int main(int argc, char* argv[])
     {
       auto pt = validResult.ReadPortal().Get(i);
       auto step = validStep.ReadPortal().Get(i);
-      auto id = validResultIndices.ReadPortal().Get(i);
-      puncSplineFid << id << ", " << step << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
+      auto x0 = validResultIndices.ReadPortal().Get(i);
+      puncSplineFid << x0 << ", " << step << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
     }
 
 
