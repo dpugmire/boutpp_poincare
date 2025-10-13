@@ -332,6 +332,31 @@ public:
     this->ZArray = viskores::cont::make_ArrayHandle(this->zarray, viskores::CopyFlag::On);
     this->ZiArray = viskores::cont::make_ArrayHandle(this->ziarray, viskores::CopyFlag::On);
     this->ShiftAngle = viskores::cont::make_ArrayHandle(this->shiftAngle, viskores::CopyFlag::On);
+
+    this->ComputeCenter();
+  }
+
+  void ComputeCenter()
+  {
+    //Compute the center of the 2D plane.
+    auto jStart = this->nypf1;
+    auto jEnd = (this->ny - this->nypf1) - 1;
+    const viskores::Id i = 0;
+    viskores::Range rRange, zRange;
+    const auto rxyPortal =
+      this->Grid2D.GetPointField("rxy").GetData().AsArrayHandle<viskores::cont::ArrayHandle<viskores::FloatDefault>>().ReadPortal();
+    const auto zxyPortal =
+      this->Grid2D.GetPointField("zxy").GetData().AsArrayHandle<viskores::cont::ArrayHandle<viskores::FloatDefault>>().ReadPortal();
+    for (viskores::Id j = jStart; j <= jEnd; j++)
+    {
+      const auto rv = rxyPortal.Get(i + j * this->nx);
+      const auto zv = zxyPortal.Get(i + j * this->nx);
+      rRange.Include(rv);
+      zRange.Include(zv);
+    }
+    this->center[0] = 0.5 * (rRange.Min + rRange.Max);
+    this->center[1] = 0.5 * (zRange.Min + zRange.Max);
+    std::cout << "******************* Center of 2D plane: " << this->center << std::endl;
   }
 
   void AddField(const std::vector<std::vector<double>>& vals, const std::string& fieldName, viskores::cont::DataSet& ds)
@@ -472,8 +497,8 @@ public:
   viskores::cont::ArrayHandle<viskores::FloatDefault> XArray, YArray, ZArray;
   viskores::cont::ArrayHandle<viskores::FloatDefault> XiArray, YiArray, ZiArray;
   viskores::cont::ArrayHandle<viskores::FloatDefault> ShiftAngle;
+  viskores::Vec2f center;
 };
-
 
 
 double INTERP(const std::vector<double>& X, const std::vector<double>& Y, double val)
@@ -1034,6 +1059,15 @@ inline T IndexInterp(const std::vector<std::vector<T>>& psixy, double xind, int 
   return static_cast<T>(v);
 }
 
+viskores::FloatDefault ComputeTheta(const viskores::Vec2f& center, const viskores::Vec2f& pt)
+{
+  auto d = pt - center;
+  auto theta = viskores::ATan2(d[1], d[0]);
+  if (theta < 0)
+    theta += 2.0 * viskores::Pi();
+  return theta;
+}
+
 //./fieldline_tracing_vtkm 180 200 10 100
 int main(int argc, char* argv[])
 {
@@ -1073,7 +1107,7 @@ int main(int argc, char* argv[])
   rawPunc << "ID, STEP, X, Y, Z\n";
   puncFid << "ID, STEP, X, Y, Z\n";
   puncFid2 << "ID, STEP, X, Y, Z\n";
-  puncSplineFid << "Xind0, STEP, X, Y, Z\n";
+  puncSplineFid << "Xind0, STEP, X, Y, Z, THETA, PSI\n";
   punc_ip_Fid << "ID, STEP, X, Y, Z\n";
   stepOut << "ID, STEP, X, Y, Z\n";
   rk4Out << "ID, STEP, X, Y, Z\n";
@@ -1166,6 +1200,7 @@ int main(int argc, char* argv[])
     worklet.divertor = opts.divertor;
     worklet.ny = opts.ny;
     worklet.direction = 1;
+    worklet.Center = opts.center;
     //printArray("ZiArray", opts.ZiArray);
     //printArray("ZArray", opts.ZArray);
     BoutppField boutppField(opts.Grid3D, opts.Grid2D, opts.XiArray, opts.XArray, opts.YArray, opts.ZiArray, opts.ZArray, opts.ShiftAngle);
@@ -1197,8 +1232,11 @@ int main(int argc, char* argv[])
 */
 
     viskores::cont::ArrayHandle<viskores::Vec3f> result;
+    viskores::cont::ArrayHandle<viskores::Vec2f> resultPsiTheta;
     viskores::cont::ArrayHandle<viskores::FloatDefault> resultStep;
     result.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
+    resultPsiTheta.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
+
     resultStep.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
 
     viskores::cont::ArrayHandle<viskores::FloatDefault> resultIndices;
@@ -1208,16 +1246,20 @@ int main(int argc, char* argv[])
     validPuncs.AllocateAndFill(inPts.GetNumberOfValues() * cliOpts.maxpunc, false);
 
     //viskores::cont::printSummary_ArrayHandle(validPuncs, std::cout, true);
-    invoker(worklet, inPts, xinds, boutppField, grid3D.GetCellSet(), grid2D.GetCellSet(), validPuncs, result, resultStep, resultIndices);
+    invoker(
+      worklet, inPts, xinds, boutppField, grid3D.GetCellSet(), grid2D.GetCellSet(), validPuncs, result, resultPsiTheta, resultStep, resultIndices);
     //viskores::cont::printSummary_ArrayHandle(validPuncs, std::cout, true);
 
     viskores::cont::ArrayHandle<viskores::Vec3f> validResult;
+    viskores::cont::ArrayHandle<viskores::Vec2f> validResultPsiTheta;
     viskores::cont::ArrayHandle<viskores::FloatDefault> validResultIndices;
     viskores::cont::ArrayHandle<viskores::FloatDefault> validStep;
 
     //viskores::cont::printSummary_ArrayHandle(resultStep, std::cout, true);
 
     viskores::cont::Algorithm::CopyIf(result, validPuncs, validResult);
+    viskores::cont::Algorithm::CopyIf(resultPsiTheta, validPuncs, validResultPsiTheta);
+
     viskores::cont::Algorithm::CopyIf(resultStep, validPuncs, validStep);
 
     viskores::cont::Algorithm::CopyIf(resultIndices, validPuncs, validResultIndices);
@@ -1252,9 +1294,12 @@ int main(int argc, char* argv[])
     for (viskores::Id i = 0; i < validResult.GetNumberOfValues(); i++)
     {
       auto pt = validResult.ReadPortal().Get(i);
+      auto psiTheta = validResultPsiTheta.ReadPortal().Get(i);
+      //psiTheta[1] = ComputeTheta(opts.center, viskores::Vec2f(pt[1], pt[2]));
       auto step = validStep.ReadPortal().Get(i);
       auto x0 = validResultIndices.ReadPortal().Get(i);
-      puncSplineFid << x0 << ", " << step << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << std::endl;
+      puncSplineFid << x0 << ", " << step << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << ", " << psiTheta[1] << ", " << psiTheta[0]
+                    << std::endl;
     }
 
 
