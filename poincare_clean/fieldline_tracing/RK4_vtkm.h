@@ -7,48 +7,12 @@
 #include <viskores/exec/CellInterpolate.h>
 #include <viskores/worklet/WorkletMapField.h>
 
-#include "tricubicInterpolator.h"
 #include <cmath>
 #include <iostream>
 #include <string>
 #include <utility>
 #include <vector>
 //static std::ofstream fout, puncout;
-
-static bool approxLT(viskores::FloatDefault a, viskores::FloatDefault b, viskores::FloatDefault tol = 1e-6)
-{
-  if (a < (b - tol))
-    return true;
-  return false;
-}
-static bool approxGT(viskores::FloatDefault a, viskores::FloatDefault b, viskores::FloatDefault tol = 1e-6)
-{
-  if (a > (b + tol))
-    return true;
-  return false;
-}
-
-void writeArray1DToFile(std::vector<double>& array, const std::string& fname);
-
-void writeArray2DToFile(std::vector<std::vector<double>>& array, const std::string& fname);
-
-void writeArray3DToFile(const std::vector<std::vector<std::vector<double>>>& array, const std::string& fname);
-
-viskores::Vec3f RK4_FLT1_vtkm(const viskores::Vec3f& pStart,
-                              const viskores::cont::DataSet& grid2D,
-                              const viskores::cont::DataSet& grid2D_cfr,
-                              const viskores::cont::DataSet& grid2D_xz,
-                              const viskores::cont::DataSet& grid3D,
-                              const viskores::cont::ArrayHandle<viskores::FloatDefault>& xarray,
-                              const viskores::cont::ArrayHandle<viskores::FloatDefault>& zarray,
-                              int region,
-                              int direction,
-                              int nypf1,
-                              int nypf2,
-                              std::ofstream& rk4Out,
-                              int iline,
-                              int it,
-                              bool dumpFiles);
 
 class BoutppFieldExecutionObject
 {
@@ -100,13 +64,6 @@ class BoutppField : public viskores::cont::ExecutionObjectBase
   using ArrayType = viskores::cont::ArrayHandle<viskores::FloatDefault>;
   using Structured2DType = viskores::cont::CellSetStructured<2>;
   using Structured3DType = viskores::cont::CellSetStructured<3>;
-  //using Structured3DType = viskores::exec::CellSetStructured<3>;
-  //using Structured2DType = viskores::exec::CellSetStructured<2>;
-  //using CellSet2DExecType = viskores::exec::CellSet<Structured2DType>;
-  //using CellSet3DExecType = viskores::exec::CellSet<Structured3DType>;
-  //using X2Type = viskores::exec::ConnectivityStructured<viskores::TopologyElementTagCell{}, viskores::TopologyElementTagPoint{}, 2>;
-  //using X3Type = viskores::exec::ConnectivityStructured<viskores::TopologyElementTagCell{}, viskores::TopologyElementTagPoint{}, 3>;
-
 
 public:
   BoutppField(const viskores::cont::DataSet& grid3D,
@@ -170,7 +127,6 @@ public:
   ArrayType ShiftAngle;
 };
 
-
 class RK4Worklet : public viskores::worklet::WorkletMapField
 {
 public:
@@ -179,15 +135,6 @@ public:
     , MaxSteps(maxSteps)
   {
   }
-
-  viskores::FloatDefault xMin, xMax;
-  viskores::Bounds grid3DBounds, grid2DBounds;
-  int ny;
-  int nypf1, nypf2;
-  int ixsep1, ixsep2;
-  int divertor;
-  int direction;
-  viskores::Vec2f Center;
 
   using ControlSignature = void(FieldIn points,
                                 FieldIn xind,
@@ -229,11 +176,8 @@ public:
     auto xind = xindIn;
     int region = this->GetRegion(xind, p0[1]);
 
-    this->ds2D.PrintSummary(std::cout);
-
     viskores::Id stepOffset = idx * this->MaxSteps;
     viskores::Id puncOffset = idx * this->MaxPunctures;
-    //resultCart.Set(stepOffset, p0);
     std::ostringstream oss;
     oss << "steps." << std::setw(3) << std::setfill('0') << int(idx) << ".txt";
     auto stepOut = std::ofstream(oss.str());
@@ -250,15 +194,9 @@ public:
 
     viskores::Vec3f pCart0, pCart1, vCart, pIndex0, pIndex1, junk;
 
-    //pCart0 = this->ConvertToCartesian(p0, boutppField, cells2D, 0, true);
     pCart0 = this->ToCartesian(p0, boutppField, cells2D);
-    //vCart0 = this->EvaluateTangent(p0, boutppField, cells2D);
 
     pIndex0 = this->ConvertToIndex(p0, boutppField, 0);
-    //resultIndex.Set(stepOffset, pIndex0);
-
-    //    tanOut << "0, 0, " << pCart0[0] << ", " << pCart0[1] << ", " << pCart0[2] << ", " << vCart0[0] << ", " << vCart0[1] << ", " << vCart0[2]           << std::endl;
-    //std::cout << "Begin: idx= " << idx << " pt= " << p0 << std::endl;
 
     int cnt = 0;
     for (viskores::Id step = 1; region < 10 && step < this->MaxSteps; step++)
@@ -271,14 +209,13 @@ public:
       this->RK4Step(p0, boutppField, cells3D, p1, tan0, tan1);
 
       bool inside = true;
-      if (approxGT(p1[0], this->grid2DBounds.X.Max))
+      if (this->ApproxGT(p1[0], this->grid2DBounds.X.Max))
       {
         region = 12;
         inside = false;
         std::cout << "p1= " << p1 << " *** region 12" << std::endl;
-        //VISKORES_ASSERT(false);
       }
-      else if (approxLT(p1[0], this->grid2DBounds.X.Min))
+      else if (this->ApproxLT(p1[0], this->grid2DBounds.X.Min))
       {
         region = 11;
         inside = false;
@@ -353,7 +290,6 @@ public:
 
       p1[2] = this->floatMod(p1[2], twoPi);
       pIndex1 = this->ConvertToIndex(p0, boutppField, step);
-      //resultIndex.Set(stepOffset + step, pIndex1);
 
       viskores::Vec3f ptXY(p1[0], p1[1], 0.0);
       viskores::FloatDefault rxyVal, zxyVal, zind, zvalue;
@@ -372,16 +308,6 @@ public:
       pCart0 = pCart1;
       viskores::Vec3f vCart;
       pCart1 = this->ToCartesian(p1, boutppField, cells2D);
-      /*
-      std::cout << step << ": " << xind << " " << p1[1] << " " << zind << " ---> " << rxyVal << " " << zxyVal << " " << zvalue << " " << pCart1
-                << std::endl;
-      */
-
-      //trajOut << "0, " << step << " " << tmp[0] << ", " << tmp[1] << ", " << tmp[2] << ", 0, 0, 0, 0" << std::endl;
-
-      //resultCart.Set(stepOffset + step, pCart1);
-      //validSteps.Set(stepOffset + step, true);
-      //pointId.Set(stepOffset + step, idx);
 
       //point crosses the X=0 plane.
       if (step > 1 && pCart0[0] * pCart1[0] < 0 && pCart0[0] > 0)
@@ -395,16 +321,11 @@ public:
 
         rootPuncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << std::endl;
         puncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << ", 0.0, 0.0, 0.0" << std::endl;
-        //std::cout << std::setprecision(5);
-        //std::cout << "** " << step << " ZC: c= " << pCart0 << " " << pCart1 << "  :: " << pIndex0 << " " << pIndex1 << " p01= " << p0 << " " << p1
-        //          << std::endl;
-        //std::cout << "SET_PUNC: " << puncOffset << " " << numPunc << " " << (step - 1) << std::endl;
+
         puncIndex.Set(puncOffset + numPunc, xindIn);
         validResult.Set(puncOffset + numPunc, true);
         numPunc++;
       }
-
-      //fout << step << ", " << xind << ", " << p1[0] << ", " << (int)p1[1] << ", " << p1[2] << ", " << region;
 
       p0 = p1;
       pIndex0 = pIndex1;
@@ -516,49 +437,6 @@ private:
     return p;
   }
 
-  template <typename BoutppFieldType, typename CellSetType>
-  VISKORES_EXEC viskores::Vec3f FindPuncture2(const viskores::Vec3f& p0,
-                                              const viskores::Vec3f& p1,
-                                              BoutppFieldType& boutppField,
-                                              const CellSetType& cells) const
-  {
-    viskores::Vec3f puncPt;
-    auto diffx = p1[0] - p0[0];
-    auto diffy = p1[1] - p0[1];
-    auto diffz = p1[2] - p0[2];
-
-    int N = 100;
-    viskores::FloatDefault _N = static_cast<viskores::FloatDefault>(N);
-    viskores::Vec3f dXYZ(diffx / _N, diffy / _N, diffz / _N);
-    auto pt = p0;
-    for (int i = 0; i < N; i++)
-    {
-      auto cart = this->ToCartesian(pt, boutppField, cells);
-      std::cout << "  iter_" << i << " cart= " << cart[0] << std::endl;
-      pt = pt + dXYZ;
-    }
-
-
-    return puncPt;
-  }
-
-  template <typename BoutppFieldType, typename CellSetType>
-  VISKORES_EXEC viskores::Vec3f EvaluateTangent(const viskores::Vec3f& pt0, BoutppFieldType& boutppField, const CellSetType& cells) const
-  {
-    constexpr double twoPi = 2.0 * M_PI;
-    auto pt0Cart = this->ConvertToCartesian(pt0, boutppField, cells, -1, false);
-
-    auto vec2d = this->EvaluateLinear(pt0, boutppField, cells);
-    viskores::Vec3f vec0(vec2d[0], 1, vec2d[1]);
-    auto pt1 = pt0 + vec0;
-    pt1[2] = this->floatMod(pt1[2], twoPi);
-    auto pt1Cart = this->ConvertToCartesian(pt1, boutppField, cells, -1, false);
-
-    auto tangent = pt1Cart - pt0Cart;
-    tangent = tangent * 0.75;
-    return tangent;
-  }
-
   template <typename BoutppFieldType>
   VISKORES_EXEC viskores::Vec3f ConvertToIndex(const viskores::Vec3f& pt, const BoutppFieldType& boutppField, int step) const
   {
@@ -609,133 +487,6 @@ private:
     if (theta < 0)
       theta += static_cast<viskores::FloatDefault>(2.0 * M_PI);
     return theta;
-  }
-
-  template <typename BoutppFieldType, typename CellSetType>
-  VISKORES_EXEC viskores::Vec3f ConvertToCartesian(const viskores::FloatDefault& _xind,
-                                                   const viskores::Vec3f& pt,
-                                                   const viskores::Vec3f& vec,
-                                                   BoutppFieldType& boutppField,
-                                                   const CellSetType& cells,
-                                                   int step,
-                                                   bool outputIt,
-                                                   viskores::Vec3f& ptIndex,
-                                                   std::ofstream& puncOut) const
-  {
-    viskores::Id yi = static_cast<viskores::Id>(pt[1]);
-    auto xind = this->LinearInterpolate(boutppField.XArray, boutppField.XiArray, pt[0]);
-    auto zind = this->LinearInterpolate(boutppField.ZArray, boutppField.ZiArray, pt[2]);
-    ptIndex[0] = xind;
-    ptIndex[1] = yi;
-    ptIndex[2] = zind;
-
-    viskores::Vec3f ptXY(pt[0], pt[1], 0.0);
-    //auto rxy = this->Evaluate(ptXY, boutppField, boutppField.rxy, cells);
-    //auto zxy = this->Evaluate(ptXY, boutppField, boutppField.zxy, cells);
-    auto rxy = this->EvaluateCubic1D(ptXY, "rxy");
-    auto zxy = this->EvaluateCubic1D(ptXY, "zxy");
-    auto zvalue = this->LinearInterpolate(boutppField.ZiArray, boutppField.ZArray, zind);
-    //auto zsvalue = this->Evaluate(ptXY, boutppField, boutppField.zShift, cells);
-    auto zsvalue = this->EvaluateCubic1D(ptXY, "zShift");
-
-    //std::cout << "***** Rxy(" << xind << ", " << ptXY[1] << ")= " << rxy << std::endl;
-    //std::cout << "***** Zxy(" << xind << ", " << ptXY[1] << ")= " << zxy << std::endl;
-    //std::cout << "***** Zs= " << zsvalue << std::endl;
-    //std::cout << "***** Zvalue= " << zvalue << std::endl;
-    // Compute x3d and y3d
-    viskores::FloatDefault x3d = rxy * std::cos(zsvalue) * std::cos(zvalue) - rxy * std::sin(zsvalue) * std::sin(zvalue);
-    viskores::FloatDefault y3d = rxy * std::cos(zsvalue) * std::sin(zvalue) + rxy * std::sin(zsvalue) * std::cos(zvalue);
-    viskores::FloatDefault z3d = zxy;
-    puncOut << xind << ", " << step << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << ", " << rxy << ", " << zxy << ", " << zvalue << std::endl;
-
-    //std::cout << "***** XYZ: " << x3d << " " << y3d << " " << z3d << std::endl;
-#ifndef VISKORES_HIP
-    //if (outputIt)
-    //  trajOut << "0, " << step << ", " << x3d << ", " << y3d << ", " << z3d << ", 0, " << yi << ", " << zsvalue << ", " << zvalue << std::endl;
-#endif
-
-    // Compute the tangent vector if requested
-    if (true)
-    {
-      viskores::FloatDefault vr = vec[0];     // Radial component
-      viskores::FloatDefault vtheta = vec[1]; // Angular component
-      viskores::FloatDefault vz = vec[2];     // Z component
-
-      vtheta *= rxy; // This is the critical fix
-
-      // Compute Cartesian vector components
-      viskores::FloatDefault cos_z = std::cos(zvalue);
-      viskores::FloatDefault sin_z = std::sin(zvalue);
-      viskores::FloatDefault cos_zs = std::cos(zsvalue);
-      viskores::FloatDefault sin_zs = std::sin(zsvalue);
-      viskores::FloatDefault cos_zs_z = std::cos(zsvalue + zvalue);
-      viskores::FloatDefault sin_zs_z = std::sin(zsvalue + zvalue);
-
-      /*
-      vecCart[0] = vr * cos_zs * cos_z - vr * sin_zs * sin_z - rxy * vtheta * sin_zs_z;
-      vecCart[1] = vr * cos_zs * sin_z + vr * sin_zs * cos_z + rxy * vtheta * cos_zs_z;
-      vecCart[2] = vz; // Z component is directly mapped
-      */
-      //vecCart = vecCart * 0.50;
-      //std::cout << " *********** vecCart= " << vecCart << std::endl;
-    }
-
-    return viskores::Vec3f(x3d, y3d, z3d);
-  }
-
-  template <typename BoutppFieldType, typename CellSetType>
-  VISKORES_EXEC viskores::Vec3f ConvertToCartesianWithTangent(const viskores::Vec3f& pt,
-                                                              const viskores::Vec3f& tangent,
-                                                              BoutppFieldType& boutppField,
-                                                              const CellSetType& cells,
-                                                              viskores::Vec3f& tangentCartian,
-                                                              int step,
-                                                              bool outputIt) const
-  {
-    constexpr double twoPi = 2.0 * M_PI;
-    //return this->ConvertToCartesian(pt, boutppField, cells, step, outputIt);
-
-    viskores::Id yi = static_cast<viskores::Id>(pt[1]);
-    auto xind = this->LinearInterpolate(boutppField.XArray, boutppField.XiArray, pt[0]);
-    auto zind = this->LinearInterpolate(boutppField.ZArray, boutppField.ZiArray, pt[2]);
-
-    viskores::Vec3f ptXY(pt[0], pt[1], 0.0);
-    auto rxy = this->EvaluateLinear(ptXY, boutppField, boutppField.rxy, cells);
-    auto zxy = this->EvaluateLinear(ptXY, boutppField, boutppField.zxy, cells);
-    auto zvalue = this->LinearInterpolate(boutppField.ZiArray, boutppField.ZArray, zind);
-    auto zsvalue = this->EvaluateLinear(ptXY, boutppField, boutppField.zShift, cells);
-
-    // Compute Cartesian coordinates
-    viskores::FloatDefault x3d = rxy * std::cos(zsvalue) * std::cos(zvalue) - rxy * std::sin(zsvalue) * std::sin(zvalue);
-    viskores::FloatDefault y3d = rxy * std::cos(zsvalue) * std::sin(zvalue) + rxy * std::sin(zsvalue) * std::cos(zvalue);
-    viskores::FloatDefault z3d = zxy;
-
-    // Jacobian matrix elements for tangent transformation
-    viskores::FloatDefault dx_dr = std::cos(zsvalue) * std::cos(zvalue) - std::sin(zsvalue) * std::sin(zvalue);
-    viskores::FloatDefault dx_dzs = -rxy * std::sin(zsvalue) * std::cos(zvalue) - rxy * std::cos(zsvalue) * std::sin(zvalue);
-    viskores::FloatDefault dx_dz = -rxy * std::cos(zsvalue) * std::sin(zvalue) - rxy * std::sin(zsvalue) * std::cos(zvalue);
-
-    viskores::FloatDefault dy_dr = std::sin(zsvalue) * std::cos(zvalue) + std::cos(zsvalue) * std::sin(zvalue);
-    viskores::FloatDefault dy_dzs = rxy * std::cos(zsvalue) * std::cos(zvalue) - rxy * std::sin(zsvalue) * std::sin(zvalue);
-    viskores::FloatDefault dy_dz = -rxy * std::sin(zsvalue) * std::sin(zvalue) + rxy * std::cos(zsvalue) * std::cos(zvalue);
-
-    viskores::FloatDefault dz_dr = 0.0;
-    viskores::FloatDefault dz_dzs = 0.0;
-    viskores::FloatDefault dz_dz = 1.0;
-
-    // Transform the tangent vector using the Jacobian
-    viskores::FloatDefault vx3d = dx_dr * tangent[0] + dx_dzs * tangent[1] + dx_dz * tangent[2];
-    viskores::FloatDefault vy3d = dy_dr * tangent[0] + dy_dzs * tangent[1] + dy_dz * tangent[2];
-    viskores::FloatDefault vz3d = dz_dr * tangent[0] + dz_dzs * tangent[1] + dz_dz * tangent[2];
-    tangentCartian = viskores::Vec3f(dx_dr, dy_dr, dz_dr);
-
-    if (outputIt)
-    {
-      //trajOut << "1, " << step << ", " << x3d << ", " << y3d << ", " << z3d << ", " << vx3d << ", " << vy3d << ", " << vz3d << ", " << yi << ", "
-      //        << zsvalue << ", " << zvalue << std::endl;
-    }
-
-    return viskores::Vec3f(x3d, y3d, z3d);
   }
 
   template <typename FieldType1, typename FieldType2>
@@ -897,9 +648,163 @@ private:
     std::string dxdy = "dxdy", dzdy = "dzdy";
 
     viskores::Vec2f res;
-    res[0] = CubicEval(this->ds3D, dxdy, pt);
-    res[1] = CubicEval(this->ds3D, dzdy, pt);
+    res[0] = this->CubicEval(this->ds3D, dxdy, pt);
+    res[1] = this->CubicEval(this->ds3D, dzdy, pt);
     return res;
+  }
+
+  VISKORES_EXEC viskores::FloatDefault CubicEval(const viskores::cont::DataSet& ds, const std::string& fieldName, const viskores::Vec3f& pt) const
+  {
+    using CoordsType = viskores::cont::ArrayHandleCartesianProduct<viskores::cont::ArrayHandle<viskores::FloatDefault>,
+                                                                   viskores::cont::ArrayHandle<viskores::FloatDefault>,
+                                                                   viskores::cont::ArrayHandle<viskores::FloatDefault>>;
+    CoordsType coords;
+    coords = ds.GetCoordinateSystem().GetData().AsArrayHandle<CoordsType>();
+    auto xCoords = coords.GetFirstArray();
+    auto yCoords = coords.GetSecondArray();
+    auto zCoords = coords.GetThirdArray();
+    viskores::cont::ArrayHandle<viskores::FloatDefault> array;
+    ds.GetField(fieldName).GetData().AsArrayHandle(array);
+
+    auto val = this->TricubicSampleRectilinear(array, xCoords, yCoords, zCoords, pt);
+    return val;
+  }
+
+  VISKORES_EXEC viskores::FloatDefault TricubicSampleRectilinear(const viskores::cont::ArrayHandle<viskores::FloatDefault>& _data,
+                                                                 const viskores::cont::ArrayHandle<viskores::FloatDefault>& _xCoords,
+                                                                 const viskores::cont::ArrayHandle<viskores::FloatDefault>& _yCoords,
+                                                                 const viskores::cont::ArrayHandle<viskores::FloatDefault>& _zCoords,
+                                                                 const viskores::Vec3f& pt) const
+  {
+    auto data = _data.ReadPortal();
+    auto xCoords = _xCoords.ReadPortal();
+    auto yCoords = _yCoords.ReadPortal();
+    auto zCoords = _zCoords.ReadPortal();
+    auto x = pt[0], y = pt[1], z = pt[2];
+
+    viskores::Id nx = _xCoords.GetNumberOfValues();
+    viskores::Id ny = _yCoords.GetNumberOfValues();
+    viskores::Id nz = _zCoords.GetNumberOfValues();
+
+    // 1) find the base indices in each dimension
+    viskores::Id iu = this->FindIndex(_xCoords, x);
+    viskores::Id iv = this->FindIndex(_yCoords, y);
+    viskores::Id iw = (nz >= 4 ? this->FindIndex(_zCoords, z) : 0);
+
+    // If we don’t have 4 Z‐levels, do 2D bicubic in X–Y only
+    if (nz < 4)
+    {
+      // --- bicubic: gather a 4×4 patch in X–Y at single k = clamp(iw,0,ny−1) ---
+      double P2d[4 * 4];
+      for (viskores::Id jj = 0; jj < 4; ++jj)
+      {
+        viskores::Id j = this->Clamp(iv - 1 + jj, ny);
+        for (viskores::Id ii = 0; ii < 4; ++ii)
+        {
+          viskores::Id i = this->Clamp(iu - 1 + ii, nx);
+          // flatten (i,j, 0) → data index
+          P2d[jj * 4 + ii] = data.Get((j * nx) + i);
+        }
+      }
+      // 3) bicubic along X → C2[4]
+      double C2[4];
+      for (int jj = 0; jj < 4; ++jj)
+      {
+        auto x0 = xCoords.Get(iu - 1), x1 = xCoords.Get(iu), x2 = xCoords.Get(iu + 1), x3 = xCoords.Get(iu + 2);
+        C2[jj] = this->CubicInterpolateNonUniform(x0, x1, x2, x3, P2d[jj * 4 + 0], P2d[jj * 4 + 1], P2d[jj * 4 + 2], P2d[jj * 4 + 3], x);
+      }
+      // 4) bicubic along Y on C2 → final
+      auto y0 = yCoords.Get(iv - 1), y1 = yCoords.Get(iv), y2 = yCoords.Get(iv + 1), y3 = yCoords.Get(iv + 2);
+      return this->CubicInterpolateNonUniform(y0, y1, y2, y3, C2[0], C2[1], C2[2], C2[3], y);
+    }
+
+    // --- otherwise do full tricubic in X–Y–Z ---
+    double P[4 * 4 * 4];
+    for (viskores::Id kk = 0; kk < 4; ++kk)
+    {
+      viskores::Id k = this->Clamp(iw - 1 + kk, nz);
+      for (viskores::Id jj = 0; jj < 4; ++jj)
+      {
+        viskores::Id j = this->Clamp(iv - 1 + jj, ny);
+        for (viskores::Id ii = 0; ii < 4; ++ii)
+        {
+          viskores::Id i = this->Clamp(iu - 1 + ii, nx);
+          auto pIndex = (kk * 4 + jj) * 4 + ii;
+          auto dIndex = (k * ny + j) * nx + i;
+          P[pIndex] = data.Get(dIndex);
+        }
+      }
+    }
+
+    // interpolate in X for each (kk,jj) → Cbuf[16]
+    viskores::FloatDefault Cbuf[4 * 4];
+    for (int kk = 0; kk < 4; ++kk)
+      for (int jj = 0; jj < 4; ++jj)
+      {
+        auto x0 = xCoords.Get(iu - 1), x1 = xCoords.Get(iu), x2 = xCoords.Get(iu + 1), x3 = xCoords.Get(iu + 2);
+        auto p0 = P[(kk * 4 + jj) * 4 + 0], p1 = P[(kk * 4 + jj) * 4 + 1], p2 = P[(kk * 4 + jj) * 4 + 2], p3 = P[(kk * 4 + jj) * 4 + 3];
+        Cbuf[kk * 4 + jj] = this->CubicInterpolateNonUniform(x0, x1, x2, x3, p0, p1, p2, p3, x);
+      }
+
+    // interpolate in Y → D[4]
+    viskores::FloatDefault D[4];
+    for (int kk = 0; kk < 4; ++kk)
+    {
+      auto y0 = yCoords.Get(iv - 1), y1 = yCoords.Get(iv), y2 = yCoords.Get(iv + 1), y3 = yCoords.Get(iv + 2);
+      D[kk] = this->CubicInterpolateNonUniform(y0, y1, y2, y3, Cbuf[kk * 4 + 0], Cbuf[kk * 4 + 1], Cbuf[kk * 4 + 2], Cbuf[kk * 4 + 3], y);
+    }
+
+    // interpolate in Z
+    auto z0 = zCoords.Get(iw - 1), z1 = zCoords.Get(iw), z2 = zCoords.Get(iw + 1), z3 = zCoords.Get(iw + 2);
+    return this->CubicInterpolateNonUniform(z0, z1, z2, z3, D[0], D[1], D[2], D[3], z);
+  }
+
+  VISKORES_EXEC viskores::FloatDefault CubicInterpolateNonUniform(viskores::FloatDefault x0,
+                                                                  viskores::FloatDefault x1,
+                                                                  viskores::FloatDefault x2,
+                                                                  viskores::FloatDefault x3,
+                                                                  viskores::FloatDefault p0,
+                                                                  viskores::FloatDefault p1,
+                                                                  viskores::FloatDefault p2,
+                                                                  viskores::FloatDefault p3,
+                                                                  viskores::FloatDefault x) const
+  {
+    // 1) Compute interval lengths
+    viskores::FloatDefault h0 = x1 - x0;
+    viskores::FloatDefault h1 = x2 - x1;
+    viskores::FloatDefault h2 = x3 - x2;
+    if (h0 <= 0 || h1 <= 0 || h2 <= 0)
+      throw std::runtime_error("cubicInterpolateNonUniform: coordinates must be strictly increasing");
+
+    // 2) Compute right‐hand sides for second‐derivative system
+    viskores::FloatDefault rhs1 = 6.0 * ((p2 - p1) / h1 - (p1 - p0) / h0);
+    viskores::FloatDefault rhs2 = 6.0 * ((p3 - p2) / h2 - (p2 - p1) / h1);
+
+    // 3) Build and solve the 2×2 system:
+    //     [2(h0+h1)   h1      ][d2_1] = [rhs1]
+    //     [  h1     2(h1+h2)  ][d2_2]   [rhs2]
+    viskores::FloatDefault a11 = 2.0 * (h0 + h1);
+    viskores::FloatDefault a12 = h1;
+    viskores::FloatDefault a21 = h1;
+    viskores::FloatDefault a22 = 2.0 * (h1 + h2);
+    viskores::FloatDefault det = a11 * a22 - a12 * a21;
+    if (det == 0.0)
+      throw std::runtime_error("cubicInterpolateNonUniform: degenerate knot spacing");
+    viskores::FloatDefault d2_1 = (rhs1 * a22 - a12 * rhs2) / det;
+    viskores::FloatDefault d2_2 = (a11 * rhs2 - rhs1 * a21) / det;
+
+    // 4) Map x into local parameter t ∈ [0,1] on [x1,x2]
+    viskores::FloatDefault t = (x - x1) / h1;
+
+    // 5) Hermite form of the natural cubic on [x1, x2]
+    viskores::FloatDefault A = 1.0 - t;
+    viskores::FloatDefault B = t;
+    viskores::FloatDefault h1_sq = h1 * h1;
+    viskores::FloatDefault term1 = (A * A * A - A) * (h1_sq / 6.0) * d2_1;
+    viskores::FloatDefault term2 = (B * B * B - B) * (h1_sq / 6.0) * d2_2;
+
+    // 6) Combine the linear and curvature parts
+    return A * p1 + B * p2 + term1 + term2;
   }
 
   template <typename BoutppFieldType, typename ArrayType, typename CellSetType>
@@ -928,52 +833,73 @@ private:
     return true;
   }
 
-  template <typename BoutppFieldType, typename CellSetType>
-  VISKORES_EXEC viskores::Vec2f EvaluateLinear(const viskores::Vec3f& pt, BoutppFieldType& boutppField, const CellSetType& cells) const
+  VISKORES_EXEC viskores::Id Clamp(viskores::Id i, viskores::Id n) const
   {
-    viskores::UInt8 cellShape;
-    viskores::Vec3f parametric;
-    viskores::IdComponent numVerts;
-    viskores::VecVariable<viskores::Id, 8> ptIndices;
+    if (i < 0)
+      return 0;
+    else if (i >= n)
+      return n - 1;
+    else
+      return i;
+  }
 
-    this->Locate(pt, boutppField, cells, cellShape, numVerts, ptIndices, parametric);
-
-#if 0
-      viskores::Id cellId;
-      boutppField.Locator3D.FindCell(pt, cellId, parametric);
-      if (cellId == -1)
-      {
-        std::cout << "Locator failed: " << pt << std::endl;
-        VISKORES_ASSERT(false);
-        this->RaiseError("Locator.FindCell failed.");
-        }
-
-        std::cout<<"cellId: "<<cellId<<" nvals= "<<boutppField.dxdy.GetNumberOfValues()<<std::endl;
-        auto cellShape = cells.GetCellShape(cellId);
-        viskores::IdComponent numVerts = cells.GetNumberOfIndices(cellId);
-        viskores::VecVariable<viskores::Id, 8> ptIndices = cells.GetIndices(cellId);
-#endif
-
-    viskores::VecVariable<viskores::FloatDefault, 8> dxdyVals, dzdyVals;
-    for (viskores::IdComponent i = 0; i < numVerts; i++)
+  VISKORES_EXEC viskores::Id FindIndex(const viskores::cont::ArrayHandle<viskores::FloatDefault>& _coords, viskores::FloatDefault val) const
+  {
+    auto coords = _coords.ReadPortal();
+    viskores::Id N = coords.GetNumberOfValues();
+    // 1) Binary search for the largest index i with coords[i] <= val
+    viskores::Id left = 0;
+    viskores::Id right = N - 1;
+    while (left <= right)
     {
-      std::cout << "dxdy: " << boutppField.dxdy.GetNumberOfValues() << std::endl;
-      std::cout << "  dx: " << ptIndices[i] << std::endl;
-      dxdyVals.Append(boutppField.dxdy.Get(ptIndices[i]));
-      dzdyVals.Append(boutppField.dzdy.Get(ptIndices[i]));
+      viskores::Id mid = left + (right - left) / 2;
+      if (coords.Get(mid) <= val)
+      {
+        // mid is still ≤ val, so it might be our i
+        left = mid + 1;
+      }
+      else
+      {
+        // coords[mid] > val, so the index we want is below mid
+        right = mid - 1;
+      }
     }
+    // when loop ends, `right` is the last index where coords[right] <= val
+    viskores::Id i = right;
 
-    viskores::Vec2f result;
-    auto status1 = viskores::exec::CellInterpolate(dxdyVals, parametric, cellShape, result[0]);
-    auto status2 = viskores::exec::CellInterpolate(dzdyVals, parametric, cellShape, result[1]);
-    if (status1 != viskores::ErrorCode::Success || status2 != viskores::ErrorCode::Success)
-      this->RaiseError("CellInterpolate failed.");
-    return result;
+    // 2) Clamp i into [1, N-3]
+    if (i < 1)
+      i = 1;
+    else if (i > N - 3)
+      i = N - 3;
+
+    return i;
+  }
+
+  VISKORES_EXEC bool ApproxLT(viskores::FloatDefault a, viskores::FloatDefault b, viskores::FloatDefault tol = 1e-6) const
+  {
+    if (a < (b - tol))
+      return true;
+    return false;
+  }
+  VISKORES_EXEC bool ApproxGT(viskores::FloatDefault a, viskores::FloatDefault b, viskores::FloatDefault tol = 1e-6) const
+  {
+    if (a > (b + tol))
+      return true;
+    return false;
   }
 
   viskores::Id MaxPunctures;
   viskores::Id MaxSteps;
+  viskores::FloatDefault xMin, xMax;
 
 public:
   viskores::cont::DataSet ds3D, ds2D;
+  viskores::Bounds grid3DBounds, grid2DBounds;
+  viskores::Vec2f Center;
+  int ny;
+  int nypf1, nypf2;
+  int ixsep1, ixsep2;
+  int divertor;
+  int direction;
 };
