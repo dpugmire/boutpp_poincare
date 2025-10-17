@@ -5,7 +5,7 @@
 
 void writeArray1DToFile(std::vector<double>& array, const std::string& fname)
 {
-  auto fname2 = "/Users/dpn/" + fname + ".c.txt";
+  auto fname2 = fname + ".c.txt";
   std::ofstream out(fname2, std::ofstream::out);
   auto nx = array.size();
   out << "(" << nx << ")" << std::endl;
@@ -25,7 +25,7 @@ void writeArray1DToFile(std::vector<double>& array, const std::string& fname)
 
 void writeArray2DToFile(std::vector<std::vector<double>>& array, const std::string& fname)
 {
-  auto fname2 = "/Users/dpn/" + fname + ".c.txt";
+  auto fname2 = fname + ".c.txt";
   std::ofstream out(fname2, std::ofstream::out);
   auto nx = array.size();
   auto ny = array[0].size();
@@ -56,7 +56,7 @@ void writeArray3DToFile(const std::vector<std::vector<std::vector<double>>>& arr
   auto val0 = array[123][79][101];
   auto val1 = array[192][47][200];
 
-  auto fname2 = "/Users/dpn/" + fname + ".c.txt";
+  auto fname2 = fname + ".c.txt";
   std::ofstream out(fname2, std::ofstream::out);
   auto nx = array.size();
   auto ny = array[0].size();

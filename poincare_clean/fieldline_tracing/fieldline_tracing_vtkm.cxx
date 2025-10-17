@@ -1,6 +1,4 @@
-#include "Evaluation.h"
 #include "NetCDFLoader.h"
-#include "RK4.h"
 #include "RK4_vtkm.h"
 #include <chrono>
 #include <cmath>
@@ -26,7 +24,6 @@
 #include <viskores/worklet/WorkletMapField.h>
 
 std::ofstream trajsplineFid("./trajspline.v.txt", std::ofstream::out);
-std::ofstream trajspline("./trajspline.v.txt", std::ofstream::out);
 std::ofstream puncFid("./punc.v.txt");
 std::ofstream punc_ip_Fid("./punc_ip.v.txt");
 std::ofstream puncFid2("./punc2.v.txt");
