@@ -23,17 +23,6 @@
 #include <viskores/io/VTKDataSetWriter.h>
 #include <viskores/worklet/WorkletMapField.h>
 
-std::ofstream trajsplineFid("./trajspline.v.txt", std::ofstream::out);
-std::ofstream puncFid("./punc.v.txt");
-std::ofstream punc_ip_Fid("./punc_ip.v.txt");
-std::ofstream puncFid2("./punc2.v.txt");
-std::ofstream puncSplineFid("./puncspline.v.txt");
-std::ofstream rawPunc("./rawpunc.v.txt", std::ofstream::out);
-std::ofstream trajOut("./traj.v.txt", std::ofstream::out);
-std::ofstream tanOut("./tan.v.txt", std::ofstream::out);
-std::ofstream stepOut("./steps.v.txt", std::ofstream::out);
-std::ofstream rk4Out("./rk4.v.txt", std::ofstream::out);
-
 template <typename T>
 void printArray(const std::string& name, const T& arr)
 {
@@ -87,6 +76,7 @@ public:
     this->jyseps2_2 = this->loader.readScalar("jyseps2_2");
     this->nypf1 = this->jyseps1_1;
     this->nypf2 = this->jyseps2_2;
+    std::cout << "read ZP" << std::endl;
     this->zperiod = this->loader.readScalar("zperiod");
     std::cout << "********** set divertor correctly!!!!" << std::endl;
     this->divertor = 1;
@@ -201,22 +191,14 @@ public:
     this->AddField(this->dzdy_m1, "dzdy_m1", this->Grid2D_xz);
     this->AddField(this->dzdy_p1, "dzdy_p1", this->Grid2D_xz);
 
-    std::cout << "Create rectilinear: " << this->xarray.size() << " " << yarray.size() << " " << this->zarray.size() << std::endl;
     this->Grid3D = builderRect.Create(this->xarray, yarray, this->zarray);
     //viskores::Id3 dims3d(this->xarray.size(), yarray.size(), this->zarray.size());
     //viskores::Vec3f origin3d(this->xarray[0], yarray[0], this->zarray[0]);
     //viskores::Vec3f spacing3d(this->xarray[1] - origin3d[0], yarray[1] - origin3d[1], this->zarray[1] - origin3d[2]);
     //this->Grid3D = builder.Create(dims3d, origin3d, spacing3d);
 
-    std::cout << "Create rectilinear: " << this->xarray.size() << " " << yarray.size() << " " << this->zarray.size() << std::endl;
     this->AddField(this->dxdy, "dxdy", this->Grid3D);
     this->AddField(this->dzdy, "dzdy", this->Grid3D);
-#ifndef VISKORES_HIP
-    std::cout << std::setprecision(15) << "Grid3d bounds: " << this->Grid3D.GetCoordinateSystem().GetBounds() << std::endl;
-    std::cout << "  dz= " << this->dz << " z0: " << this->zarray[0] << " " << this->zarray[1] << " ... " << this->zarray[this->zarray.size() - 2]
-              << " " << this->zarray[this->zarray.size() - 1] << std::endl;
-#endif
-
 
 #if 0
         this->Grid3D.PrintSummary(std::cout);
@@ -294,7 +276,6 @@ public:
         for (viskores::Id i = 0; i < n_x; ++i)
           field.push_back(vals[i][j][k]);
 
-    std::cout << "  **** field size: " << field.size() << std::endl;
     ds.AddPointField(fieldName, field);
   }
 
@@ -407,19 +388,6 @@ int main(int argc, char* argv[])
   else
     viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagSerial{});
 
-  trajsplineFid << "ID, STEP, X, Y, Z, REGION\n";
-  trajOut << "ID, STEP, X, Y, Z" << std::endl;
-  tanOut << "ID, STEP, X, Y, Z, VX, VY, VZ" << std::endl;
-  rawPunc << "ID, STEP, X, Y, Z\n";
-  puncFid << "ID, STEP, X, Y, Z\n";
-  puncFid2 << "ID, STEP, X, Y, Z\n";
-  puncSplineFid << "Xind0, STEP, X, Y, Z, THETA, PSI\n";
-  punc_ip_Fid << "ID, STEP, X, Y, Z\n";
-  stepOut << "ID, STEP, X, Y, Z\n";
-  rk4Out << "ID, STEP, X, Y, Z\n";
-  auto TRAJ_FID = fopen("./pt_traj.c.txt", "w");
-  fprintf(TRAJ_FID, "IT, xind, yEnd, zind, REG, zEnd\n");
-
   std::string fname = cliOpts.apar;
 
   bool transpose = true;
@@ -479,16 +447,14 @@ int main(int argc, char* argv[])
   viskores::cont::Invoker invoker;
   auto inPts = viskores::cont::make_ArrayHandle<viskores::Vec3f>(points, viskores::CopyFlag::On);
   auto xinds = viskores::cont::make_ArrayHandle<viskores::FloatDefault>(cliOpts.xind, viskores::CopyFlag::On);
-  viskores::cont::printSummary_ArrayHandle(xinds, std::cout, true);
   viskores::cont::ArrayHandle<viskores::FloatDefault> dxdyField, dzdyField, rxyField, zShiftField;
   viskores::cont::ArrayHandle<viskores::Vec3f> puncturesCart, resultIndex;
   grid3D.GetField("dxdy").GetData().AsArrayHandle<viskores::FloatDefault>(dxdyField);
   grid3D.GetField("dzdy").GetData().AsArrayHandle<viskores::FloatDefault>(dzdyField);
   grid2D.GetField("rxy").GetData().AsArrayHandle<viskores::FloatDefault>(rxyField);
   grid2D.GetField("zShift").GetData().AsArrayHandle<viskores::FloatDefault>(zShiftField);
-  std::cout << "NumPoints= " << grid3D.GetNumberOfPoints() << std::endl;
-  grid3D.PrintSummary(std::cout);
-
+  //std::cout << "NumPoints= " << grid3D.GetNumberOfPoints() << std::endl;
+  //grid3D.PrintSummary(std::cout);
 
   auto start = std::chrono::high_resolution_clock::now();
 
@@ -539,7 +505,8 @@ int main(int argc, char* argv[])
     //psiTheta[1] = ComputeTheta(opts.center, viskores::Vec2f(pt[1], pt[2]));
     auto step = validStep.ReadPortal().Get(i);
     auto x0 = validResultIndices.ReadPortal().Get(i);
-    puncSplineFid << x0 << ", " << step << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << ", " << psiTheta[1] << ", " << psiTheta[0] << std::endl;
+    cliOpts.puncSplineOut << x0 << ", " << step << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << ", " << psiTheta[1] << ", " << psiTheta[0]
+                          << std::endl;
   }
 
   return 0;

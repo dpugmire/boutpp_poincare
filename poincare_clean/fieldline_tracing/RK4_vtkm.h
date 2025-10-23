@@ -178,6 +178,7 @@ public:
 
     viskores::Id stepOffset = idx * this->MaxSteps;
     viskores::Id puncOffset = idx * this->MaxPunctures;
+#if TRACE_IO
     std::ostringstream oss;
     oss << "steps." << std::setw(3) << std::setfill('0') << int(idx) << ".txt";
     auto stepOut = std::ofstream(oss.str());
@@ -191,6 +192,7 @@ public:
 
     auto rootPuncOut = std::ofstream("rootPunc.v.txt");
     rootPuncOut << "ID, STEP, X, Y, Z" << std::endl;
+#endif
 
     viskores::Vec3f pCart0, pCart1, vCart, pIndex0, pIndex1, junk;
 
@@ -199,6 +201,7 @@ public:
     pIndex0 = this->ConvertToIndex(p0, boutppField, 0);
 
     int cnt = 0;
+    int puncturesToSkip = 1;
     for (viskores::Id step = 1; region < 10 && step < this->MaxSteps; step++)
     {
       bool inCFR =
@@ -301,9 +304,10 @@ public:
       zind = this->LinearInterpolate(boutppField.ZArray, boutppField.ZiArray, p1[2]);
       zvalue = this->LinearInterpolate(boutppField.ZiArray, boutppField.ZArray, zind);
 
-
+#if TRACE_IO
       stepOut << xindIn << ", " << step << ", " << p1[0] << ", " << p1[1] << ", " << p1[2] << ", (" << zind << "), " << region << ", " << rxyVal
               << ", " << zxyVal << ", " << zvalue << std::endl;
+#endif
       //convert to cartesian.
       pCart0 = pCart1;
       viskores::Vec3f vCart;
@@ -312,19 +316,25 @@ public:
       //point crosses the X=0 plane.
       if (step > 1 && pCart0[0] * pCart1[0] < 0 && pCart0[0] > 0)
       {
-        viskores::FloatDefault puncStep;
-        viskores::Vec2f psiThetaPt;
-        auto puncPt = this->FindPuncture(step, p0, p1, boutppField, cells2D, puncStep, psiThetaPt);
-        result.Set(puncOffset + numPunc, puncPt);
-        resultStep.Set(puncOffset + numPunc, puncStep);
-        resultPsiTheta.Set(puncOffset + numPunc, psiThetaPt);
+        if (puncturesToSkip > 0)
+          puncturesToSkip--;
+        else
+        {
+          viskores::FloatDefault puncStep;
+          viskores::Vec2f psiThetaPt;
+          auto puncPt = this->FindPuncture(step, p0, p1, boutppField, cells2D, puncStep, psiThetaPt);
+          result.Set(puncOffset + numPunc, puncPt);
+          resultStep.Set(puncOffset + numPunc, puncStep);
+          resultPsiTheta.Set(puncOffset + numPunc, psiThetaPt);
+#if TRACE_IO
+          rootPuncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << std::endl;
+          puncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << ", 0.0, 0.0, 0.0" << std::endl;
+#endif
 
-        rootPuncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << std::endl;
-        puncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << ", 0.0, 0.0, 0.0" << std::endl;
-
-        puncIndex.Set(puncOffset + numPunc, xindIn);
-        validResult.Set(puncOffset + numPunc, true);
-        numPunc++;
+          puncIndex.Set(puncOffset + numPunc, xindIn);
+          validResult.Set(puncOffset + numPunc, true);
+          numPunc++;
+        }
       }
 
       p0 = p1;
@@ -346,8 +356,6 @@ private:
     int region = 0;
 
     auto xxx = static_cast<viskores::FloatDefault>(this->ixsep1 - 1) + 0.5f;
-    if (xind < xxx)
-      std::cout << " Yes" << std::endl;
     if (xind < static_cast<viskores::FloatDefault>(this->ixsep1 - 1) + 0.5f)
     {
       region = 0; // closed flux surface.

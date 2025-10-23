@@ -1,8 +1,9 @@
 #pragma once
-// cli_args.h — header-only CLI parser for --xind, --maxpunc, --apar
+// cli_args.h — header-only CLI parser for --xind, --maxpunc, --apar, --output-dir
 // C++17
 
 #include <cmath> // std::lround
+#include <filesystem>
 #include <stdexcept>
 #include <string>
 #include <type_traits> // std::is_integral
@@ -14,10 +15,12 @@ namespace cli
 template <typename T>
 struct Options
 {
-  std::vector<T> xind;   // values from --xind
-  int maxpunc = 250;     // default
-  bool haveXind = false; // whether --xind was provided
-  std::string apar;      // value from --apar (empty if not provided)
+  std::vector<T> xind;          // values from --xind
+  int maxpunc = 250;            // default
+  bool haveXind = false;        // whether --xind was provided
+  std::string apar;             // value from --apar (empty if not provided)
+  std::string outputDir = "./"; // value from --output-dir (default "./")
+  std::ofstream puncSplineOut;
 };
 
 // ---------- helpers ----------
@@ -160,6 +163,18 @@ inline void parseArgs(int argc, char** argv, Options<T>& opts)
       continue;
     }
 
+    // --output-dir / --output-dir=...
+    if (arg == "--output-dir")
+    {
+      opts.outputDir = needValue(i, "--output-dir");
+      continue;
+    }
+    if (arg.rfind("--output-dir=", 0) == 0)
+    {
+      opts.outputDir = arg.substr(13);
+      continue;
+    }
+
     // --xind with 1/2/3 following tokens
     if (arg == "--xind")
     {
@@ -228,6 +243,12 @@ inline void parseArgs(int argc, char** argv, Options<T>& opts)
       throw std::runtime_error("Unexpected positional argument: " + arg);
     }
   }
+
+  if (!opts.outputDir.empty())
+    std::filesystem::create_directories(opts.outputDir);
+
+  opts.puncSplineOut = std::ofstream(opts.outputDir + "/puncspline.v.txt");
+  opts.puncSplineOut << "Xind0, STEP, X, Y, Z, THETA, PSI\n";
 }
 
 } // namespace cli
