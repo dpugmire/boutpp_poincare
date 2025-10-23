@@ -4,6 +4,7 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <mpi.h>
 #include <numeric>
 
 #include "parse_args.h"
@@ -370,6 +371,12 @@ inline T IndexInterp(const std::vector<std::vector<T>>& psixy, double xind, int 
 int main(int argc, char* argv[])
 {
   cli::Options<viskores::FloatDefault> cliOpts;
+
+  MPI_Init(&argc, &argv);
+  MPI_Comm_size(MPI_COMM_WORLD, &cliOpts.numRanks);
+  MPI_Comm_rank(MPI_COMM_WORLD, &cliOpts.rank);
+  std::cout << "Rank: " << cliOpts.rank << " of " << cliOpts.numRanks << std::endl;
+
   cli::parseArgs<viskores::FloatDefault>(argc, argv, cliOpts);
   std::cout << "Options: " << std::endl;
   printArray("xind: ", cliOpts.xind);
@@ -509,5 +516,6 @@ int main(int argc, char* argv[])
                           << std::endl;
   }
 
+  MPI_Finalize();
   return 0;
 }

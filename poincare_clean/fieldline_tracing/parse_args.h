@@ -4,9 +4,11 @@
 
 #include <cmath> // std::lround
 #include <filesystem>
+#include <fstream> // std::ofstream
 #include <stdexcept>
 #include <string>
 #include <type_traits> // std::is_integral
+#include <utility>     // std::pair
 #include <vector>
 
 namespace cli
@@ -15,7 +17,9 @@ namespace cli
 template <typename T>
 struct Options
 {
-  std::vector<T> xind;          // values from --xind
+  int rank = 0;
+  int numRanks = 1;
+  std::vector<T> xind;          // values from --xind (becomes per-rank slice after parseArgs)
   int maxpunc = 250;            // default
   bool haveXind = false;        // whether --xind was provided
   std::string apar;             // value from --apar (empty if not provided)
@@ -119,6 +123,20 @@ inline std::vector<T> linspaceCount(double a, double b, long count)
     out.push_back(castVal<T>(v));
   }
   return out;
+}
+
+// Compute [begin,end) block for a given rank out of N items.
+inline std::pair<size_t, size_t> blockPartition(size_t n, int numRanks, int rank)
+{
+  const size_t R = static_cast<size_t>(numRanks);
+  const size_t base = n / R;
+  const size_t rem = n % R; // first 'rem' ranks get one extra
+
+  const bool extra = static_cast<size_t>(rank) < rem;
+  const size_t begin =
+    (static_cast<size_t>(rank) < rem) ? (static_cast<size_t>(rank) * (base + 1)) : (rem * (base + 1) + (static_cast<size_t>(rank) - rem) * base);
+  const size_t end = begin + (extra ? (base + 1) : base);
+  return { begin, end };
 }
 
 // ---------- parser ----------
@@ -233,7 +251,6 @@ inline void parseArgs(int argc, char** argv, Options<T>& opts)
       opts.haveXind = true;
       continue;
     }
-
     if (arg.rfind("--", 0) == 0)
     {
       throw std::runtime_error("Unknown option: " + arg);
@@ -244,11 +261,47 @@ inline void parseArgs(int argc, char** argv, Options<T>& opts)
     }
   }
 
+  // Prepare output path and file
   if (!opts.outputDir.empty())
     std::filesystem::create_directories(opts.outputDir);
+  std::ostringstream name;
+  name << "puncspline.v." << std::setw(2) << std::setfill('0') << opts.rank << ".txt";
 
-  opts.puncSplineOut = std::ofstream(opts.outputDir + "/puncspline.v.txt");
+  const auto outPath = std::filesystem::path(opts.outputDir) / name.str();
+  opts.puncSplineOut = std::ofstream(outPath.string());
   opts.puncSplineOut << "Xind0, STEP, X, Y, Z, THETA, PSI\n";
+
+  // -------- Partition --xind across MPI ranks --------
+  // Only partition if user provided --xind.
+  if (opts.haveXind)
+  {
+    const size_t n = opts.xind.size();
+    if (static_cast<size_t>(opts.numRanks) > n)
+      throw std::runtime_error("Not enough --xind values: each rank must get at least one");
+
+    auto [begin, end] = blockPartition(n, opts.numRanks, opts.rank);
+    // Safety (should always hold):
+    if (begin >= end)
+      throw std::runtime_error("Internal partitioning error: empty slice for this rank");
+    if (end > n)
+      throw std::runtime_error("Internal partitioning error: slice out of range");
+
+    // Keep only the local slice for this rank.
+    std::vector<T> local(opts.xind.begin() + static_cast<std::ptrdiff_t>(begin), opts.xind.begin() + static_cast<std::ptrdiff_t>(end));
+    opts.xind.swap(local);
+
+#if 0
+    // --- print per-rank xind values ---
+    std::cout << "[rank " << opts.rank << "] xind (" << opts.xind.size() << ") = [";
+    for (size_t i = 0; i < opts.xind.size(); ++i)
+    {
+      if (i)
+        std::cout << ", ";
+      std::cout << opts.xind[i];
+    }
+    std::cout << "]\n";
+#endif
+  }
 }
 
 } // namespace cli

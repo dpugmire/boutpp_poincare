@@ -4,6 +4,7 @@ project(fieldline_tracing)
 #find_package(NetCDF REQUIRED)
 
 find_package(Viskores REQUIRED QUIET)
+find_package(mpi REQUIRED)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
