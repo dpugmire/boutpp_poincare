@@ -201,7 +201,7 @@ public:
     pIndex0 = this->ConvertToIndex(p0, boutppField, 0);
 
     int cnt = 0;
-    int puncturesToSkip = 1;
+    int puncturesToSkip = 3;
     for (viskores::Id step = 1; region < 10 && step < this->MaxSteps; step++)
     {
       bool inCFR =
@@ -489,11 +489,56 @@ private:
     return viskores::Vec3f(x3d, y3d, z3d);
   }
 
+  VISKORES_EXEC viskores::FloatDefault interp1_linear(const viskores::FloatDefault* x,
+                                                      const viskores::FloatDefault* y,
+                                                      viskores::Id n,
+                                                      viskores::FloatDefault xq) const
+  {
+    // Guard cases
+    if (n <= 0)
+      return viskores::FloatDefault{ 0 };
+    if (n == 1)
+      return y[0];
+
+    // Clamp to ends
+    if (xq <= x[0])
+      return y[0];
+    if (xq >= x[n - 1])
+      return y[n - 1];
+
+    // Binary search for i such that x[i] <= xq <= x[i+1]
+    viskores::Id lo = 0;
+    viskores::Id hi = n - 1;
+    // Invariant: interval [lo, hi] contains xq and hi - lo >= 1
+    while (hi - lo > 1)
+    {
+      const viskores::Id mid = lo + (hi - lo) / 2;
+      if (xq >= x[mid])
+        lo = mid;
+      else
+        hi = mid;
+    }
+    // Now interpolate between lo and lo+1
+    const viskores::FloatDefault x0 = x[lo];
+    const viskores::FloatDefault x1 = x[lo + 1];
+    const viskores::FloatDefault y0 = y[lo];
+    const viskores::FloatDefault y1 = y[lo + 1];
+
+    const viskores::FloatDefault dx = x1 - x0;
+    if (dx == viskores::FloatDefault{ 0 })
+    {
+      // Degenerate segment: fallback to left value
+      return y0;
+    }
+    const viskores::FloatDefault t = (xq - x0) / dx;
+    return (viskores::FloatDefault(1) - t) * y0 + t * y1;
+  }
+
   VISKORES_EXEC viskores::FloatDefault CalculateTheta(const viskores::Vec3f& pt) const
   {
-    auto theta = std::atan2(pt[1] - this->Center[1], pt[0] - this->Center[0]);
-    if (theta < 0)
-      theta += static_cast<viskores::FloatDefault>(2.0 * M_PI);
+    auto yind_tmp = pt[1];
+
+    auto theta = this->interp1_linear(this->yiarray_cfr.data(), this->theta_cfr.data(), this->yiarray_cfr.size(), yind_tmp);
     return theta;
   }
 
@@ -910,4 +955,6 @@ public:
   int ixsep1, ixsep2;
   int divertor;
   int direction;
+
+  std::vector<viskores::FloatDefault> yiarray_cfr, theta_cfr;
 };

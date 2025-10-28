@@ -4,7 +4,8 @@ project(fieldline_tracing)
 #find_package(NetCDF REQUIRED)
 
 find_package(Viskores REQUIRED QUIET)
-find_package(mpi REQUIRED)
+find_package(MPI REQUIRED)
+find_package(ADIOS2 REQUIRED)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,7 +19,7 @@ set(NetCDF_LIBRARIES "" CACHE FILEPATH "NetCDF library file")
 
 # Add include path and link libraries manually
 target_include_directories(fieldline_tracing_vtkm PRIVATE ${NetCDF_INCLUDE_DIR})
-target_link_libraries(fieldline_tracing_vtkm ${NetCDF_LIBRARIES})
+target_link_libraries(fieldline_tracing_vtkm ${NetCDF_LIBRARIES} adios2::adios2)
 target_link_libraries(fieldline_tracing_vtkm viskores::cont viskores::io viskores::filter_resampling)
 
 

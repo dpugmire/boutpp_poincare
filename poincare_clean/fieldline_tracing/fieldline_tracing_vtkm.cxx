@@ -1,5 +1,6 @@
 #include "NetCDFLoader.h"
 #include "RK4_vtkm.h"
+#include <adios2.h>
 #include <chrono>
 #include <cmath>
 #include <fstream>
@@ -10,6 +11,7 @@
 #include "parse_args.h"
 #include <viskores/Particle.h>
 #include <viskores/cont/Algorithm.h>
+#include <viskores/cont/ArrayHandleBasic.h>
 #include <viskores/cont/ArrayHandleTransform.h>
 #include <viskores/cont/CellLocatorRectilinearGrid.h>
 #include <viskores/cont/CellLocatorUniformGrid.h>
@@ -224,6 +226,10 @@ public:
     this->ShiftAngle = viskores::cont::make_ArrayHandle(this->shiftAngle, viskores::CopyFlag::On);
 
     this->ComputeCenter();
+    this->ComputeXPoint();
+    this->ComputeTheta();
+    std::cout << "Center: " << this->center << std::endl;
+    std::cout << "XPoint: " << this->xpoint << std::endl;
   }
 
   void ComputeCenter()
@@ -246,7 +252,157 @@ public:
     }
     this->center[0] = 0.5 * (rRange.Min + rRange.Max);
     this->center[1] = 0.5 * (zRange.Min + zRange.Max);
-    std::cout << "******************* Center of 2D plane: " << this->center << std::endl;
+  }
+
+  // Call this with isIxsepOneBased=true if ixsep came from MATLAB; else false.
+  void ComputeXPoint(bool isIxsepOneBased = true)
+  {
+    const viskores::Id nx = this->nx, ny = this->ny, nypf1 = this->nypf1;
+    if (nx < 2 || ny < 2)
+      throw std::runtime_error("Grid too small for X-point");
+
+    // Choose the two columns that straddle the separatrix, honoring the indexing base.
+    const viskores::Id i0 = isIxsepOneBased ? (this->ixsep - 1) : this->ixsep;
+    const viskores::Id i1 = i0 + 1;
+    if (i0 < 0 || i1 >= nx)
+      throw std::runtime_error("ixsep out of range for separatrix pair");
+
+    // The four j positions used by the MATLAB (converted to 0-based):
+    const viskores::Id j0 = nypf1 - 1;      // nypf1
+    const viskores::Id j1 = nypf1;          // nypf1+1
+    const viskores::Id j2 = ny - nypf1 - 1; // ny - nypf1
+    const viskores::Id j3 = ny - nypf1;     // ny - nypf1 + 1
+    if (j0 < 0 || j3 >= ny)
+      throw std::runtime_error("nypf1/ny inconsistent with grid size");
+
+    const auto rxyPortal =
+      this->Grid2D.GetPointField("rxy").GetData().AsArrayHandle<viskores::cont::ArrayHandle<viskores::FloatDefault>>().ReadPortal();
+    const auto zxyPortal =
+      this->Grid2D.GetPointField("zxy").GetData().AsArrayHandle<viskores::cont::ArrayHandle<viskores::FloatDefault>>().ReadPortal();
+
+    auto rAt = [&](viskores::Id i, viskores::Id j) { return rxyPortal.Get(i + j * nx); };
+    auto zAt = [&](viskores::Id i, viskores::Id j) { return zxyPortal.Get(i + j * nx); };
+
+    auto mid = [&](viskores::Id j)
+    {
+      const auto rx = static_cast<viskores::FloatDefault>(0.5) * (rAt(i0, j) + rAt(i1, j));
+      const auto rz = static_cast<viskores::FloatDefault>(0.5) * (zAt(i0, j) + zAt(i1, j));
+      return std::pair<viskores::FloatDefault, viskores::FloatDefault>{ rx, rz };
+    };
+
+    const auto [x0, y0] = mid(j0);
+    const auto [x1, y1] = mid(j1);
+    const auto [x2, y2] = mid(j2);
+    const auto [x3, y3] = mid(j3);
+
+    this->xpoint[0] = static_cast<viskores::FloatDefault>(0.25) * (x0 + x1 + x2 + x3);
+    this->xpoint[1] = static_cast<viskores::FloatDefault>(0.25) * (y0 + y1 + y2 + y3);
+  }
+
+  void ComputeTheta()
+  {
+    const viskores::Id nx = this->nx;
+    const viskores::Id ny = this->ny;
+    const viskores::Id nypf1 = this->nypf1; // MATLAB's nypf1 (note: 0-based index nypf1 maps to MATLAB nypf1+1)
+    if (nx < 1 || ny < 1)
+      throw std::runtime_error("Grid too small in ComputeTheta");
+
+    // --- Base vectors (Z components are 0, we stay in 2D) ---
+    // u = center - xpoint (reference direction for theta=0 after shift)
+    const viskores::FloatDefault ux = static_cast<viskores::FloatDefault>(this->center[0] - this->xpoint[0]);
+    const viskores::FloatDefault uy = static_cast<viskores::FloatDefault>(this->center[1] - this->xpoint[1]);
+
+    // Access fields
+    const auto rxyPortal =
+      this->Grid2D.GetPointField("rxy").GetData().AsArrayHandle<viskores::cont::ArrayHandle<viskores::FloatDefault>>().ReadPortal();
+    const auto zxyPortal =
+      this->Grid2D.GetPointField("zxy").GetData().AsArrayHandle<viskores::cont::ArrayHandle<viskores::FloatDefault>>().ReadPortal();
+
+    auto rAt = [&](viskores::Id i, viskores::Id j) -> viskores::FloatDefault
+    { return static_cast<viskores::FloatDefault>(rxyPortal.Get(i + j * nx)); };
+    auto zAt = [&](viskores::Id i, viskores::Id j) -> viskores::FloatDefault
+    { return static_cast<viskores::FloatDefault>(zxyPortal.Get(i + j * nx)); };
+
+    // --- theta(j) = atan2( |u x v|, u·v ) / pi, where v = center - (rxy(0,j), zxy(0,j)) ---
+    this->theta.resize(static_cast<std::size_t>(ny), 0.0);
+    const viskores::FloatDefault pi = 3.141592653589793238462643383279502884;
+
+    for (viskores::Id j = 0; j < ny; ++j)
+    {
+      const viskores::FloatDefault vx = static_cast<viskores::FloatDefault>(this->center[0]) - rAt(0, j); // rxy(1, j+1) in MATLAB
+      const viskores::FloatDefault vy = static_cast<viskores::FloatDefault>(this->center[1]) - zAt(0, j); // zxy(1, j+1)
+
+      const viskores::FloatDefault dot = ux * vx + uy * vy;
+      // 2D cross product magnitude equals |ux*vy - uy*vx| (z-component of 3D cross)
+      const viskores::FloatDefault crs = std::abs(ux * vy - uy * vx);
+
+      const viskores::FloatDefault ang = std::atan2(crs, dot); // in [0, pi]
+      this->theta[static_cast<std::size_t>(j)] = ang / pi;     // scale to [0,1], like MATLAB
+    }
+
+    // --- Unwrap / reflect like the MATLAB code ---
+    // [c, itheta] = max(theta);
+    // theta(itheta:ny) = 2 - theta(itheta:ny);
+    {
+      auto it = std::max_element(this->theta.begin(), this->theta.end());
+      const std::size_t itheta = static_cast<std::size_t>(std::distance(this->theta.begin(), it));
+      for (std::size_t j = itheta; j < theta.size(); ++j)
+        this->theta[j] = 2.0 - this->theta[j];
+    }
+
+    // recompute max; if (itheta != ny) then theta(itheta:ny) = 4 - theta(itheta:ny);
+    {
+      auto it = std::max_element(theta.begin(), theta.end());
+      const std::size_t itheta = static_cast<std::size_t>(std::distance(theta.begin(), it));
+      if (itheta != static_cast<std::size_t>(ny - 1))
+      {
+        for (std::size_t j = itheta; j < theta.size(); ++j)
+          this->theta[j] = 4.0 - this->theta[j];
+      }
+    }
+
+    // --- Shift so that theta at (1, nypf1+1) equals zero (MATLAB) ---
+    // MATLAB uses 1-based index (nypf1+1). Our 0-based array uses index nypf1.
+    if (nypf1 < 0 || nypf1 >= ny)
+      throw std::runtime_error("nypf1 out of range in ComputeTheta");
+    const viskores::FloatDefault ref = theta[static_cast<std::size_t>(nypf1)];
+    for (viskores::FloatDefault& t : this->theta)
+      t -= ref;
+
+    printArray("theta", this->theta);
+
+    //compute theta_cfr.
+    // ----- Closed Flux Region (CFR) indices and theta_cfr -----
+    if (this->ixsep < 0 || this->ixsep >= nx)
+      throw std::runtime_error("ixsep out of range for CFR");
+    if (this->nypf1 < 0 || this->nypf2 < this->nypf1 || this->nypf2 >= ny)
+      throw std::runtime_error("nypf1/nypf2 out of range for CFR");
+
+    // xiarray_cfr = 1:ixsep  (MATLAB, 1-based)  -->  0..ixsep (0-based, inclusive)
+    std::vector<viskores::FloatDefault> xiarrayCfr;
+    xiarrayCfr.reserve(static_cast<std::size_t>(this->ixsep + 1));
+    for (viskores::Id i = 0; i <= this->ixsep; ++i)
+      xiarrayCfr.push_back(i);
+
+    // yiarray_cfr = nypf1+1:nypf2+1  (MATLAB)  -->  nypf1..nypf2 (0-based, inclusive)
+    std::vector<viskores::FloatDefault> yiarrayCfr;
+    yiarrayCfr.reserve(static_cast<std::size_t>(this->nypf2 - this->nypf1 + 1));
+    for (viskores::Id j = this->nypf1; j <= this->nypf2; ++j)
+      yiarrayCfr.push_back(j);
+
+    // theta_cfr = theta(yiarray_cfr); theta_cfr(end) = 2.0;
+    std::vector<viskores::FloatDefault> thetaCfr;
+    thetaCfr.reserve(yiarrayCfr.size());
+    for (auto j : yiarrayCfr)
+      thetaCfr.push_back(this->theta[static_cast<std::size_t>(j)]);
+    if (!thetaCfr.empty())
+      thetaCfr.back() = static_cast<viskores::FloatDefault>(2.0);
+
+    // (Optional) stash as members for later use:
+    this->xiarray_cfr = std::move(xiarrayCfr); // std::vector<viskores::Id>
+    this->yiarray_cfr = std::move(yiarrayCfr); // std::vector<viskores::Id>
+    this->theta_cfr = std::move(thetaCfr);     // std::vector<viskores::FloatDefault>
+    printArray("theta_cfr: ", this->theta_cfr);
   }
 
   void AddField(const std::vector<std::vector<double>>& vals, const std::string& fieldName, viskores::cont::DataSet& ds)
@@ -316,9 +472,9 @@ public:
   int divertor = 0;
 
   int nzG;
-  std::vector<double> xiarray, xarray, xiarray_cfr;
-  std::vector<double> yiarray, yiarray_cfr;
-  std::vector<double> ziarray, zarray;
+  std::vector<viskores::FloatDefault> xiarray, xarray, xiarray_cfr;
+  std::vector<viskores::FloatDefault> yiarray, yiarray_cfr;
+  std::vector<viskores::FloatDefault> ziarray, zarray;
 
   std::vector<double> dy;
   double dy0 = 0.0;
@@ -336,7 +492,8 @@ public:
   viskores::cont::ArrayHandle<viskores::FloatDefault> XArray, YArray, ZArray;
   viskores::cont::ArrayHandle<viskores::FloatDefault> XiArray, YiArray, ZiArray;
   viskores::cont::ArrayHandle<viskores::FloatDefault> ShiftAngle;
-  viskores::Vec2f center;
+  viskores::Vec2f center, xpoint;
+  std::vector<viskores::FloatDefault> theta, theta_cfr;
 };
 
 // Interpolate psixy[i][j] along i (x-index). i in [0..nx-1], j in [0..ny-1].
@@ -368,6 +525,60 @@ inline T IndexInterp(const std::vector<std::vector<T>>& psixy, double xind, int 
   return static_cast<T>(v);
 }
 
+void SaveOutput(const cli::Options<viskores::FloatDefault>& cliOpts,
+                const viskores::cont::ArrayHandle<viskores::FloatDefault>& validResultIndices,
+                const viskores::cont::ArrayHandle<viskores::Vec3f>& validResult,
+                const viskores::cont::ArrayHandle<viskores::Vec2f>& validResultPsiTheta)
+{
+  adios2::ADIOS adios(MPI_COMM_WORLD);
+  auto io = adios.DeclareIO("punctures");
+  int localNum = static_cast<int>(validResultIndices.GetNumberOfValues());
+  int totalNum = 0;
+  MPI_Allreduce(&localNum, &totalNum, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+  int rankOffset = 0;
+  MPI_Exscan(&localNum, &rankOffset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  if (cliOpts.rank == 0)
+    rankOffset = 0;
+
+  std::vector<viskores::FloatDefault> dataR(localNum), dataZ(localNum), dataPsi(localNum), dataTheta(localNum);
+  auto ptPortal = validResult.ReadPortal();
+  auto psiThetaPortal = validResultPsiTheta.ReadPortal();
+  for (viskores::Id i = 0; i < localNum; i++)
+  {
+    dataR[i] = ptPortal.Get(i)[1];
+    dataZ[i] = ptPortal.Get(i)[2];
+    dataPsi[i] = psiThetaPortal.Get(i)[0];
+    dataTheta[i] = psiThetaPortal.Get(i)[1];
+  }
+
+  auto varIdx = io.DefineVariable<viskores::FloatDefault>(
+    "idx0", { static_cast<size_t>(totalNum) }, { static_cast<size_t>(rankOffset) }, { static_cast<size_t>(localNum) });
+  auto rVar = io.DefineVariable<viskores::FloatDefault>(
+    "R", { static_cast<size_t>(totalNum) }, { static_cast<size_t>(rankOffset) }, { static_cast<size_t>(localNum) });
+  auto zVar = io.DefineVariable<viskores::FloatDefault>(
+    "Z", { static_cast<size_t>(totalNum) }, { static_cast<size_t>(rankOffset) }, { static_cast<size_t>(localNum) });
+  auto psiVar = io.DefineVariable<viskores::FloatDefault>(
+    "Psi", { static_cast<size_t>(totalNum) }, { static_cast<size_t>(rankOffset) }, { static_cast<size_t>(localNum) });
+  auto thetaVar = io.DefineVariable<viskores::FloatDefault>(
+    "Theta", { static_cast<size_t>(totalNum) }, { static_cast<size_t>(rankOffset) }, { static_cast<size_t>(localNum) });
+
+  viskores::cont::ArrayHandleBasic<viskores::FloatDefault> idxBasic(validResultIndices);
+  viskores::cont::ArrayHandleBasic<viskores::Vec3f> ptsBasic(validResult);
+  viskores::cont::ArrayHandleBasic<viskores::Vec2f> psiThetaBasic(validResultPsiTheta);
+
+  auto engine = io.Open("out.bp", adios2::Mode::Write);
+  engine.BeginStep();
+  engine.Put(varIdx, idxBasic.GetReadPointer());
+  engine.Put(rVar, dataR.data());
+  engine.Put(zVar, dataZ.data());
+  engine.Put(psiVar, dataPsi.data());
+  engine.Put(thetaVar, dataTheta.data());
+  engine.EndStep();
+  engine.Close();
+}
+
+
 int main(int argc, char* argv[])
 {
   cli::Options<viskores::FloatDefault> cliOpts;
@@ -384,7 +595,7 @@ int main(int argc, char* argv[])
   std::cout << "apar:: " << cliOpts.apar << std::endl;
   std::cout << "maxPunc:: " << cliOpts.maxpunc << std::endl;
 
-  if (true)
+  if (cliOpts.numRanks == 1)
   {
     auto opts = viskores::cont::InitializeOptions::DefaultAnyDevice;
     auto config = viskores::cont::Initialize(argc, argv, opts);
@@ -447,6 +658,8 @@ int main(int argc, char* argv[])
   worklet.ny = opts.ny;
   worklet.direction = 1;
   worklet.Center = opts.center;
+  worklet.yiarray_cfr = opts.yiarray_cfr;
+  worklet.theta_cfr = opts.theta_cfr;
   //printArray("ZiArray", opts.ZiArray);
   //printArray("ZArray", opts.ZArray);
   BoutppField boutppField(opts.Grid3D, opts.Grid2D, opts.XiArray, opts.XArray, opts.YArray, opts.ZiArray, opts.ZArray, opts.ShiftAngle);
@@ -515,6 +728,7 @@ int main(int argc, char* argv[])
     cliOpts.puncSplineOut << x0 << ", " << step << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << ", " << psiTheta[1] << ", " << psiTheta[0]
                           << std::endl;
   }
+  SaveOutput(cliOpts, validResultIndices, validResult, validResultPsiTheta);
 
   MPI_Finalize();
   return 0;
