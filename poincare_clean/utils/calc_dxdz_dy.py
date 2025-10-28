@@ -214,10 +214,10 @@ def get_apar_sn(psi_or_apar, bxy, psixy, zs, sa, sinty, dy0, dz,
 #    matfile ="../../data/apar_kstar_30306_7850_psi085105_nx260ny128_f2_nz256.mat",
 #    stuff_file="stuff_python.nc",
 
-def run_minimal(gridFile, aparFile, timeStep, outputFile,
+def run_minimal(gridFile, aparFile, zperiod, timeStep, outputFile,
     save_fields=True,
     #nx=260, ny=128,
-    nz_hint=256, zperiod=1,
+    nz_hint=256,
     interp_opt=0, deriv_opt=0, true_apar=True,
 ):
     gridfile = Path(gridFile)
@@ -383,13 +383,14 @@ def run_minimal(gridFile, aparFile, timeStep, outputFile,
             _ensure_dims(ds, {'nx': nx, 'ny': ny, 'nz': nz})
             _ensure_dims(ds, {'nx_cfr': rxy_cfr.shape[0], 'ny_cfr': rxy_cfr.shape[1]})
 
-            write_scalar(ds, "ixseps1", ixseps1)
-            write_scalar(ds, "ixseps2", ixseps2)
+            write_scalar(ds, "ixsep1", ixseps1)
+            write_scalar(ds, "ixsep2", ixseps2)
             write_scalar(ds, "jyseps1_1", jyseps1_1)
             write_scalar(ds, "jyseps1_2", jyseps1_2)
             write_scalar(ds, "jyseps2_1", jyseps2_1)
             write_scalar(ds, "jyseps2_2", jyseps2_2)
             write_scalar(ds, "ny_inner", ny_inner)
+            write_scalar(ds, "zperiod", zperiod)
 
             # Order: psixy, dxdy, dzdy, dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1,
             #        shiftAngle, zShift, rxy, zxy, rxy_cfr, zxy_cfr, zShift_cfr
@@ -418,18 +419,19 @@ def run_minimal(gridFile, aparFile, timeStep, outputFile,
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5 :
-        print('Error. Usage: <grid_file> <apar_file> <time_step> <output_file>')
+    if len(sys.argv) != 6 :
+        print('Error. Usage: <grid_file> <apar_file> <zperiod> <time_step> <output_file>')
         sys.exit()
 
     gridFile = sys.argv[1]
     aparFile = sys.argv[2]
-    timeStep = int(sys.argv[3])
-    outputFile = sys.argv[4]
+    zperiod = int(sys.argv[3])
+    timeStep = int(sys.argv[4])
+    outputFile = sys.argv[5]
 
-    run_minimal(gridFile, aparFile, timeStep, outputFile)
+    run_minimal(gridFile, aparFile, zperiod, timeStep, outputFile)
 
 
 # case from Ben Z.
 ## python ./calc_dxdz_dy.py ../../data/kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc ../../data/apar_kstar_30306_7850_psi085105_nx260ny128_f2_nz256.mat OUT.nc
-
+#This doesn't work when zperiod is not 1.

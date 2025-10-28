@@ -1,1 +1,3 @@
 ./build/fieldline_tracing_vtkm --apar /Users/dpn/proj/bout++/nersc_data/xpoint_singlenull/stuff.500.nc --maxpunc 500 --xind 40 50 20
+
+mpirun -np 3 ./build/fieldline_tracing_vtkm --apar /Users/dpn/proj/bout++/nersc_data/xpoint_singlenull/stuff.500.nc --maxpunc 500 --xind 40 50 20

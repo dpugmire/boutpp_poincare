@@ -69,14 +69,16 @@ if (n == 2)
 end
 
 %% debug gui
-if (args{1} == "--gui")
-  gridfile =  '../data/kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
-end
+%if (args{1} == "--gui")
+%  gridfile =  '../data/kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
+%end
 
 
 
 % Mesh resolution info
 nx = 260; ny = 128; nz = 256; zperiod = 1;
+## single null case:
+nx = 132; ny = 64; nz = 320; zperiod = 5;
 % Field-line tracing direction: 1 (y index increasing); -1 (y index decreasing)
 direction = 1;
 % Individual field-lines to be traced radially
@@ -261,6 +263,8 @@ yiarray = (1:ny);
         end
         % for more accuracy, shift to (1,nypf+1) as the reference point
         theta=theta-theta(nypf1+1);
+        printf('center: %8.6f %8.6f  xpoint: %8.6f %8.6f\n', center_x, center_y, xpoint_x, xpoint_y);
+        printf(' theta: %8.6f\n', theta);
 
     elseif (divertor == 0) % shift-circular configuration
 	    center_x=0.5*(max(rxy(1,:))+min(rxy(1,:)));
@@ -449,7 +453,7 @@ yiarray = (1:ny);
         %printEval(dxdy, 14, 100, 28);
 
         %fprintf('ixseps: %d  jyseps: %d %d %d %d  nyfp1,2: %d %d\n', ixsep1, ixsep2, jyseps1_1, jyseps1_2, jyseps2_1, jyseps2_2, nypf1, nypf2);
-        dump_fieldline_data(stuffFile, nx, ny, nz, rxy, zxy, rxy_cfr, zxy_cfr, sa, zShift, zs_cfr, psixy, dxdy, dzdy, dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1);
+        dump_fieldline_data(stuffFile, nx, ny, nz, zperiod, ixsep1, ixsep2, jyseps1_1, jyseps1_2, jyseps2_1, jyseps2_2, rxy, zxy, rxy_cfr, zxy_cfr, sa, zShift, zs_cfr, psixy, dxdy, dzdy, dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1);
         return;
     end
 

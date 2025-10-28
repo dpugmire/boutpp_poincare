@@ -2,7 +2,7 @@
 
 %pkg load netcdf; %% for octave
 
-function dump_fieldline_data(fname, nx, ny, nz, rxy, zxy, rxy_cfr, zxy_cfr, shiftAngle, zShift, zShift_cfr, psixy, dxdy, dzdy, dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1)
+function dump_fieldline_data(fname, nx, ny, nz, zperiod, ixsep1, ixsep2, jyseps1_1, jyseps1_2, jyseps2_1, jyseps2_2, rxy, zxy, rxy_cfr, zxy_cfr, shiftAngle, zShift, zShift_cfr, psixy, dxdy, dzdy, dxdy_p1, dzdy_p1, dxdy_m1, dzdy_m1)
 
   fprintf('nxyz= %d %d %d\n', nx,ny,nz);
   drp_print_dims('psixy', psixy);
@@ -23,6 +23,13 @@ function dump_fieldline_data(fname, nx, ny, nz, rxy, zxy, rxy_cfr, zxy_cfr, shif
   nx_dim = netcdf.defDim(ncid, 'nx', nx);
   ny_dim = netcdf.defDim(ncid, 'ny', ny);
   nz_dim = netcdf.defDim(ncid, 'nz', nz);
+  zperiod_dim = netcdf.defDim(ncid, 'zperiod', zperiod);
+  ixsep1_dim = netcdf.defDim(ncid, 'ixsep1', ixsep1);
+  ixsep2_dim = netcdf.defDim(ncid, 'ixsep2', ixsep2);
+  jyseps1_1_dim = netcdf.defDim(ncid, 'jyseps1_1', jyseps1_1);
+  jyseps1_2_dim = netcdf.defDim(ncid, 'jyseps1_2', jyseps1_2);
+  jyseps2_1_dim = netcdf.defDim(ncid, 'jyseps2_1', jyseps2_1);
+  jyseps2_2_dim = netcdf.defDim(ncid, 'jyseps2_2', jyseps2_2);
   nx_cfr_dim = netcdf.defDim(ncid, 'nx_cfr', nx_cfr);
   ny_cfr_dim = netcdf.defDim(ncid, 'ny_cfr', ny_cfr);
 
