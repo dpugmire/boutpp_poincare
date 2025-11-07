@@ -724,9 +724,9 @@ int main(int argc, char* argv[])
   for (viskores::Id i = 0; i < validPunctures.GetNumberOfValues(); i++)
   {
     auto pt = validPunctures.ReadPortal().Get(i);
+    auto id = validIDs.ReadPortal().Get(i);
     auto idx = validIndex.ReadPortal().Get(i);
-    int x0 = i;
-    cliOpts.puncSplineOut << x0 << ", " << idx << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << ", " << pt[3] << std::endl;
+    cliOpts.puncSplineOut << id << ", " << idx << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << ", " << pt[3] << std::endl;
   }
   SaveOutput(cliOpts, validIDs, validIndex, validPunctures);
 

@@ -270,7 +270,7 @@ inline void parseArgs(int argc, char** argv, Options<T>& opts)
 
   const auto outPath = std::filesystem::path(opts.outputDir) / name.str();
   opts.puncSplineOut = std::ofstream(outPath.string());
-  opts.puncSplineOut << "ID, STEP, R, Z, THETA, PSI\n";
+  opts.puncSplineOut << "ID, IDX, R, Z, THETA, PSI\n";
 
   // -------- Partition --xind across MPI ranks --------
   // Only partition if user provided --xind.
