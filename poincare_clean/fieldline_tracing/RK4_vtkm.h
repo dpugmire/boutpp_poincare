@@ -136,48 +136,40 @@ public:
   {
   }
 
-  using ControlSignature = void(FieldIn points,
-                                FieldIn xind,
+  using ControlSignature = void(FieldIn IDs,
+                                FieldIn points,
                                 ExecObject boutppField,
                                 WholeCellSetIn<> cells3D,
                                 WholeCellSetIn<> cells2D,
-                                WholeArrayOut validResult,
-                                WholeArrayOut result,
-                                WholeArrayOut resultPsiTheta,
-                                WholeArrayOut resultStep,
-                                WholeArrayOut puncIndex);
-  using ExecutionSignature = void(InputIndex, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10);
+                                WholeArrayOut puncIDs,
+                                WholeArrayOut puncIndex,
+                                WholeArrayOut resultRZThetaPsi);
+  using ExecutionSignature = void(InputIndex, _1, _2, _3, _4, _5, _6, _7, _8);
   using InputDomain = _1;
 
-  template <typename BoutppFieldType,
-            typename CellSet3DType,
-            typename CellSet2DType,
-            typename ValidPuncType,
-            typename ResultType,
-            typename ResultPsiThetaType,
-            typename StepType,
-            typename IndexType>
+  template <typename BoutppFieldType, typename CellSet3DType, typename CellSet2DType, typename PuncIndexType, typename ResultType>
   VISKORES_EXEC void operator()(const viskores::Id& idx,
+                                const viskores::Id& ID,
                                 const viskores::Vec3f& pStart,
-                                const viskores::FloatDefault& xindIn,
                                 BoutppFieldType& boutppField,
                                 const CellSet3DType& cells3D,
                                 const CellSet2DType& cells2D,
-                                ValidPuncType& validResult,
-                                ResultType& result,
-                                ResultPsiThetaType& resultPsiTheta,
-                                StepType& resultStep,
-                                IndexType& puncIndex) const
+                                PuncIndexType& puncID,
+                                PuncIndexType& puncIndex,
+                                ResultType& resultRZThetaPsi) const
   {
     constexpr double twoPi = 2.0 * M_PI;
     viskores::Id numPunc = 0;
     viskores::Id numSteps = 0;
     auto p0 = pStart;
-    auto xind = xindIn;
+    auto xind = p0[0];
     int region = this->GetRegion(xind, p0[1]);
 
     viskores::Id stepOffset = idx * this->MaxSteps;
     viskores::Id puncOffset = idx * this->MaxPunctures;
+
+    puncIndex.Set(puncOffset, numPunc);
+#if 1
 #if TRACE_IO
     std::ostringstream oss;
     oss << "steps." << std::setw(3) << std::setfill('0') << int(idx) << ".txt";
@@ -194,14 +186,12 @@ public:
     rootPuncOut << "ID, STEP, X, Y, Z" << std::endl;
 #endif
 
-    viskores::Vec3f pCart0, pCart1, vCart, pIndex0, pIndex1, junk;
+    viskores::Vec3f pCart0, pCart1, vCart, pIndex0, pIndex1;
 
     pCart0 = this->ToCartesian(p0, boutppField, cells2D);
-
     pIndex0 = this->ConvertToIndex(p0, boutppField, 0);
 
     int cnt = 0;
-    int puncturesToSkip = 3;
     for (viskores::Id step = 1; region < 10 && step < this->MaxSteps; step++)
     {
       bool inCFR =
@@ -316,25 +306,25 @@ public:
       //point crosses the X=0 plane.
       if (step > 1 && pCart0[0] * pCart1[0] < 0 && pCart0[0] > 0)
       {
-        if (puncturesToSkip > 0)
-          puncturesToSkip--;
-        else
-        {
-          viskores::FloatDefault puncStep;
-          viskores::Vec2f psiThetaPt;
-          auto puncPt = this->FindPuncture(step, p0, p1, boutppField, cells2D, puncStep, psiThetaPt);
-          result.Set(puncOffset + numPunc, puncPt);
-          resultStep.Set(puncOffset + numPunc, puncStep);
-          resultPsiTheta.Set(puncOffset + numPunc, psiThetaPt);
+        viskores::FloatDefault puncStep;
+        viskores::Vec2f psiThetaPt;
+        auto puncPt = this->FindPuncture(step, p0, p1, boutppField, cells2D, puncStep, psiThetaPt);
+        viskores::Vec4f rzThetaPsi(puncPt[1], puncPt[2], psiThetaPt[1], psiThetaPt[0]);
+        resultRZThetaPsi.Set(puncOffset + numPunc, rzThetaPsi);
+        puncID.Set(puncOffset + numPunc, ID);
+        puncIndex.Set(puncOffset + numPunc, numPunc);
+
+        //result.Set(puncOffset + numPunc, puncPt);
+        //resultStep.Set(puncOffset + numPunc, puncStep);
+        //resultPsiTheta.Set(puncOffset + numPunc, psiThetaPt);
 #if TRACE_IO
-          rootPuncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << std::endl;
-          puncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << ", 0.0, 0.0, 0.0" << std::endl;
+        rootPuncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << std::endl;
+        puncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << ", 0.0, 0.0, 0.0" << std::endl;
 #endif
 
-          puncIndex.Set(puncOffset + numPunc, xindIn);
-          validResult.Set(puncOffset + numPunc, true);
-          numPunc++;
-        }
+        //puncIndex.Set(puncOffset + numPunc, ID);
+        //validResult.Set(puncOffset + numPunc, true);
+        numPunc++;
       }
 
       p0 = p1;
@@ -348,6 +338,7 @@ public:
     }
 
     std::cout << "Done. region= " << region << " #punc= " << numPunc << " #steps= " << cnt << std::endl;
+#endif
   }
 
 private:

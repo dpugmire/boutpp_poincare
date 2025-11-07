@@ -19,7 +19,8 @@ struct Options
 {
   int rank = 0;
   int numRanks = 1;
-  std::vector<T> xind;          // values from --xind (becomes per-rank slice after parseArgs)
+  std::vector<T> xind; // values from --xind (becomes per-rank slice after parseArgs)
+  std::vector<viskores::Id> IDs;
   int maxpunc = 250;            // default
   bool haveXind = false;        // whether --xind was provided
   std::string apar;             // value from --apar (empty if not provided)
@@ -269,7 +270,7 @@ inline void parseArgs(int argc, char** argv, Options<T>& opts)
 
   const auto outPath = std::filesystem::path(opts.outputDir) / name.str();
   opts.puncSplineOut = std::ofstream(outPath.string());
-  opts.puncSplineOut << "Xind0, STEP, X, Y, Z, THETA, PSI\n";
+  opts.puncSplineOut << "ID, STEP, R, Z, THETA, PSI\n";
 
   // -------- Partition --xind across MPI ranks --------
   // Only partition if user provided --xind.
@@ -289,6 +290,10 @@ inline void parseArgs(int argc, char** argv, Options<T>& opts)
     // Keep only the local slice for this rank.
     std::vector<T> local(opts.xind.begin() + static_cast<std::ptrdiff_t>(begin), opts.xind.begin() + static_cast<std::ptrdiff_t>(end));
     opts.xind.swap(local);
+    //Set the IDs.
+    const std::size_t count = end - begin;
+    opts.IDs.resize(count);
+    std::iota(opts.IDs.begin(), opts.IDs.end(), static_cast<viskores::Id>(begin));
 
 #if 0
     // --- print per-rank xind values ---

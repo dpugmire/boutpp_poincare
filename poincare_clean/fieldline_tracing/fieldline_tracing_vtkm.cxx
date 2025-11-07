@@ -526,9 +526,9 @@ inline T IndexInterp(const std::vector<std::vector<T>>& psixy, double xind, int 
 }
 
 void SaveOutput(const cli::Options<viskores::FloatDefault>& cliOpts,
-                const viskores::cont::ArrayHandle<viskores::FloatDefault>& validResultIndices,
-                const viskores::cont::ArrayHandle<viskores::Vec3f>& validResult,
-                const viskores::cont::ArrayHandle<viskores::Vec2f>& validResultPsiTheta)
+                const viskores::cont::ArrayHandle<viskores::Id>& validIds,
+                const viskores::cont::ArrayHandle<viskores::Id>& validResultIndices,
+                const viskores::cont::ArrayHandle<viskores::Vec4f>& validResultRZThetaPsi)
 {
   adios2::ADIOS adios(MPI_COMM_WORLD);
   auto io = adios.DeclareIO("punctures");
@@ -542,18 +542,19 @@ void SaveOutput(const cli::Options<viskores::FloatDefault>& cliOpts,
     rankOffset = 0;
 
   std::vector<viskores::FloatDefault> dataR(localNum), dataZ(localNum), dataPsi(localNum), dataTheta(localNum);
-  auto ptPortal = validResult.ReadPortal();
-  auto psiThetaPortal = validResultPsiTheta.ReadPortal();
+  auto ptPortal = validResultRZThetaPsi.ReadPortal();
   for (viskores::Id i = 0; i < localNum; i++)
   {
-    dataR[i] = ptPortal.Get(i)[1];
-    dataZ[i] = ptPortal.Get(i)[2];
-    dataPsi[i] = psiThetaPortal.Get(i)[0];
-    dataTheta[i] = psiThetaPortal.Get(i)[1];
+    dataR[i] = ptPortal.Get(i)[0];
+    dataZ[i] = ptPortal.Get(i)[1];
+    dataPsi[i] = ptPortal.Get(i)[2];
+    dataTheta[i] = ptPortal.Get(i)[3];
   }
 
-  auto varIdx = io.DefineVariable<viskores::FloatDefault>(
-    "idx0", { static_cast<size_t>(totalNum) }, { static_cast<size_t>(rankOffset) }, { static_cast<size_t>(localNum) });
+  auto varID =
+    io.DefineVariable<viskores::Id>("ID", { static_cast<size_t>(totalNum) }, { static_cast<size_t>(rankOffset) }, { static_cast<size_t>(localNum) });
+  auto varIdx =
+    io.DefineVariable<viskores::Id>("Idx", { static_cast<size_t>(totalNum) }, { static_cast<size_t>(rankOffset) }, { static_cast<size_t>(localNum) });
   auto rVar = io.DefineVariable<viskores::FloatDefault>(
     "R", { static_cast<size_t>(totalNum) }, { static_cast<size_t>(rankOffset) }, { static_cast<size_t>(localNum) });
   auto zVar = io.DefineVariable<viskores::FloatDefault>(
@@ -563,12 +564,12 @@ void SaveOutput(const cli::Options<viskores::FloatDefault>& cliOpts,
   auto thetaVar = io.DefineVariable<viskores::FloatDefault>(
     "Theta", { static_cast<size_t>(totalNum) }, { static_cast<size_t>(rankOffset) }, { static_cast<size_t>(localNum) });
 
-  viskores::cont::ArrayHandleBasic<viskores::FloatDefault> idxBasic(validResultIndices);
-  viskores::cont::ArrayHandleBasic<viskores::Vec3f> ptsBasic(validResult);
-  viskores::cont::ArrayHandleBasic<viskores::Vec2f> psiThetaBasic(validResultPsiTheta);
+  viskores::cont::ArrayHandleBasic<viskores::Id> idBasic(validIds);
+  viskores::cont::ArrayHandleBasic<viskores::Id> idxBasic(validResultIndices);
 
   auto engine = io.Open("out.bp", adios2::Mode::Write);
   engine.BeginStep();
+  engine.Put(varID, idBasic.GetReadPointer());
   engine.Put(varIdx, idxBasic.GetReadPointer());
   engine.Put(rVar, dataR.data());
   engine.Put(zVar, dataZ.data());
@@ -577,7 +578,6 @@ void SaveOutput(const cli::Options<viskores::FloatDefault>& cliOpts,
   engine.EndStep();
   engine.Close();
 }
-
 
 int main(int argc, char* argv[])
 {
@@ -591,6 +591,7 @@ int main(int argc, char* argv[])
   cli::parseArgs<viskores::FloatDefault>(argc, argv, cliOpts);
   std::cout << "Options: " << std::endl;
   printArray("xind: ", cliOpts.xind);
+  printArray("IDs: ", cliOpts.IDs);
   std::cout << std::endl << std::endl;
   std::cout << "apar:: " << cliOpts.apar << std::endl;
   std::cout << "maxPunc:: " << cliOpts.maxpunc << std::endl;
@@ -667,6 +668,7 @@ int main(int argc, char* argv[])
   viskores::cont::Invoker invoker;
   auto inPts = viskores::cont::make_ArrayHandle<viskores::Vec3f>(points, viskores::CopyFlag::On);
   auto xinds = viskores::cont::make_ArrayHandle<viskores::FloatDefault>(cliOpts.xind, viskores::CopyFlag::On);
+  auto IDs = viskores::cont::make_ArrayHandle<viskores::Id>(cliOpts.IDs, viskores::CopyFlag::On);
   viskores::cont::ArrayHandle<viskores::FloatDefault> dxdyField, dzdyField, rxyField, zShiftField;
   viskores::cont::ArrayHandle<viskores::Vec3f> puncturesCart, resultIndex;
   grid3D.GetField("dxdy").GetData().AsArrayHandle<viskores::FloatDefault>(dxdyField);
@@ -678,35 +680,36 @@ int main(int argc, char* argv[])
 
   auto start = std::chrono::high_resolution_clock::now();
 
-  viskores::cont::ArrayHandle<viskores::Vec3f> result;
-  viskores::cont::ArrayHandle<viskores::Vec2f> resultPsiTheta;
-  viskores::cont::ArrayHandle<viskores::FloatDefault> resultStep;
-  result.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
-  resultPsiTheta.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
+  viskores::cont::ArrayHandle<viskores::Vec4f> punctures;
+  punctures.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
 
-  resultStep.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
+  //viskores::cont::ArrayHandle<viskores::FloatDefault> resultStep;
+  //resultStep.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
 
-  viskores::cont::ArrayHandle<viskores::FloatDefault> resultIndices;
-  resultIndices.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
+  //viskores::cont::ArrayHandle<viskores::Id> resultIndices;
+  //resultIndices.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
 
-  viskores::cont::ArrayHandle<bool> validPuncs;
-  validPuncs.AllocateAndFill(inPts.GetNumberOfValues() * cliOpts.maxpunc, false);
+  viskores::cont::ArrayHandle<viskores::Id> punctureIDs, punctureIndex;
+  punctureIDs.AllocateAndFill(inPts.GetNumberOfValues() * cliOpts.maxpunc, -1);
+  punctureIndex.AllocateAndFill(inPts.GetNumberOfValues() * cliOpts.maxpunc, -1);
 
-  invoker(
-    worklet, inPts, xinds, boutppField, grid3D.GetCellSet(), grid2D.GetCellSet(), validPuncs, result, resultPsiTheta, resultStep, resultIndices);
+  invoker(worklet, IDs, inPts, boutppField, grid3D.GetCellSet(), grid2D.GetCellSet(), punctureIDs, punctureIndex, punctures);
 
-  viskores::cont::ArrayHandle<viskores::Vec3f> validResult;
-  viskores::cont::ArrayHandle<viskores::Vec2f> validResultPsiTheta;
-  viskores::cont::ArrayHandle<viskores::FloatDefault> validResultIndices;
-  viskores::cont::ArrayHandle<viskores::FloatDefault> validStep;
+  viskores::cont::ArrayHandle<viskores::Id> validIndex, validIDs;
+  viskores::cont::ArrayHandle<viskores::Vec4f> validPunctures;
 
-  viskores::cont::Algorithm::CopyIf(result, validPuncs, validResult);
-  viskores::cont::Algorithm::CopyIf(resultPsiTheta, validPuncs, validResultPsiTheta);
+  struct GreaterThanEqZero
+  {
+    VISKORES_EXEC_CONT bool operator()(viskores::Id x) const { return x >= 0; }
+  };
+  viskores::cont::Algorithm::CopyIf(punctures, punctureIndex, validPunctures, GreaterThanEqZero());
+  viskores::cont::Algorithm::CopyIf(punctureIDs, punctureIndex, validIDs, GreaterThanEqZero());
+  viskores::cont::Algorithm::CopyIf(punctureIndex, punctureIndex, validIndex, GreaterThanEqZero());
 
-  viskores::cont::Algorithm::CopyIf(resultStep, validPuncs, validStep);
+  //viskores::cont::Algorithm::CopyIf(resultStep, punctureIndex, validStep);
 
-  viskores::cont::Algorithm::CopyIf(resultIndices, validPuncs, validResultIndices);
-  std::cout << "******** " << result.GetNumberOfValues() << " ----> " << validResult.GetNumberOfValues() << std::endl;
+  //viskores::cont::Algorithm::CopyIf(resultIndices, validPuncs, validResultIndices);
+  //std::cout << "******** " << resultRZThetaPsi.GetNumberOfValues() << " ----> " << validResultRZThetaPsi.GetNumberOfValues() << std::endl;
 
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -715,20 +718,17 @@ int main(int argc, char* argv[])
   std::cout << " NUM particles= " << cliOpts.xind.size() << " numPunc= " << cliOpts.maxpunc << std::endl;
 
   //output all punctures.
-  std::cout << "numValid puncs: " << validPuncs.GetNumberOfValues() << " # valid results " << validResult.GetNumberOfValues() << std::endl;
+  //std::cout << "numValid puncs: " << validPuncs.GetNumberOfValues() << " # valid results " << validResultRZThetaPsi.GetNumberOfValues() << std::endl;
   //viskores::cont::printSummary_ArrayHandle(validPuncs, std::cout, true);
 
-  for (viskores::Id i = 0; i < validResult.GetNumberOfValues(); i++)
+  for (viskores::Id i = 0; i < validPunctures.GetNumberOfValues(); i++)
   {
-    auto pt = validResult.ReadPortal().Get(i);
-    auto psiTheta = validResultPsiTheta.ReadPortal().Get(i);
-    //psiTheta[1] = ComputeTheta(opts.center, viskores::Vec2f(pt[1], pt[2]));
-    auto step = validStep.ReadPortal().Get(i);
-    auto x0 = validResultIndices.ReadPortal().Get(i);
-    cliOpts.puncSplineOut << x0 << ", " << step << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << ", " << psiTheta[1] << ", " << psiTheta[0]
-                          << std::endl;
+    auto pt = validPunctures.ReadPortal().Get(i);
+    auto idx = validIndex.ReadPortal().Get(i);
+    int x0 = i;
+    cliOpts.puncSplineOut << x0 << ", " << idx << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << ", " << pt[3] << std::endl;
   }
-  SaveOutput(cliOpts, validResultIndices, validResult, validResultPsiTheta);
+  SaveOutput(cliOpts, validIDs, validIndex, validPunctures);
 
   MPI_Finalize();
   return 0;
