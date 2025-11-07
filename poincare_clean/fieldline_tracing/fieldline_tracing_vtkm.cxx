@@ -15,7 +15,7 @@
 #include <viskores/cont/ArrayHandleTransform.h>
 #include <viskores/cont/CellLocatorRectilinearGrid.h>
 #include <viskores/cont/CellLocatorUniformGrid.h>
-#include <viskores/cont/CubicHermiteSpline.h>
+//#include <viskores/cont/CubicHermiteSpline.h>
 #include <viskores/cont/DataSetBuilderExplicit.h>
 #include <viskores/cont/DataSetBuilderRectilinear.h>
 #include <viskores/cont/DataSetBuilderUniform.h>
