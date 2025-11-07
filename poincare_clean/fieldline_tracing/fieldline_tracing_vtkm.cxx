@@ -224,10 +224,11 @@ public:
     this->ZArray = viskores::cont::make_ArrayHandle(this->zarray, viskores::CopyFlag::On);
     this->ZiArray = viskores::cont::make_ArrayHandle(this->ziarray, viskores::CopyFlag::On);
     this->ShiftAngle = viskores::cont::make_ArrayHandle(this->shiftAngle, viskores::CopyFlag::On);
-
+    this->YiArray_cfr = viskores::cont::make_ArrayHandle(this->yiarray_cfr, viskores::CopyFlag::On);
     this->ComputeCenter();
     this->ComputeXPoint();
     this->ComputeTheta();
+    this->Theta_cfr = viskores::cont::make_ArrayHandle(this->theta_cfr, viskores::CopyFlag::On);
     std::cout << "Center: " << this->center << std::endl;
     std::cout << "XPoint: " << this->xpoint << std::endl;
   }
@@ -492,6 +493,7 @@ public:
   viskores::cont::ArrayHandle<viskores::FloatDefault> XArray, YArray, ZArray;
   viskores::cont::ArrayHandle<viskores::FloatDefault> XiArray, YiArray, ZiArray;
   viskores::cont::ArrayHandle<viskores::FloatDefault> ShiftAngle;
+  viskores::cont::ArrayHandle<viskores::FloatDefault> YiArray_cfr, Theta_cfr;
   viskores::Vec2f center, xpoint;
   std::vector<viskores::FloatDefault> theta, theta_cfr;
 };
@@ -649,7 +651,6 @@ int main(int argc, char* argv[])
   RK4Worklet worklet(cliOpts.maxpunc, maxSteps);
   worklet.ds3D = grid3D;
   worklet.ds2D = grid2D;
-  worklet.grid3DBounds = grid3D.GetCoordinateSystem().GetBounds();
   worklet.grid2DBounds = grid2D.GetCoordinateSystem().GetBounds();
   worklet.nypf1 = opts.nypf1;
   worklet.nypf2 = opts.nypf2;
@@ -658,12 +659,9 @@ int main(int argc, char* argv[])
   worklet.divertor = opts.divertor;
   worklet.ny = opts.ny;
   worklet.direction = 1;
-  worklet.Center = opts.center;
-  worklet.yiarray_cfr = opts.yiarray_cfr;
-  worklet.theta_cfr = opts.theta_cfr;
-  //printArray("ZiArray", opts.ZiArray);
-  //printArray("ZArray", opts.ZArray);
-  BoutppField boutppField(opts.Grid3D, opts.Grid2D, opts.XiArray, opts.XArray, opts.YArray, opts.ZiArray, opts.ZArray, opts.ShiftAngle);
+
+  BoutppField boutppField(
+    opts.Grid3D, opts.Grid2D, opts.XiArray, opts.XArray, opts.YArray, opts.ZiArray, opts.ZArray, opts.ShiftAngle, opts.YiArray_cfr, opts.Theta_cfr);
 
   viskores::cont::Invoker invoker;
   auto inPts = viskores::cont::make_ArrayHandle<viskores::Vec3f>(points, viskores::CopyFlag::On);
@@ -675,19 +673,12 @@ int main(int argc, char* argv[])
   grid3D.GetField("dzdy").GetData().AsArrayHandle<viskores::FloatDefault>(dzdyField);
   grid2D.GetField("rxy").GetData().AsArrayHandle<viskores::FloatDefault>(rxyField);
   grid2D.GetField("zShift").GetData().AsArrayHandle<viskores::FloatDefault>(zShiftField);
-  //std::cout << "NumPoints= " << grid3D.GetNumberOfPoints() << std::endl;
-  //grid3D.PrintSummary(std::cout);
+
 
   auto start = std::chrono::high_resolution_clock::now();
 
   viskores::cont::ArrayHandle<viskores::Vec4f> punctures;
   punctures.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
-
-  //viskores::cont::ArrayHandle<viskores::FloatDefault> resultStep;
-  //resultStep.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
-
-  //viskores::cont::ArrayHandle<viskores::Id> resultIndices;
-  //resultIndices.Allocate(inPts.GetNumberOfValues() * cliOpts.maxpunc);
 
   viskores::cont::ArrayHandle<viskores::Id> punctureIDs, punctureIndex;
   punctureIDs.AllocateAndFill(inPts.GetNumberOfValues() * cliOpts.maxpunc, -1);
@@ -706,20 +697,10 @@ int main(int argc, char* argv[])
   viskores::cont::Algorithm::CopyIf(punctureIDs, punctureIndex, validIDs, GreaterThanEqZero());
   viskores::cont::Algorithm::CopyIf(punctureIndex, punctureIndex, validIndex, GreaterThanEqZero());
 
-  //viskores::cont::Algorithm::CopyIf(resultStep, punctureIndex, validStep);
-
-  //viskores::cont::Algorithm::CopyIf(resultIndices, validPuncs, validResultIndices);
-  //std::cout << "******** " << resultRZThetaPsi.GetNumberOfValues() << " ----> " << validResultRZThetaPsi.GetNumberOfValues() << std::endl;
-
-
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> elapsed = end - start;
   std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
   std::cout << " NUM particles= " << cliOpts.xind.size() << " numPunc= " << cliOpts.maxpunc << std::endl;
-
-  //output all punctures.
-  //std::cout << "numValid puncs: " << validPuncs.GetNumberOfValues() << " # valid results " << validResultRZThetaPsi.GetNumberOfValues() << std::endl;
-  //viskores::cont::printSummary_ArrayHandle(validPuncs, std::cout, true);
 
   for (viskores::Id i = 0; i < validPunctures.GetNumberOfValues(); i++)
   {

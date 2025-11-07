@@ -34,7 +34,9 @@ public:
                              const ArrayPortalType& yarray,
                              const ArrayPortalType& ziarray,
                              const ArrayPortalType& zarray,
-                             const ArrayPortalType& shiftAngle)
+                             const ArrayPortalType& shiftAngle,
+                             const ArrayPortalType& yiarray_cfr,
+                             const ArrayPortalType& theta_cfr)
 
     : Locator3D(locator3D)
     , Locator2D(locator2D)
@@ -49,6 +51,8 @@ public:
     , ZiArray(ziarray)
     , ZArray(zarray)
     , ShiftAngle(shiftAngle)
+    , YiArray_cfr(yiarray_cfr)
+    , Theta_cfr(theta_cfr)
   {
   }
 
@@ -57,6 +61,7 @@ public:
   ArrayPortalType dxdy, dzdy;
   ArrayPortalType rxy, zxy, zShift;
   ArrayPortalType XiArray, XArray, YArray, ZiArray, ZArray, ShiftAngle;
+  ArrayPortalType YiArray_cfr, Theta_cfr;
 };
 
 class BoutppField : public viskores::cont::ExecutionObjectBase
@@ -73,7 +78,9 @@ public:
               const ArrayType& yarray,
               const ArrayType& ziarray,
               const ArrayType& zarray,
-              const ArrayType& shiftAngle)
+              const ArrayType& shiftAngle,
+              const ArrayType& yiarray_cfr,
+              const ArrayType& theta_cfr)
     : Grid3D(grid3D)
     , Grid2D(grid2D)
     , XiArray(xiarray)
@@ -82,6 +89,8 @@ public:
     , ZiArray(ziarray)
     , ZArray(zarray)
     , ShiftAngle(shiftAngle)
+    , YiArray_cfr(yiarray_cfr)
+    , Theta_cfr(theta_cfr)
   {
   }
 
@@ -116,7 +125,9 @@ public:
                                       this->YArray.PrepareForInput(device, token),
                                       this->ZiArray.PrepareForInput(device, token),
                                       this->ZArray.PrepareForInput(device, token),
-                                      this->ShiftAngle.PrepareForInput(device, token));
+                                      this->ShiftAngle.PrepareForInput(device, token),
+                                      this->YiArray_cfr.PrepareForInput(device, token),
+                                      this->Theta_cfr.PrepareForInput(device, token));
   }
 
   viskores::cont::DataSet Grid3D;
@@ -125,6 +136,7 @@ public:
   ArrayType YArray;
   ArrayType ZiArray, ZArray;
   ArrayType ShiftAngle;
+  ArrayType YiArray_cfr, Theta_cfr;
 };
 
 class RK4Worklet : public viskores::worklet::WorkletMapField
@@ -313,17 +325,10 @@ public:
         resultRZThetaPsi.Set(puncOffset + numPunc, rzThetaPsi);
         puncID.Set(puncOffset + numPunc, ID);
         puncIndex.Set(puncOffset + numPunc, numPunc);
-
-        //result.Set(puncOffset + numPunc, puncPt);
-        //resultStep.Set(puncOffset + numPunc, puncStep);
-        //resultPsiTheta.Set(puncOffset + numPunc, psiThetaPt);
 #if TRACE_IO
         rootPuncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << std::endl;
         puncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << ", 0.0, 0.0, 0.0" << std::endl;
 #endif
-
-        //puncIndex.Set(puncOffset + numPunc, ID);
-        //validResult.Set(puncOffset + numPunc, true);
         numPunc++;
       }
 
@@ -475,7 +480,7 @@ private:
     auto z3d = zxy;
 
     psiTheta[0] = this->EvaluateCubic1D(ptXY, "psixy");
-    psiTheta[1] = this->CalculateTheta(ptXY);
+    psiTheta[1] = this->CalculateTheta(ptXY, boutppField);
 
     return viskores::Vec3f(x3d, y3d, z3d);
   }
@@ -525,12 +530,10 @@ private:
     return (viskores::FloatDefault(1) - t) * y0 + t * y1;
   }
 
-  VISKORES_EXEC viskores::FloatDefault CalculateTheta(const viskores::Vec3f& pt) const
+  template <typename BoutPPFieldType>
+  VISKORES_EXEC viskores::FloatDefault CalculateTheta(const viskores::Vec3f& pt, const BoutPPFieldType& boutppField) const
   {
-    auto yind_tmp = pt[1];
-
-    auto theta = this->interp1_linear(this->yiarray_cfr.data(), this->theta_cfr.data(), this->yiarray_cfr.size(), yind_tmp);
-    return theta;
+    return this->LinearInterpolate(boutppField.YiArray_cfr, boutppField.Theta_cfr, pt[1]);
   }
 
   template <typename FieldType1, typename FieldType2>
@@ -538,6 +541,8 @@ private:
   {
     // Perform binary search to find the interval.
     viskores::Id size = x.GetNumberOfValues();
+    viskores::Id size2 = y.GetNumberOfValues();
+
     viskores::Id low = 0;
     viskores::Id high = size - 1;
 
@@ -939,13 +944,10 @@ private:
 
 public:
   viskores::cont::DataSet ds3D, ds2D;
-  viskores::Bounds grid3DBounds, grid2DBounds;
-  viskores::Vec2f Center;
+  viskores::Bounds grid2DBounds;
   int ny;
   int nypf1, nypf2;
   int ixsep1, ixsep2;
   int divertor;
   int direction;
-
-  std::vector<viskores::FloatDefault> yiarray_cfr, theta_cfr;
 };
