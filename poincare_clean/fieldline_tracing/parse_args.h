@@ -25,7 +25,10 @@ struct Options
   bool haveXind = false;        // whether --xind was provided
   std::string apar;             // value from --apar (empty if not provided)
   std::string outputDir = "./"; // value from --output-dir (default "./")
+  std::string outputFile = "out.bp";
   std::ofstream puncSplineOut;
+
+  std::string GetOutputFileName() const { return std::filesystem::path(this->outputDir) / this->outputFile; }
 };
 
 // ---------- helpers ----------
@@ -191,6 +194,18 @@ inline void parseArgs(int argc, char** argv, Options<T>& opts)
     if (arg.rfind("--output-dir=", 0) == 0)
     {
       opts.outputDir = arg.substr(13);
+      continue;
+    }
+
+    // --output-file / --output-file=...
+    if (arg == "--output-file")
+    {
+      opts.outputFile = needValue(i, "--output-file");
+      continue;
+    }
+    if (arg.rfind("--output-file=", 0) == 0)
+    {
+      opts.outputFile = arg.substr(14);
       continue;
     }
 

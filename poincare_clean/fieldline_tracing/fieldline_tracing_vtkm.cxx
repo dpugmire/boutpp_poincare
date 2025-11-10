@@ -569,7 +569,7 @@ void SaveOutput(const cli::Options<viskores::FloatDefault>& cliOpts,
   viskores::cont::ArrayHandleBasic<viskores::Id> idBasic(validIds);
   viskores::cont::ArrayHandleBasic<viskores::Id> idxBasic(validResultIndices);
 
-  auto engine = io.Open("out.bp", adios2::Mode::Write);
+  auto engine = io.Open(cliOpts.GetOutputFileName(), adios2::Mode::Write);
   engine.BeginStep();
   engine.Put(varID, idBasic.GetReadPointer());
   engine.Put(varIdx, idxBasic.GetReadPointer());
