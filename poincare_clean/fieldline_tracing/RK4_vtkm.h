@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 //static std::ofstream fout, puncout;
+#undef TRACE_IO
 
 class BoutppFieldExecutionObject
 {
@@ -79,7 +80,7 @@ public:
     else if (fieldName == "dzdy")
       return this->dzdy;
 
-    std::cout << "ERROR: " << fieldName << std::endl;
+    printf("ERROR Unknown field\n");
     return this->rxy;
   }
 
@@ -219,7 +220,9 @@ public:
     viskores::Id puncOffset = idx * this->MaxPunctures;
 
     puncIndex.Set(puncOffset, numPunc);
-#if TRACE_IO
+    /*
+//#if TRACE_IO
+#if 0
     std::ostringstream oss;
     oss << "steps." << std::setw(3) << std::setfill('0') << int(idx) << ".txt";
     auto stepOut = std::ofstream(oss.str());
@@ -234,6 +237,7 @@ public:
     auto rootPuncOut = std::ofstream("rootPunc.v.txt");
     rootPuncOut << "ID, STEP, X, Y, Z" << std::endl;
 #endif
+*/
 
     viskores::Vec3f pCart0, pCart1, vCart, pIndex0, pIndex1;
 
@@ -343,7 +347,8 @@ public:
       zind = this->LinearInterpolate(boutppField.ZArray, boutppField.ZiArray, p1[2]);
       zvalue = this->LinearInterpolate(boutppField.ZiArray, boutppField.ZArray, zind);
 
-#if TRACE_IO
+//#if TRACE_IO
+#if 0
       stepOut << xindIn << ", " << step << ", " << p1[0] << ", " << p1[1] << ", " << p1[2] << ", (" << zind << "), " << region << ", " << rxyVal
               << ", " << zxyVal << ", " << zvalue << std::endl;
 #endif
@@ -362,7 +367,8 @@ public:
         resultRZThetaPsi.Set(puncOffset + numPunc, rzThetaPsi);
         puncID.Set(puncOffset + numPunc, ID);
         puncIndex.Set(puncOffset + numPunc, numPunc);
-#if TRACE_IO
+//#if TRACE_IO
+#if 0
         rootPuncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << std::endl;
         puncOut << xindIn << ", " << puncStep << ", " << puncPt[0] << ", " << puncPt[1] << ", " << puncPt[2] << ", 0.0, 0.0, 0.0" << std::endl;
 #endif
@@ -867,7 +873,7 @@ private:
     viskores::FloatDefault h1 = x2 - x1;
     viskores::FloatDefault h2 = x3 - x2;
     if (h0 <= 0 || h1 <= 0 || h2 <= 0)
-      throw std::runtime_error("cubicInterpolateNonUniform: coordinates must be strictly increasing");
+      this->RaiseError("cubicInterpolateNonUniform: coordinates must be strictly increasing");
 
     // 2) Compute right‐hand sides for second‐derivative system
     viskores::FloatDefault rhs1 = 6.0 * ((p2 - p1) / h1 - (p1 - p0) / h0);
@@ -882,7 +888,7 @@ private:
     viskores::FloatDefault a22 = 2.0 * (h1 + h2);
     viskores::FloatDefault det = a11 * a22 - a12 * a21;
     if (det == 0.0)
-      throw std::runtime_error("cubicInterpolateNonUniform: degenerate knot spacing");
+      this->RaiseError("cubicInterpolateNonUniform: degenerate knot spacing");
     viskores::FloatDefault d2_1 = (rhs1 * a22 - a12 * rhs2) / det;
     viskores::FloatDefault d2_2 = (a11 * rhs2 - rhs1 * a21) / det;
 
