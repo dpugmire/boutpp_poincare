@@ -72,6 +72,8 @@ public:
     , Theta_cfr(theta_cfr)
   {
   }
+
+  VISKORES_EXEC
   const ArrayPortalType& GetField(const int& fieldName) const
   {
     if (fieldName == field_rxy)
@@ -993,7 +995,6 @@ private:
   viskores::FloatDefault xMin, xMax;
 
 public:
-  viskores::cont::DataSet ds3D; //, ds2D;
   viskores::Bounds grid2DBounds;
   int ny;
   int nypf1, nypf2;
