@@ -584,6 +584,7 @@ void SaveOutput(const cli::Options<viskores::FloatDefault>& cliOpts,
 int main(int argc, char* argv[])
 {
   cli::Options<viskores::FloatDefault> cliOpts;
+  viskores::cont::Initialize(argc, argv);
 
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &cliOpts.numRanks);
@@ -598,16 +599,16 @@ int main(int argc, char* argv[])
   std::cout << "apar:: " << cliOpts.apar << std::endl;
   std::cout << "maxPunc:: " << cliOpts.maxpunc << std::endl;
 
-  if (cliOpts.numRanks == 1)
-  {
-    auto opts = viskores::cont::InitializeOptions::DefaultAnyDevice;
-    auto config = viskores::cont::Initialize(argc, argv, opts);
-    //viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagKokkos{});
-    viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagTBB{});
-    std::cout << "Using TBB" << std::endl;
-  }
-  else
+  if (cliOpts.device == "serial")
     viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagSerial{});
+  else if (cliOpts.device == "tbb")
+    viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagTBB{});
+  else if (cliOpts.device == "kokkos")
+    viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagKokkos{});
+  else if (cliOpts.device == "openmp")
+    viskores::cont::GetRuntimeDeviceTracker().ForceDevice(viskores::cont::DeviceAdapterTagOpenMP{});
+  else
+    throw std::runtime_error("Unsupported device type: " + cliOpts.device);
 
   std::string fname = cliOpts.apar;
 
@@ -710,7 +711,9 @@ int main(int argc, char* argv[])
     cliOpts.puncSplineOut << id << ", " << idx << ", " << pt[0] << ", " << pt[1] << ", " << pt[2] << ", " << pt[3] << std::endl;
   }
   SaveOutput(cliOpts, validIDs, validIndex, validPunctures);
+  MPI_Barrier(MPI_COMM_WORLD);
 
-  MPI_Finalize();
+  //MPI_Finalize();
+  //exit(0);
   return 0;
 }

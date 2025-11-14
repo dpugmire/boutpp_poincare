@@ -245,8 +245,8 @@ std::vector<std::vector<std::vector<double>>> NetCDFLoader::read3DVariable(const
   //val0 = data[123][79][101];
   //val1 = data[192][47][200];
 
-  std::cout << "Read: " << varName << " (" << dimSizes[0] << " " << dimSizes[1] << " " << dimSizes[2] << ")";
-  std::cout << " --> " << data.size() << " " << data[0].size() << " " << " " << data[0][0].size() << std::endl;
+  //std::cout << "Read: " << varName << " (" << dimSizes[0] << " " << dimSizes[1] << " " << dimSizes[2] << ")";
+  //std::cout << " --> " << data.size() << " " << data[0].size() << " " << " " << data[0][0].size() << std::endl;
   //std::cout << " val= " << val0 << std::endl;
   //std::cout << " val= " << val1 << std::endl;
   return data;

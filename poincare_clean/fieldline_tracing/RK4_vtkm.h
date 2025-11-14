@@ -489,6 +489,7 @@ private:
                                                       const viskores::FloatDefault* y,
                                                       viskores::Id n,
                                                       viskores::FloatDefault xq) const
+
   {
     // Guard cases
     if (n <= 0)
@@ -543,38 +544,43 @@ private:
     viskores::Id size = x.GetNumberOfValues();
     viskores::Id size2 = y.GetNumberOfValues();
 
+    if (val <= x.Get(0))
+      return y.Get(0);
+    if (val >= x.Get(size - 1))
+      return y.Get(size2 - 1);
+
+
     viskores::Id low = 0;
-    viskores::Id high = size - 1;
+    viskores::Id high = size - 2;
 
     while (low <= high)
     {
       viskores::Id mid = low + (high - low) / 2;
 
-      if (val >= x.Get(mid) && val <= x.Get(mid + 1))
+      auto xMid = x.Get(mid);
+      auto xNext = x.Get(mid + 1);
+      if (val < xMid)
+        high = mid - 1;
+      else if (val > xNext)
+        low = mid + 1;
+      else
       {
-        auto x1 = x.Get(mid);
-        auto x2 = x.Get(mid + 1);
+        // xMid <= val <= xNext  => interpolate
         auto y1 = y.Get(mid);
         auto y2 = y.Get(mid + 1);
-
-        auto result = y1 + (y2 - y1) * (val - x1) / (x2 - x1);
-        return result;
+        return y1 + (y2 - y1) * (val - xMid) / (xNext - xMid);
       }
-      else if (val < x.Get(mid))
-        high = mid - 1;
-      else
-        low = mid + 1;
     }
 
-    // Handle edge cases if the value is outside the range
+    // Fallback – should be unreachable if x is sorted and you handled ranges above
+    // Use the whole range as in your original "EDGE CASE".
     auto x1 = x.Get(0);
     auto x2 = x.Get(size - 1);
     auto y1 = y.Get(0);
     auto y2 = y.Get(size - 1);
-
-    auto result = y1 + (y2 - y1) * (val - x1) / (x2 - x1);
-    return result;
+    return y1 + (y2 - y1) * (val - x1) / (x2 - x1);
   }
+
 
   VISKORES_EXEC viskores::FloatDefault floatMod(viskores::FloatDefault val, viskores::FloatDefault mod_base) const
   {

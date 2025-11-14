@@ -2,9 +2,14 @@
 // cli_args.h — header-only CLI parser for --xind, --maxpunc, --apar, --output-dir
 // C++17
 
+#include <algorithm>
 #include <cmath> // std::lround
 #include <filesystem>
 #include <fstream> // std::ofstream
+#include <iomanip>
+#include <numeric>
+#include <random>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <type_traits> // std::is_integral
@@ -26,6 +31,7 @@ struct Options
   std::string apar;             // value from --apar (empty if not provided)
   std::string outputDir = "./"; // value from --output-dir (default "./")
   std::string outputFile = "out.bp";
+  std::string device = "serial"; // value from --device (default "serial")
   std::ofstream puncSplineOut;
 
   std::string GetOutputFileName() const { return std::filesystem::path(this->outputDir) / this->outputFile; }
@@ -185,6 +191,18 @@ inline void parseArgs(int argc, char** argv, Options<T>& opts)
       continue;
     }
 
+    // --device / --device=...
+    if (arg == "--device")
+    {
+      opts.device = needValue(i, "--device");
+      continue;
+    }
+    if (arg.rfind("--device=", 0) == 0)
+    {
+      opts.device = arg.substr(9);
+      continue;
+    }
+
     // --output-dir / --output-dir=...
     if (arg == "--output-dir")
     {
@@ -291,6 +309,11 @@ inline void parseArgs(int argc, char** argv, Options<T>& opts)
   // Only partition if user provided --xind.
   if (opts.haveXind)
   {
+    // randomly sort xind to get better distribution of seeds.
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::shuffle(opts.xind.begin(), opts.xind.end(), gen);
+
     const size_t n = opts.xind.size();
     if (static_cast<size_t>(opts.numRanks) > n)
       throw std::runtime_error("Not enough --xind values: each rank must get at least one");
@@ -305,7 +328,8 @@ inline void parseArgs(int argc, char** argv, Options<T>& opts)
     // Keep only the local slice for this rank.
     std::vector<T> local(opts.xind.begin() + static_cast<std::ptrdiff_t>(begin), opts.xind.begin() + static_cast<std::ptrdiff_t>(end));
     opts.xind.swap(local);
-    //Set the IDs.
+
+    // Set the IDs.
     const std::size_t count = end - begin;
     opts.IDs.resize(count);
     std::iota(opts.IDs.begin(), opts.IDs.end(), static_cast<viskores::Id>(begin));
