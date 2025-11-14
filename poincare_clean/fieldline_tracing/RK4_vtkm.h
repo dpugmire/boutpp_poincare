@@ -15,6 +15,13 @@
 //static std::ofstream fout, puncout;
 #undef TRACE_IO
 
+const int field_rxy = 0;
+const int field_zxy = 1;
+const int field_zShift = 2;
+const int field_psixy = 3;
+const int field_dxdy = 4;
+const int field_dzdy = 5;
+
 class BoutppFieldExecutionObject
 {
   using LocatorType2D = viskores::exec::CellLocatorRectilinearGrid;
@@ -65,19 +72,19 @@ public:
     , Theta_cfr(theta_cfr)
   {
   }
-  const ArrayPortalType& GetField(const std::string& fieldName) const
+  const ArrayPortalType& GetField(const int& fieldName) const
   {
-    if (fieldName == "rxy")
+    if (fieldName == field_rxy)
       return this->rxy;
-    else if (fieldName == "zxy")
+    else if (fieldName == field_zxy)
       return this->zxy;
-    else if (fieldName == "zShift")
+    else if (fieldName == field_zShift)
       return this->zShift;
-    else if (fieldName == "psixy")
+    else if (fieldName == field_psixy)
       return this->psixy;
-    else if (fieldName == "dxdy")
+    else if (fieldName == field_dxdy)
       return this->dxdy;
-    else if (fieldName == "dzdy")
+    else if (fieldName == field_dzdy)
       return this->dzdy;
 
     printf("ERROR Unknown field\n");
@@ -511,17 +518,17 @@ private:
     viskores::Vec3f ptXY(pt[0], pt[1], 0.0);
     auto zind = this->LinearInterpolate(boutppField.ZArray, boutppField.ZiArray, pt[2]);
 
-    auto rxy = this->EvaluateCubic1D(ptXY, boutppField, "rxy");
-    auto zxy = this->EvaluateCubic1D(ptXY, boutppField, "zxy");
+    auto rxy = this->EvaluateCubic1D(ptXY, boutppField, field_rxy);
+    auto zxy = this->EvaluateCubic1D(ptXY, boutppField, field_zxy);
     auto zvalue = this->LinearInterpolate(boutppField.ZiArray, boutppField.ZArray, zind);
     //auto zsvalue = this->Evaluate(ptXY, boutppField, boutppField.zShift, cells);
-    auto zsvalue = this->EvaluateCubic1D(ptXY, boutppField, "zShift");
+    auto zsvalue = this->EvaluateCubic1D(ptXY, boutppField, field_zShift);
 
     auto x3d = rxy * std::cos(zsvalue) * std::cos(zvalue) - rxy * std::sin(zsvalue) * std::sin(zvalue);
     auto y3d = rxy * std::cos(zsvalue) * std::sin(zvalue) + rxy * std::sin(zsvalue) * std::cos(zvalue);
     auto z3d = zxy;
 
-    psiTheta[0] = this->EvaluateCubic1D(ptXY, boutppField, "psixy");
+    psiTheta[0] = this->EvaluateCubic1D(ptXY, boutppField, field_psixy);
     psiTheta[1] = this->CalculateTheta(ptXY, boutppField);
 
     return viskores::Vec3f(x3d, y3d, z3d);
@@ -734,9 +741,7 @@ private:
   }
 
   template <typename BoutppFieldType>
-  VISKORES_EXEC viskores::FloatDefault EvaluateCubic1D(const viskores::Vec3f& pt,
-                                                       const BoutppFieldType& boutppField,
-                                                       const std::string& fieldName) const
+  VISKORES_EXEC viskores::FloatDefault EvaluateCubic1D(const viskores::Vec3f& pt, const BoutppFieldType& boutppField, const int& fieldName) const
   {
     viskores::FloatDefault res;
     res = CubicEval(boutppField, fieldName, pt, true);
@@ -746,19 +751,14 @@ private:
   template <typename BoutppFieldType>
   VISKORES_EXEC viskores::Vec2f EvaluateCubic2D(const BoutppFieldType& boutppField, const viskores::Vec3f& pt) const
   {
-    std::string dxdy = "dxdy", dzdy = "dzdy";
-
     viskores::Vec2f res;
-    res[0] = this->CubicEval(boutppField, dxdy, pt, false);
-    res[1] = this->CubicEval(boutppField, dzdy, pt, false);
+    res[0] = this->CubicEval(boutppField, field_dxdy, pt, false);
+    res[1] = this->CubicEval(boutppField, field_dzdy, pt, false);
     return res;
   }
 
   template <typename BoutppFieldType>
-  VISKORES_EXEC viskores::FloatDefault CubicEval(const BoutppFieldType& boutppField,
-                                                 const std::string& fieldName,
-                                                 const viskores::Vec3f& pt,
-                                                 bool is2D) const
+  VISKORES_EXEC viskores::FloatDefault CubicEval(const BoutppFieldType& boutppField, const int& fieldName, const viskores::Vec3f& pt, bool is2D) const
   {
     using CoordsType = viskores::cont::ArrayHandleCartesianProduct<viskores::cont::ArrayHandle<viskores::FloatDefault>,
                                                                    viskores::cont::ArrayHandle<viskores::FloatDefault>,
