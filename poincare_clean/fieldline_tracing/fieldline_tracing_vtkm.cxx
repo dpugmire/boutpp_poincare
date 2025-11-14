@@ -650,8 +650,6 @@ int main(int argc, char* argv[])
   viskores::Id maxSteps = cliOpts.maxpunc * 100;
 
   RK4Worklet worklet(cliOpts.maxpunc, maxSteps);
-  worklet.ds3D = grid3D;
-  worklet.ds2D = grid2D;
   worklet.grid2DBounds = grid2D.GetCoordinateSystem().GetBounds();
   worklet.nypf1 = opts.nypf1;
   worklet.nypf2 = opts.nypf2;

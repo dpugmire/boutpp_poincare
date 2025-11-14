@@ -26,11 +26,22 @@ end
 % BOUT++ grid file
 gridfile =  '../kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
 gridfile = '/Users/dpn/proj/bout++/poincare/boutpp_poincare/data/kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc';
+aparfile = '/Users/dpn/proj/bout++/poincare/boutpp_poincare/data/apar_kstar_30306_7850_psi085105_nx260ny128_f2_nz256.mat';
+nx = 260; ny = 128; nz = 256; zperiod = 1;
+
 saveFields = 1;
 stuffFile = 'stuff.nc'
 
+args = argv();
+disp(args);
+gridfile = args{1};
+aparfile = args{2};
+stuffFile = args{3};
+nx = 132; ny = 64; nz = 64;
+zperiod = 5;
+
 % Mesh resolution info
-nx = 260; ny = 128; nz = 256; zperiod = 1; 
+
 % Field-line tracing direction: 1 (y index increasing); -1 (y index decreasing)
 direction = 1; 
 % Individual field-lines to be traced radially
@@ -78,7 +89,7 @@ yiarray = (1:ny);
     rxy = netcdf.getVar(fid, vid); rxy = double(rxy); rxy = permute(rxy, [2 1]);
     vid = netcdf.inqVarID(fid, 'Zxy');
     zxy = netcdf.getVar(fid, vid); zxy = double(zxy); zxy = permute(zxy, [2 1]);
-    vid = netcdf.inqVarID(fid, 'psixy');  
+    vid = netcdf.inqVarID(fid, 'psixy');
     psixy = netcdf.getVar(fid, vid); psixy = double(psixy); psixy = permute(psixy, [2 1]);
     vid = netcdf.inqVarID(fid, 'rmag');
     rmag = netcdf.getVar(fid, vid);
@@ -303,7 +314,8 @@ yiarray = (1:ny);
     %parpool('local',8);
 
     % load BOUT++ psi data or Apar data somewhere
-    rmp=load('/Users/dpn/proj/bout++/poincare/boutpp_poincare/data/apar_kstar_30306_7850_psi085105_nx260ny128_f2_nz256.mat');
+    rmp=load(aparfile);
+    disp(size(rmp.apar));
     #p=restore_idl('./psi.sav');
     #psi=p.PSI;
 

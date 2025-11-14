@@ -20,15 +20,21 @@ class BoutppFieldExecutionObject
   using LocatorType3D = viskores::exec::CellLocatorRectilinearGrid;
   using ArrayType = viskores::cont::ArrayHandle<viskores::FloatDefault>;
   using ArrayPortalType = typename ArrayType::ReadPortalType;
+  using RectilinearCoordsType = viskores::cont::ArrayHandleCartesianProduct<ArrayType, ArrayType, ArrayType>;
+  using RectilinearCoordsPortalType = typename RectilinearCoordsType::ReadPortalType;
+
 
 public:
-  BoutppFieldExecutionObject(const LocatorType3D& locator3D,
+  BoutppFieldExecutionObject(const RectilinearCoordsPortalType& coords2d,
+                             const RectilinearCoordsPortalType& coords3d,
+                             const LocatorType3D& locator3D,
                              const LocatorType2D& locator2D,
                              const ArrayPortalType& _dxdy,
                              const ArrayPortalType& _dzdy,
                              const ArrayPortalType& _rxy,
                              const ArrayPortalType& _zxy,
                              const ArrayPortalType& _zshift,
+                             const ArrayPortalType& _psixy,
                              const ArrayPortalType& xiarray,
                              const ArrayPortalType& xarray,
                              const ArrayPortalType& yarray,
@@ -38,13 +44,16 @@ public:
                              const ArrayPortalType& yiarray_cfr,
                              const ArrayPortalType& theta_cfr)
 
-    : Locator3D(locator3D)
+    : Coords2D(coords2d)
+    , Coords3D(coords3d)
+    , Locator3D(locator3D)
     , Locator2D(locator2D)
     , dxdy(_dxdy)
     , dzdy(_dzdy)
     , rxy(_rxy)
     , zxy(_zxy)
     , zShift(_zshift)
+    , psixy(_psixy)
     , XiArray(xiarray)
     , XArray(xarray)
     , YArray(yarray)
@@ -55,11 +64,30 @@ public:
     , Theta_cfr(theta_cfr)
   {
   }
+  const ArrayPortalType& GetField(const std::string& fieldName) const
+  {
+    if (fieldName == "rxy")
+      return this->rxy;
+    else if (fieldName == "zxy")
+      return this->zxy;
+    else if (fieldName == "zShift")
+      return this->zShift;
+    else if (fieldName == "psixy")
+      return this->psixy;
+    else if (fieldName == "dxdy")
+      return this->dxdy;
+    else if (fieldName == "dzdy")
+      return this->dzdy;
 
+    std::cout << "ERROR: " << fieldName << std::endl;
+    return this->rxy;
+  }
+
+  RectilinearCoordsPortalType Coords2D, Coords3D;
   LocatorType2D Locator2D;
   LocatorType3D Locator3D;
   ArrayPortalType dxdy, dzdy;
-  ArrayPortalType rxy, zxy, zShift;
+  ArrayPortalType rxy, zxy, zShift, psixy;
   ArrayPortalType XiArray, XArray, YArray, ZiArray, ZArray, ShiftAngle;
   ArrayPortalType YiArray_cfr, Theta_cfr;
 };
@@ -69,6 +97,8 @@ class BoutppField : public viskores::cont::ExecutionObjectBase
   using ArrayType = viskores::cont::ArrayHandle<viskores::FloatDefault>;
   using Structured2DType = viskores::cont::CellSetStructured<2>;
   using Structured3DType = viskores::cont::CellSetStructured<3>;
+  //using Rectilinear2DType = viskores::cont::ArrayHandleCartesianProduct<ArrayType, ArrayType>;
+  using RectilinearCoordsType = viskores::cont::ArrayHandleCartesianProduct<ArrayType, ArrayType, ArrayType>;
 
 public:
   BoutppField(const viskores::cont::DataSet& grid3D,
@@ -91,6 +121,8 @@ public:
     , ShiftAngle(shiftAngle)
     , YiArray_cfr(yiarray_cfr)
     , Theta_cfr(theta_cfr)
+    , Coords2D(grid2D.GetCoordinateSystem().GetData().AsArrayHandle<RectilinearCoordsType>())
+    , Coords3D(grid3D.GetCoordinateSystem().GetData().AsArrayHandle<RectilinearCoordsType>())
   {
   }
 
@@ -105,21 +137,26 @@ public:
     locator3D.Update();
     locator2D.Update();
 
+    //coords
     //get the fields.
-    viskores::cont::ArrayHandle<viskores::FloatDefault> dxdyField, dzdyField, rxyField, zxyField, zShiftField;
+    viskores::cont::ArrayHandle<viskores::FloatDefault> dxdyField, dzdyField, rxyField, zxyField, zShiftField, psixyField;
     this->Grid3D.GetField("dxdy").GetData().AsArrayHandle<viskores::FloatDefault>(dxdyField);
     this->Grid3D.GetField("dzdy").GetData().AsArrayHandle<viskores::FloatDefault>(dzdyField);
     this->Grid2D.GetField("rxy").GetData().AsArrayHandle<viskores::FloatDefault>(rxyField);
     this->Grid2D.GetField("zxy").GetData().AsArrayHandle<viskores::FloatDefault>(zxyField);
     this->Grid2D.GetField("zShift").GetData().AsArrayHandle<viskores::FloatDefault>(zShiftField);
+    this->Grid2D.GetField("psixy").GetData().AsArrayHandle<viskores::FloatDefault>(psixyField);
 
-    return BoutppFieldExecutionObject(locator3D.PrepareForExecution(device, token),
+    return BoutppFieldExecutionObject(this->Coords2D.PrepareForInput(device, token),
+                                      this->Coords3D.PrepareForInput(device, token),
+                                      locator3D.PrepareForExecution(device, token),
                                       locator2D.PrepareForExecution(device, token),
                                       dxdyField.PrepareForInput(device, token),
                                       dzdyField.PrepareForInput(device, token),
                                       rxyField.PrepareForInput(device, token),
                                       zxyField.PrepareForInput(device, token),
                                       zShiftField.PrepareForInput(device, token),
+                                      psixyField.PrepareForInput(device, token),
                                       this->XiArray.PrepareForInput(device, token),
                                       this->XArray.PrepareForInput(device, token),
                                       this->YArray.PrepareForInput(device, token),
@@ -137,6 +174,7 @@ public:
   ArrayType ZiArray, ZArray;
   ArrayType ShiftAngle;
   ArrayType YiArray_cfr, Theta_cfr;
+  RectilinearCoordsType Coords2D, Coords3D;
 };
 
 class RK4Worklet : public viskores::worklet::WorkletMapField
@@ -181,7 +219,6 @@ public:
     viskores::Id puncOffset = idx * this->MaxPunctures;
 
     puncIndex.Set(puncOffset, numPunc);
-#if 1
 #if TRACE_IO
     std::ostringstream oss;
     oss << "steps." << std::setw(3) << std::setfill('0') << int(idx) << ".txt";
@@ -218,13 +255,13 @@ public:
       {
         region = 12;
         inside = false;
-        std::cout << "p1= " << p1 << " *** region 12" << std::endl;
+        //std::cout << "p1= " << p1 << " *** region 12" << std::endl;
       }
       else if (this->ApproxLT(p1[0], this->grid2DBounds.X.Min))
       {
         region = 11;
         inside = false;
-        std::cout << idx << ": p1= " << p1 << " *** region 11" << " step= " << step << std::endl;
+        //std::cout << idx << ": p1= " << p1 << " *** region 11" << " step= " << step << std::endl;
       }
 
       //Always refresh xind from xEnd when still inside. Needed by twist-shift.
@@ -336,14 +373,13 @@ public:
       pIndex0 = pIndex1;
       if (numPunc == this->MaxPunctures)
       {
-        std::cout << idx << " Finished" << std::endl;
+        //std::cout << idx << " Finished" << std::endl;
         break;
       }
       cnt++;
     }
 
-    std::cout << "Done. region= " << region << " #punc= " << numPunc << " #steps= " << cnt << std::endl;
-#endif
+    //std::cout << "Done. region= " << region << " #punc= " << numPunc << " #steps= " << cnt << std::endl;
   }
 
 private:
@@ -469,17 +505,17 @@ private:
     viskores::Vec3f ptXY(pt[0], pt[1], 0.0);
     auto zind = this->LinearInterpolate(boutppField.ZArray, boutppField.ZiArray, pt[2]);
 
-    auto rxy = this->EvaluateCubic1D(ptXY, "rxy");
-    auto zxy = this->EvaluateCubic1D(ptXY, "zxy");
+    auto rxy = this->EvaluateCubic1D(ptXY, boutppField, "rxy");
+    auto zxy = this->EvaluateCubic1D(ptXY, boutppField, "zxy");
     auto zvalue = this->LinearInterpolate(boutppField.ZiArray, boutppField.ZArray, zind);
     //auto zsvalue = this->Evaluate(ptXY, boutppField, boutppField.zShift, cells);
-    auto zsvalue = this->EvaluateCubic1D(ptXY, "zShift");
+    auto zsvalue = this->EvaluateCubic1D(ptXY, boutppField, "zShift");
 
     auto x3d = rxy * std::cos(zsvalue) * std::cos(zvalue) - rxy * std::sin(zsvalue) * std::sin(zvalue);
     auto y3d = rxy * std::cos(zsvalue) * std::sin(zvalue) + rxy * std::sin(zsvalue) * std::cos(zvalue);
     auto z3d = zxy;
 
-    psiTheta[0] = this->EvaluateCubic1D(ptXY, "psixy");
+    psiTheta[0] = this->EvaluateCubic1D(ptXY, boutppField, "psixy");
     psiTheta[1] = this->CalculateTheta(ptXY, boutppField);
 
     return viskores::Vec3f(x3d, y3d, z3d);
@@ -608,7 +644,7 @@ private:
     //std::cout << "viskores::RK begin: " << pStart << std::endl;
     //Step 1
     //auto res1 = this->Evaluate(pStart, boutppField, cells);
-    auto res1 = this->EvaluateCubic2D(pStart);
+    auto res1 = this->EvaluateCubic2D(boutppField, pStart);
     tangent0 = { res1[0], 1, res1[1] };
 
     viskores::Vec3f p1;
@@ -621,8 +657,8 @@ private:
     //Step 2
     //auto res2 = this->EvaluateLinear(p1, boutppField, cells);
     //res2 += this->EvaluateLinear(p1 + yPlusH, boutppField, cells);
-    auto res2 = this->EvaluateCubic2D(p1);
-    res2 += this->EvaluateCubic2D(p1 + yPlusH);
+    auto res2 = this->EvaluateCubic2D(boutppField, p1);
+    res2 += this->EvaluateCubic2D(boutppField, p1 + yPlusH);
 
     res2[0] /= 2.0;
     res2[1] /= 2.0;
@@ -637,8 +673,8 @@ private:
     //auto res3 = this->Evaluate(p2, boutppField, cells);
     //res3 += this->Evaluate(p2 + yPlusH, boutppField, cells);
 
-    auto res3 = this->EvaluateCubic2D(p2);
-    res3 += this->EvaluateCubic2D(p2 + yPlusH);
+    auto res3 = this->EvaluateCubic2D(boutppField, p2);
+    res3 += this->EvaluateCubic2D(boutppField, p2 + yPlusH);
     res3[0] /= 2.0;
     res3[1] /= 2.0;
 
@@ -651,7 +687,7 @@ private:
 
     //Step 4
     //auto res4 = this->Evaluate(p3 + yPlusH, boutppField, cells);
-    auto res4 = this->EvaluateCubic2D(p3 + yPlusH);
+    auto res4 = this->EvaluateCubic2D(boutppField, p3 + yPlusH);
 
     //viskores::Vec3f pEnd;
     pEnd[0] = pStart[0] + dirVal * h6 * (res1[0] + 2.0 * res2[0] + 2.0 * res3[0] + res4[0]);
@@ -691,60 +727,62 @@ private:
     return true;
   }
 
-  VISKORES_EXEC viskores::FloatDefault EvaluateCubic1D(const viskores::Vec3f& pt, const std::string& fieldName) const
+  template <typename BoutppFieldType>
+  VISKORES_EXEC viskores::FloatDefault EvaluateCubic1D(const viskores::Vec3f& pt,
+                                                       const BoutppFieldType& boutppField,
+                                                       const std::string& fieldName) const
   {
     viskores::FloatDefault res;
-    res = CubicEval(this->ds2D, fieldName, pt);
+    res = CubicEval(boutppField, fieldName, pt, true);
     return res;
   }
 
-  VISKORES_EXEC viskores::Vec2f EvaluateCubic2D(const viskores::Vec3f& pt) const
+  template <typename BoutppFieldType>
+  VISKORES_EXEC viskores::Vec2f EvaluateCubic2D(const BoutppFieldType& boutppField, const viskores::Vec3f& pt) const
   {
     std::string dxdy = "dxdy", dzdy = "dzdy";
 
     viskores::Vec2f res;
-    res[0] = this->CubicEval(this->ds3D, dxdy, pt);
-    res[1] = this->CubicEval(this->ds3D, dzdy, pt);
+    res[0] = this->CubicEval(boutppField, dxdy, pt, false);
+    res[1] = this->CubicEval(boutppField, dzdy, pt, false);
     return res;
   }
 
-  VISKORES_EXEC viskores::FloatDefault CubicEval(const viskores::cont::DataSet& ds, const std::string& fieldName, const viskores::Vec3f& pt) const
+  template <typename BoutppFieldType>
+  VISKORES_EXEC viskores::FloatDefault CubicEval(const BoutppFieldType& boutppField,
+                                                 const std::string& fieldName,
+                                                 const viskores::Vec3f& pt,
+                                                 bool is2D) const
   {
     using CoordsType = viskores::cont::ArrayHandleCartesianProduct<viskores::cont::ArrayHandle<viskores::FloatDefault>,
                                                                    viskores::cont::ArrayHandle<viskores::FloatDefault>,
                                                                    viskores::cont::ArrayHandle<viskores::FloatDefault>>;
-    CoordsType coords;
-    coords = ds.GetCoordinateSystem().GetData().AsArrayHandle<CoordsType>();
-    auto xCoords = coords.GetFirstArray();
-    auto yCoords = coords.GetSecondArray();
-    auto zCoords = coords.GetThirdArray();
-    viskores::cont::ArrayHandle<viskores::FloatDefault> array;
-    ds.GetField(fieldName).GetData().AsArrayHandle(array);
 
-    auto val = this->TricubicSampleRectilinear(array, xCoords, yCoords, zCoords, pt);
+    auto xCoords = (is2D ? boutppField.Coords2D.GetFirstPortal() : boutppField.Coords3D.GetFirstPortal());
+    auto yCoords = (is2D ? boutppField.Coords2D.GetSecondPortal() : boutppField.Coords3D.GetSecondPortal());
+    auto zCoords = (is2D ? boutppField.Coords2D.GetThirdPortal() : boutppField.Coords3D.GetThirdPortal());
+
+    auto val = this->TricubicSampleRectilinear(boutppField.GetField(fieldName), xCoords, yCoords, zCoords, pt);
     return val;
   }
 
-  VISKORES_EXEC viskores::FloatDefault TricubicSampleRectilinear(const viskores::cont::ArrayHandle<viskores::FloatDefault>& _data,
-                                                                 const viskores::cont::ArrayHandle<viskores::FloatDefault>& _xCoords,
-                                                                 const viskores::cont::ArrayHandle<viskores::FloatDefault>& _yCoords,
-                                                                 const viskores::cont::ArrayHandle<viskores::FloatDefault>& _zCoords,
+  template <typename DataArrayType, typename ArrayType>
+  VISKORES_EXEC viskores::FloatDefault TricubicSampleRectilinear(const DataArrayType& data,
+                                                                 const ArrayType& xCoords,
+                                                                 const ArrayType& yCoords,
+                                                                 const ArrayType& zCoords,
                                                                  const viskores::Vec3f& pt) const
   {
-    auto data = _data.ReadPortal();
-    auto xCoords = _xCoords.ReadPortal();
-    auto yCoords = _yCoords.ReadPortal();
-    auto zCoords = _zCoords.ReadPortal();
     auto x = pt[0], y = pt[1], z = pt[2];
 
-    viskores::Id nx = _xCoords.GetNumberOfValues();
-    viskores::Id ny = _yCoords.GetNumberOfValues();
-    viskores::Id nz = _zCoords.GetNumberOfValues();
+    viskores::Id nx = xCoords.GetNumberOfValues();
+    viskores::Id ny = yCoords.GetNumberOfValues();
+    viskores::Id nz = zCoords.GetNumberOfValues();
 
     // 1) find the base indices in each dimension
-    viskores::Id iu = this->FindIndex(_xCoords, x);
-    viskores::Id iv = this->FindIndex(_yCoords, y);
-    viskores::Id iw = (nz >= 4 ? this->FindIndex(_zCoords, z) : 0);
+    viskores::Id iu = this->FindIndex(xCoords, x);
+    viskores::Id iv = this->FindIndex(yCoords, y);
+    viskores::Id iw = (nz >= 4 ? this->FindIndex(zCoords, z) : 0);
 
     // If we don’t have 4 Z‐levels, do 2D bicubic in X–Y only
     if (nz < 4)
@@ -898,9 +936,9 @@ private:
       return i;
   }
 
-  VISKORES_EXEC viskores::Id FindIndex(const viskores::cont::ArrayHandle<viskores::FloatDefault>& _coords, viskores::FloatDefault val) const
+  template <typename ArrayType>
+  VISKORES_EXEC viskores::Id FindIndex(const ArrayType& coords, viskores::FloatDefault val) const
   {
-    auto coords = _coords.ReadPortal();
     viskores::Id N = coords.GetNumberOfValues();
     // 1) Binary search for the largest index i with coords[i] <= val
     viskores::Id left = 0;
@@ -949,7 +987,7 @@ private:
   viskores::FloatDefault xMin, xMax;
 
 public:
-  viskores::cont::DataSet ds3D, ds2D;
+  viskores::cont::DataSet ds3D; //, ds2D;
   viskores::Bounds grid2DBounds;
   int ny;
   int nypf1, nypf2;

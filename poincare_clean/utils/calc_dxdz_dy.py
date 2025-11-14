@@ -288,6 +288,11 @@ def run_minimal(gridFile, aparFile, zperiod, timeStep, outputFile,
         print("Loading A_parallel from .npy ...")
         apar = np.load(aparfile)
         apar = apar[...,timeStep]
+        print('removing last z')
+        apar = apar[:,:,:-1]
+        if zperiod > 1 :
+            apar = np.tile(apar, (1,1,zperiod))
+        print('apar_t: ', apar.shape)
 
     if apar.ndim != 3:
         raise ValueError(f"apar has unexpected shape {apar.shape}")
@@ -435,3 +440,6 @@ if __name__ == "__main__":
 # case from Ben Z.
 ## python ./calc_dxdz_dy.py ../../data/kstar_30306_7850_psi085105_nx260ny128_f2_v0.nc ../../data/apar_kstar_30306_7850_psi085105_nx260ny128_f2_nz256.mat OUT.nc
 #This doesn't work when zperiod is not 1.
+
+# single null case.
+#python calc_dxdz_dy.py /Users/dpn/proj/bout++/nersc_data/xpoint_singlenull/d3d_194347.03100_0.85psi1.1_132x64y_bout_exp_withSOL.nc /Users/dpn/proj/bout++/nersc_data/xpoint_singlenull/Apar_194347.03100_0.85psi1.1_132x64y_data-low1.npy  5 100 stuff.100.nc

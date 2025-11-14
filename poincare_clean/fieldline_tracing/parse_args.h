@@ -33,6 +33,7 @@ struct Options
   std::string outputFile = "out.bp";
   std::string device = "serial"; // value from --device (default "serial")
   std::ofstream puncSplineOut;
+  bool shufflePoints = false;
 
   std::string GetOutputFileName() const { return std::filesystem::path(this->outputDir) / this->outputFile; }
 };
@@ -203,6 +204,12 @@ inline void parseArgs(int argc, char** argv, Options<T>& opts)
       continue;
     }
 
+    if (arg == "--shuffle")
+    {
+      opts.shufflePoints = true;
+      continue;
+    }
+
     // --output-dir / --output-dir=...
     if (arg == "--output-dir")
     {
@@ -309,10 +316,13 @@ inline void parseArgs(int argc, char** argv, Options<T>& opts)
   // Only partition if user provided --xind.
   if (opts.haveXind)
   {
-    // randomly sort xind to get better distribution of seeds.
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::shuffle(opts.xind.begin(), opts.xind.end(), gen);
+    // randomly sort xind to get better distribution of seeds when parallel.
+    if (opts.shufflePoints)
+    {
+      std::random_device rd;
+      std::mt19937 gen(rd());
+      std::shuffle(opts.xind.begin(), opts.xind.end(), gen);
+    }
 
     const size_t n = opts.xind.size();
     if (static_cast<size_t>(opts.numRanks) > n)
