@@ -96,3 +96,17 @@ cmake -S . -B build-viskores2 \
   -DCODEX_USE_VISKORES=ON \
   -DCODEX_TEST_DATA_DIR=/Users/dpn/proj/bout++/ben_zhu_poincare
 ```
+
+## Provenance
+
+This repository was extracted from:
+
+https://github.com/dpugmire/ben_zhu_poincare
+
+Original path:
+
+`codex_cxx2/`
+
+History for this subdirectory was preserved using `git subtree split`.
+
+The previous contents of this repository were preserved on the `old_version` branch.
