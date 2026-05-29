@@ -3,7 +3,7 @@
 #   outputs/traj_cxx.txt
 ./build/trace_fieldlines \
   --divertor single \
-  --single-apar /Users/dpn/proj/bout++/ben_zhu_poincare/apar.single.nc \
+  --single-apar ./data/apar.single.nc \
   --nlines 150.5 151.5 5 \
   --nturns 100 \
   --direction 1 \
@@ -20,7 +20,7 @@ MPI and viskores version.
 
 FI_PROVIDER=tcp mpirun -np 2 ./build/trace_fieldlines \
   --divertor single \
-  --single-apar /Users/dpn/proj/bout++/ben_zhu_poincare/apar.single.nc \
+  --single-apar ./data/apar.single.nc \
   --nlines 150.5 151.5 5 \
   --np-max 100 \
   --direction 1 \
@@ -45,6 +45,14 @@ module load cray-netcdf-hdf5parallel/4.9.2.1
 
 
 ## tests
+
+The NetCDF test fixtures are tracked with Git LFS. After cloning this
+repository, install/pull the LFS objects before configuring tests:
+
+```sh
+git lfs install
+git lfs pull
+```
 
 When the build is configured with `-DCODEX_USE_VISKORES=ON`, CMake adds Viskores
 CTest tests. The generate tests run the compact puncture path and create combined
@@ -76,7 +84,7 @@ build-viskores2/test-output/viskores_mpi_compare_circ_serial/mpi/ip_cxx.circ.all
 ```
 
 The MATLAB comparison tests compare Viskores puncture output against the
-`zperiod_5` MATLAB reference files and print row counts plus max XYZ error.
+`data/zperiod_5` MATLAB reference files and print row counts plus max XYZ error.
 Those comparison tests may fail while the Viskores/MATLAB mismatch is being
 debugged.
 
@@ -94,7 +102,7 @@ Test data paths can be overridden at configure time:
 ```sh
 cmake -S . -B build-viskores2 \
   -DCODEX_USE_VISKORES=ON \
-  -DCODEX_TEST_DATA_DIR=/Users/dpn/proj/bout++/ben_zhu_poincare
+  -DCODEX_TEST_DATA_DIR=/path/to/test-data
 ```
 
 ## Provenance

@@ -106,7 +106,7 @@ endif()
 if (BUILD_TESTING AND CODEX_USE_VISKORES)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
-    set(CODEX_TEST_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.." CACHE PATH "Directory containing apar NetCDF files and MATLAB baselines")
+    set(CODEX_TEST_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/data" CACHE PATH "Directory containing apar NetCDF files and MATLAB baselines")
     set(CODEX_TEST_APAR_SINGLE "${CODEX_TEST_DATA_DIR}/apar.single.nc" CACHE FILEPATH "Single-null apar NetCDF file for tests")
     set(CODEX_TEST_APAR_CIRC "${CODEX_TEST_DATA_DIR}/apar.circ.nc" CACHE FILEPATH "Circular apar NetCDF file for tests")
     set(CODEX_TEST_REFERENCE_DIR "${CODEX_TEST_DATA_DIR}/zperiod_5" CACHE PATH "MATLAB reference directory for tests")
