@@ -4,16 +4,15 @@
 #include "AparFieldModel.h"
 #include "Types.h"
 
-class PunctureDetector {
+class PunctureDetector
+{
 public:
-    explicit PunctureDetector(const AparFieldModel& model);
+  explicit PunctureDetector(const AparFieldModel &model);
 
-    void detect(LineTraceResult& line,
-                int direction,
-                int npMax) const;
+  void detect(LineTraceResult &line, int direction, int npMax) const;
 
 private:
-    const AparFieldModel& model_;
+  const AparFieldModel &model_;
 };
 
 #endif

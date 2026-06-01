@@ -6,23 +6,26 @@
 
 #include "Types.h"
 
-struct ValidationConfig {
-    std::string referenceDir;
-    std::string outputDir;
-    std::string aparSinglePath;
-    std::string aparCircPath;
-    std::string divertorFilter = "all";  // all|single|circ
-    std::vector<int> linesFilter;          // empty => all discovered
-    TraceOptions traceOptions;
-    double tolerance = 1.0e-8;
+struct ValidationConfig
+{
+  std::string referenceDir;
+  std::string outputDir;
+  std::string aparSinglePath;
+  std::string aparCircPath;
+  std::string divertorFilter = "all"; // all|single|circ
+  std::vector<int> linesFilter;       // empty => all discovered
+  TraceOptions traceOptions;
+  double tolerance = 1.0e-8;
 };
 
-class ValidationSuite {
+class ValidationSuite
+{
 public:
-    std::vector<ValidationResult> run(const ValidationConfig& config) const;
+  std::vector<ValidationResult> run(const ValidationConfig &config) const;
 
 private:
-    static std::vector<ValidationCase> discoverCases(const ValidationConfig& config);
+  static std::vector<ValidationCase>
+  discoverCases(const ValidationConfig &config);
 };
 
 #endif

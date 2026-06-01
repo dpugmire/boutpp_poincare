@@ -9,17 +9,12 @@
 namespace TracePostProcessor
 {
 
-void rebuildSeedOutputs(const AparFieldModel& model,
-                        const TraceOptions& options,
-                        std::size_t seedIndex,
-                        int maxStatesPerSeed,
-                        int maxTrajPerSeed,
-                        int maxPuncPerSeed,
-                        const TraceOutputViews& outputs,
-                        int stateCount,
-                        int& trajCount,
-                        int& punctureCount,
-                        double& connectionLength);
+void rebuildSeedOutputs(const AparFieldModel &model,
+                        const TraceOptions &options, std::size_t seedIndex,
+                        int maxStatesPerSeed, int maxTrajPerSeed,
+                        int maxPuncPerSeed, const TraceOutputViews &outputs,
+                        int stateCount, int &trajCount, int &punctureCount,
+                        double &connectionLength);
 
 }
 

@@ -17,7 +17,9 @@ enum class ViskoresOutputMode
 class ViskoresFieldLineTracer
 {
 public:
-  ViskoresFieldLineTracer(const AparData& data, const TraceOptions& options, ViskoresOutputMode outputMode = ViskoresOutputMode::Punctures);
+  ViskoresFieldLineTracer(
+      const AparData &data, const TraceOptions &options,
+      ViskoresOutputMode outputMode = ViskoresOutputMode::Punctures);
 
   int maxStatesPerSeed() const
   {
@@ -34,21 +36,21 @@ public:
     return maxPuncPerSeed_;
   }
 
-  void traceLines(const std::vector<Point3D>& seeds,
-                  const std::vector<CodeXId>& globalSeedIndices,
-                  const TraceOutputViews& outputs,
-                  std::vector<double>& ilinePerSeed,
-                  std::vector<int>& endRegionPerSeed,
-                  std::vector<double>& connectionLengthPerSeed,
-                  std::vector<int>& stateCountPerSeed,
-                  std::vector<int>& trajCountPerSeed,
-                  std::vector<int>& punctureCountPerSeed,
-                  std::vector<TraceStatus>& traceStatuses,
-                  double* deviceInvokeSeconds = nullptr,
-                  double* hostPostprocessSeconds = nullptr) const;
+  void traceLines(const std::vector<Point3D> &seeds,
+                  const std::vector<CodeXId> &globalSeedIndices,
+                  const TraceOutputViews &outputs,
+                  std::vector<double> &ilinePerSeed,
+                  std::vector<int> &endRegionPerSeed,
+                  std::vector<double> &connectionLengthPerSeed,
+                  std::vector<int> &stateCountPerSeed,
+                  std::vector<int> &trajCountPerSeed,
+                  std::vector<int> &punctureCountPerSeed,
+                  std::vector<TraceStatus> &traceStatuses,
+                  double *deviceInvokeSeconds = nullptr,
+                  double *hostPostprocessSeconds = nullptr) const;
 
 private:
-  const AparData& data_;
+  const AparData &data_;
   TraceOptions options_;
   ViskoresOutputMode outputMode_ = ViskoresOutputMode::Punctures;
   int maxTraceStatesPerSeed_ = 1;

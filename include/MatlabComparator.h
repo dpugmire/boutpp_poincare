@@ -6,15 +6,15 @@
 
 #include "Types.h"
 
-class MatlabComparator {
+class MatlabComparator
+{
 public:
-    CompareSummary compareFiles(const std::string& generatedPath,
-                                const std::string& matlabPath,
-                                const std::string& label,
-                                double tolerance) const;
+  CompareSummary compareFiles(const std::string &generatedPath,
+                              const std::string &matlabPath,
+                              const std::string &label, double tolerance) const;
 
 private:
-    static std::vector<std::vector<double>> loadDataRows(const std::string& path);
+  static std::vector<std::vector<double>> loadDataRows(const std::string &path);
 };
 
 #endif

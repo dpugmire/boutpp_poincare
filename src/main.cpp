@@ -39,7 +39,7 @@ namespace
 class MpiRuntime
 {
 public:
-  MpiRuntime(int* argc, char*** argv)
+  MpiRuntime(int *argc, char ***argv)
   {
     MPI_Init(argc, argv);
     initialized_ = true;
@@ -53,30 +53,39 @@ public:
       MPI_Finalize();
   }
 
-  void barrier() const { MPI_Barrier(MPI_COMM_WORLD); }
+  void barrier() const
+  {
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
 
   int allreduceMaxInt(int localValue) const
   {
     int globalValue = localValue;
-    MPI_Allreduce(&localValue, &globalValue, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+    MPI_Allreduce(&localValue, &globalValue, 1, MPI_INT, MPI_MAX,
+                  MPI_COMM_WORLD);
     return globalValue;
   }
 
   double allreduceMaxDouble(double localValue) const
   {
     double globalValue = localValue;
-    MPI_Allreduce(&localValue, &globalValue, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    MPI_Allreduce(&localValue, &globalValue, 1, MPI_DOUBLE, MPI_MAX,
+                  MPI_COMM_WORLD);
     return globalValue;
   }
 
   double allreduceSumDouble(double localValue) const
   {
     double globalValue = localValue;
-    MPI_Allreduce(&localValue, &globalValue, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(&localValue, &globalValue, 1, MPI_DOUBLE, MPI_SUM,
+                  MPI_COMM_WORLD);
     return globalValue;
   }
 
-  void abortAll(int code) const { MPI_Abort(MPI_COMM_WORLD, code); }
+  void abortAll(int code) const
+  {
+    MPI_Abort(MPI_COMM_WORLD, code);
+  }
 
   int rank = 0;
   int size = 1;
@@ -88,17 +97,33 @@ private:
 class MpiRuntime
 {
 public:
-  explicit MpiRuntime(int*, char***) {}
+  explicit MpiRuntime(int *, char ***)
+  {
+  }
 
-  void barrier() const {}
+  void barrier() const
+  {
+  }
 
-  int allreduceMaxInt(int localValue) const { return localValue; }
+  int allreduceMaxInt(int localValue) const
+  {
+    return localValue;
+  }
 
-  double allreduceMaxDouble(double localValue) const { return localValue; }
+  double allreduceMaxDouble(double localValue) const
+  {
+    return localValue;
+  }
 
-  double allreduceSumDouble(double localValue) const { return localValue; }
+  double allreduceSumDouble(double localValue) const
+  {
+    return localValue;
+  }
 
-  void abortAll(int code) const { std::exit(code); }
+  void abortAll(int code) const
+  {
+    std::exit(code);
+  }
 
   int rank = 0;
   int size = 1;
@@ -111,29 +136,38 @@ struct TraceTask
   Point3D seedInd;
 };
 
-void printUsage(const char* prog)
+void printUsage(const char *prog)
 {
   std::cout << "Usage: " << prog << " [options]\n"
             << "Options:\n"
-            << "  --reference-dir DIR   MATLAB reference directory (default: /Users/dpn/proj/bout++/ben_zhu_poincare/zperiod_5)\n"
-            << "  --output-dir DIR      Output directory for generated files (default: ./outputs)\n"
+            << "  --reference-dir DIR   MATLAB reference directory (default: "
+               "/Users/dpn/proj/bout++/ben_zhu_poincare/zperiod_5)\n"
+            << "  --output-dir DIR      Output directory for generated files "
+               "(default: ./outputs)\n"
             << "  --single-apar FILE    apar.single.nc path\n"
             << "  --circ-apar FILE      apar.circ.nc path\n"
             << "  --divertor TAG        all|single|circ (default: all)\n"
-            << "  --lines LIST          comma-separated x-index values (double supported)\n"
-            << "  --nlines X0 X1 N      generate N evenly-spaced lines from X0 to X1 (double supported; writes ip_cxx.txt/traj_cxx.txt)\n"
+            << "  --lines LIST          comma-separated x-index values (double "
+               "supported)\n"
+            << "  --nlines X0 X1 N      generate N evenly-spaced lines from X0 "
+               "to X1 (double supported; writes ip_cxx.txt/traj_cxx.txt)\n"
             << "  --direction DIR       +1 or -1 (default: 1)\n"
             << "  --np-max N            max punctures per line (default: 100)\n"
-            << "  --max-steps N         max integration steps per line (default: 200 * np-max)\n"
+            << "  --max-steps N         max integration steps per line "
+               "(default: 200 * np-max)\n"
             << "  --tol VALUE           max-abs tolerance (default: 1e-8)\n"
-            << "  --trace-engine ENG    tracing backend: cpu|viskores (default: viskores)\n"
-            << "  --viskores-device DEV viskores device: serial|openmp|kokkos (default: serial)\n"
-            << "  --viskores-output MODE viskores output mode: punctures|states (default: punctures)\n"
-            << "  --compare             enable MATLAB comparison mode (default is trace-only)\n"
+            << "  --trace-engine ENG    tracing backend: cpu|viskores "
+               "(default: viskores)\n"
+            << "  --viskores-device DEV viskores device: serial|openmp|kokkos "
+               "(default: serial)\n"
+            << "  --viskores-output MODE viskores output mode: "
+               "punctures|states (default: punctures)\n"
+            << "  --compare             enable MATLAB comparison mode (default "
+               "is trace-only)\n"
             << "  --help                show this help\n";
 }
 
-bool hasHelpArgument(int argc, char** argv)
+bool hasHelpArgument(int argc, char **argv)
 {
   for (int i = 1; i < argc; ++i)
   {
@@ -144,7 +178,7 @@ bool hasHelpArgument(int argc, char** argv)
   return false;
 }
 
-std::vector<double> parseLinesCsvDoubles(const std::string& text)
+std::vector<double> parseLinesCsvDoubles(const std::string &text)
 {
   std::vector<double> out;
   std::stringstream ss(text);
@@ -179,17 +213,24 @@ std::vector<double> buildLineRange(double x0, double x1, int n)
   return out;
 }
 
-int computeMaxStateCount(const TraceOptions& options)
+int computeMaxStateCount(const TraceOptions &options)
 {
   constexpr int kDefaultMaxStepsPerPuncture = 200;
-  const long long derivedMaxStepsLL = static_cast<long long>(kDefaultMaxStepsPerPuncture) * static_cast<long long>(std::max(1, options.npMax));
-  const int derivedMaxSteps = (derivedMaxStepsLL > static_cast<long long>(std::numeric_limits<int>::max()))
-    ? std::numeric_limits<int>::max()
-    : static_cast<int>(std::max(1LL, derivedMaxStepsLL));
+  const long long derivedMaxStepsLL =
+      static_cast<long long>(kDefaultMaxStepsPerPuncture) *
+      static_cast<long long>(std::max(1, options.npMax));
+  const int derivedMaxSteps =
+      (derivedMaxStepsLL >
+       static_cast<long long>(std::numeric_limits<int>::max()))
+          ? std::numeric_limits<int>::max()
+          : static_cast<int>(std::max(1LL, derivedMaxStepsLL));
 
-  const int maxStepsCap = (options.maxSteps > 0) ? options.maxSteps : derivedMaxSteps;
+  const int maxStepsCap =
+      (options.maxSteps > 0) ? options.maxSteps : derivedMaxSteps;
   const int clampedSteps = std::max(1, maxStepsCap);
-  return (clampedSteps >= std::numeric_limits<int>::max()) ? std::numeric_limits<int>::max() : (clampedSteps + 1);
+  return (clampedSteps >= std::numeric_limits<int>::max())
+             ? std::numeric_limits<int>::max()
+             : (clampedSteps + 1);
 }
 
 bool isIntegerVal(double v)
@@ -212,39 +253,43 @@ enum class TraceEngine
 
 bool isFatalTraceStatus(TraceStatus status)
 {
-  return status == TraceStatus::InvalidConfiguration || status == TraceStatus::OutputTooSmall;
+  return status == TraceStatus::InvalidConfiguration ||
+         status == TraceStatus::OutputTooSmall;
 }
 
 std::string toLowerAscii(std::string text)
 {
-  std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c)
+                 { return static_cast<char>(std::tolower(c)); });
   return text;
 }
 
-bool isSupportedViskoresDeviceChoice(const std::string& valueLower)
+bool isSupportedViskoresDeviceChoice(const std::string &valueLower)
 {
-  return valueLower == "serial" || valueLower == "openmp" || valueLower == "kokkos";
+  return valueLower == "serial" || valueLower == "openmp" ||
+         valueLower == "kokkos";
 }
 
-bool isSupportedTraceEngineChoice(const std::string& valueLower)
+bool isSupportedTraceEngineChoice(const std::string &valueLower)
 {
   return valueLower == "cpu" || valueLower == "viskores";
 }
 
-bool isSupportedViskoresOutputModeChoice(const std::string& valueLower)
+bool isSupportedViskoresOutputModeChoice(const std::string &valueLower)
 {
   return valueLower == "punctures" || valueLower == "states";
 }
 
-TraceEngine parseTraceEngineChoice(const std::string& valueLower)
+TraceEngine parseTraceEngineChoice(const std::string &valueLower)
 {
   return (valueLower == "viskores") ? TraceEngine::Viskores : TraceEngine::Cpu;
 }
 
 #if defined(CODEX_USE_VISKORES)
-ViskoresOutputMode parseViskoresOutputModeChoice(const std::string& valueLower)
+ViskoresOutputMode parseViskoresOutputModeChoice(const std::string &valueLower)
 {
-  return (valueLower == "states") ? ViskoresOutputMode::States : ViskoresOutputMode::Punctures;
+  return (valueLower == "states") ? ViskoresOutputMode::States
+                                  : ViskoresOutputMode::Punctures;
 }
 #endif
 
@@ -264,17 +309,21 @@ struct ParsedCommandLineOptions
 ParsedCommandLineOptions makeDefaultCommandLineOptions()
 {
   ParsedCommandLineOptions options;
-  options.config.referenceDir = "/Users/dpn/proj/bout++/ben_zhu_poincare/zperiod_5";
+  options.config.referenceDir =
+      "/Users/dpn/proj/bout++/ben_zhu_poincare/zperiod_5";
   options.config.outputDir = "./outputs";
-  options.config.aparSinglePath = "/Users/dpn/proj/bout++/ben_zhu_poincare/apar.single.nc";
-  options.config.aparCircPath = "/Users/dpn/proj/bout++/ben_zhu_poincare/apar.circ.nc";
+  options.config.aparSinglePath =
+      "/Users/dpn/proj/bout++/ben_zhu_poincare/apar.single.nc";
+  options.config.aparCircPath =
+      "/Users/dpn/proj/bout++/ben_zhu_poincare/apar.circ.nc";
   options.config.traceOptions.direction = 1;
   options.config.traceOptions.npMax = 100;
   options.config.tolerance = 1.0e-8;
   return options;
 }
 
-bool parseCommandLineArguments(int argc, char** argv, const MpiRuntime& mpi, ParsedCommandLineOptions& options)
+bool parseCommandLineArguments(int argc, char **argv, const MpiRuntime &mpi,
+                               ParsedCommandLineOptions &options)
 {
   options = makeDefaultCommandLineOptions();
 
@@ -389,7 +438,8 @@ bool parseCommandLineArguments(int argc, char** argv, const MpiRuntime& mpi, Par
     return false;
   }
 
-  if (options.config.traceOptions.direction != 1 && options.config.traceOptions.direction != -1)
+  if (options.config.traceOptions.direction != 1 &&
+      options.config.traceOptions.direction != -1)
   {
     if (mpi.rank == 0)
       std::cerr << "Error: --direction must be 1 or -1\n";
@@ -413,7 +463,8 @@ bool parseCommandLineArguments(int argc, char** argv, const MpiRuntime& mpi, Par
   if (!isSupportedViskoresDeviceChoice(options.viskoresDevice))
   {
     if (mpi.rank == 0)
-      std::cerr << "Error: --viskores-device must be one of serial|openmp|kokkos\n";
+      std::cerr
+          << "Error: --viskores-device must be one of serial|openmp|kokkos\n";
     return false;
   }
 
@@ -434,15 +485,14 @@ bool parseCommandLineArguments(int argc, char** argv, const MpiRuntime& mpi, Par
   return true;
 }
 
-const char* traceEngineName(TraceEngine traceEngine)
+const char *traceEngineName(TraceEngine traceEngine)
 {
   return (traceEngine == TraceEngine::Viskores) ? "viskores" : "cpu";
 }
 
-void printTraceBackendSelection(const MpiRuntime& mpi,
-                                TraceEngine traceEngine,
-                                const std::string& viskoresDevice,
-                                const std::string& viskoresOutputMode)
+void printTraceBackendSelection(const MpiRuntime &mpi, TraceEngine traceEngine,
+                                const std::string &viskoresDevice,
+                                const std::string &viskoresOutputMode)
 {
   const bool viskoresActive = (traceEngine == TraceEngine::Viskores);
 
@@ -451,8 +501,10 @@ void printTraceBackendSelection(const MpiRuntime& mpi,
   {
     if (mpi.rank == printer)
     {
-      std::cout << "Rank " << mpi.rank << " runtime selection: trace-engine=" << traceEngineName(traceEngine)
-                << ", viskores-device=" << viskoresDevice << ", viskores-output=" << viskoresOutputMode
+      std::cout << "Rank " << mpi.rank << " runtime selection: trace-engine="
+                << traceEngineName(traceEngine)
+                << ", viskores-device=" << viskoresDevice
+                << ", viskores-output=" << viskoresOutputMode
                 << ", viskores-active=" << (viskoresActive ? "yes" : "no");
       if (!viskoresActive)
         std::cout << " (device ignored unless --trace-engine viskores)";
@@ -462,7 +514,6 @@ void printTraceBackendSelection(const MpiRuntime& mpi,
   }
 }
 
-
 using SteadyClock = std::chrono::steady_clock;
 
 struct TimingSummary
@@ -471,30 +522,31 @@ struct TimingSummary
   double maxSeconds = 0.0;
 };
 
-double elapsedSeconds(const SteadyClock::time_point& start, const SteadyClock::time_point& end)
+double elapsedSeconds(const SteadyClock::time_point &start,
+                      const SteadyClock::time_point &end)
 {
   return std::chrono::duration<double>(end - start).count();
 }
 
-TimingSummary summarizeTiming(const MpiRuntime& mpi, double localSeconds)
+TimingSummary summarizeTiming(const MpiRuntime &mpi, double localSeconds)
 {
   TimingSummary summary;
-  summary.avgSeconds = mpi.allreduceSumDouble(localSeconds) / static_cast<double>(std::max(1, mpi.size));
+  summary.avgSeconds = mpi.allreduceSumDouble(localSeconds) /
+                       static_cast<double>(std::max(1, mpi.size));
   summary.maxSeconds = mpi.allreduceMaxDouble(localSeconds);
   return summary;
 }
 
-void printTimingLine(const char* label, const TimingSummary& summary)
+void printTimingLine(const char *label, const TimingSummary &summary)
 {
-  std::cout << "  " << label << ": avg=" << summary.avgSeconds << " s, max=" << summary.maxSeconds << " s\n";
+  std::cout << "  " << label << ": avg=" << summary.avgSeconds
+            << " s, max=" << summary.maxSeconds << " s\n";
 }
 
-void printTraceTimingSummary(const MpiRuntime& mpi,
-                             double localLoadSeconds,
+void printTraceTimingSummary(const MpiRuntime &mpi, double localLoadSeconds,
                              double localTraceSeconds,
                              double localOutputSeconds,
-                             double localTotalSeconds,
-                             const char* traceLabel,
+                             double localTotalSeconds, const char *traceLabel,
                              double localHostPostprocessSeconds = -1.0)
 {
   const TimingSummary load = summarizeTiming(mpi, localLoadSeconds);
@@ -502,7 +554,9 @@ void printTraceTimingSummary(const MpiRuntime& mpi,
   const TimingSummary output = summarizeTiming(mpi, localOutputSeconds);
   const TimingSummary total = summarizeTiming(mpi, localTotalSeconds);
   const bool haveHostPostprocess = (localHostPostprocessSeconds >= 0.0);
-  const TimingSummary hostPostprocess = haveHostPostprocess ? summarizeTiming(mpi, localHostPostprocessSeconds) : TimingSummary{};
+  const TimingSummary hostPostprocess =
+      haveHostPostprocess ? summarizeTiming(mpi, localHostPostprocessSeconds)
+                          : TimingSummary{};
 
   if (mpi.rank != 0)
     return;
@@ -520,7 +574,9 @@ void printTraceTimingSummary(const MpiRuntime& mpi,
   std::cout.flags(oldFlags);
   std::cout.precision(oldPrecision);
 }
-void printCompareTimingSummary(const MpiRuntime& mpi, double localCompareSeconds, double localTotalSeconds)
+void printCompareTimingSummary(const MpiRuntime &mpi,
+                               double localCompareSeconds,
+                               double localTotalSeconds)
 {
   const TimingSummary compare = summarizeTiming(mpi, localCompareSeconds);
   const TimingSummary total = summarizeTiming(mpi, localTotalSeconds);
@@ -539,7 +595,7 @@ void printCompareTimingSummary(const MpiRuntime& mpi, double localCompareSeconds
 }
 
 #if defined(CODEX_USE_VISKORES)
-const char* toViskoresDeviceName(const std::string& valueLower)
+const char *toViskoresDeviceName(const std::string &valueLower)
 {
   if (valueLower == "serial")
     return "Serial";
@@ -550,26 +606,28 @@ const char* toViskoresDeviceName(const std::string& valueLower)
   return "";
 }
 
-const char* onOff(bool value)
+const char *onOff(bool value)
 {
   return value ? "ON" : "OFF";
 }
 
-void printViskoresDeviceDiagnostics(const std::string& requestedDevice,
-                                    const viskores::cont::RuntimeDeviceInformation& info,
-                                    viskores::cont::DeviceAdapterId forcedDeviceId)
+void printViskoresDeviceDiagnostics(
+    const std::string &requestedDevice,
+    const viskores::cont::RuntimeDeviceInformation &info,
+    viskores::cont::DeviceAdapterId forcedDeviceId)
 {
   std::cout << "Viskores device requested: " << requestedDevice << "\n";
   std::cout << "Viskores device forced: " << forcedDeviceId.GetName() << "\n";
 
   std::cout << "Viskores runtime devices:";
-  const char* deviceNames[] = { "Serial", "OpenMP", "Kokkos", "Cuda" };
-  for (const char* deviceName : deviceNames)
+  const char *deviceNames[] = {"Serial", "OpenMP", "Kokkos", "Cuda"};
+  for (const char *deviceName : deviceNames)
   {
     const viskores::cont::DeviceAdapterId deviceId = info.GetId(deviceName);
     if (!deviceId.IsValueValid())
       continue;
-    std::cout << " " << deviceId.GetName() << "=" << (info.Exists(deviceId) ? "available" : "unavailable");
+    std::cout << " " << deviceId.GetName() << "="
+              << (info.Exists(deviceId) ? "available" : "unavailable");
   }
   std::cout << "\n";
 
@@ -601,12 +659,14 @@ void printViskoresDeviceDiagnostics(const std::string& requestedDevice,
             << " KOKKOS_HIP=" << onOff(viskoresKokkosHipEnabled) << "\n";
 }
 
-bool configureViskoresDevice(const std::string& valueLower, std::string& errorMsg, bool printDiagnostics)
+bool configureViskoresDevice(const std::string &valueLower,
+                             std::string &errorMsg, bool printDiagnostics)
 {
   const std::string viskoresName = toViskoresDeviceName(valueLower);
   if (viskoresName.empty())
   {
-    errorMsg = "Unsupported --viskores-device value '" + valueLower + "' (allowed: serial|openmp|kokkos)";
+    errorMsg = "Unsupported --viskores-device value '" + valueLower +
+               "' (allowed: serial|openmp|kokkos)";
     return false;
   }
 
@@ -619,7 +679,8 @@ bool configureViskoresDevice(const std::string& valueLower, std::string& errorMs
   }
   if (!info.Exists(deviceId))
   {
-    errorMsg = "Viskores device '" + valueLower + "' is not available in this build/runtime";
+    errorMsg = "Viskores device '" + valueLower +
+               "' is not available in this build/runtime";
     return false;
   }
 
@@ -629,7 +690,7 @@ bool configureViskoresDevice(const std::string& valueLower, std::string& errorMs
   return true;
 }
 
-void configureOpenMpForViskoresSerial(const std::string& viskoresDevice)
+void configureOpenMpForViskoresSerial(const std::string &viskoresDevice)
 {
   if (viskoresDevice != "serial")
     return;
@@ -643,7 +704,8 @@ void configureOpenMpForViskoresSerial(const std::string& viskoresDevice)
 }
 #endif
 
-std::vector<Point3D> buildSeedPoints(const std::vector<double>& requestedLines, const AparData& data)
+std::vector<Point3D> buildSeedPoints(const std::vector<double> &requestedLines,
+                                     const AparData &data)
 {
   std::vector<Point3D> seeds;
   seeds.reserve(requestedLines.size());
@@ -661,20 +723,21 @@ std::vector<Point3D> buildSeedPoints(const std::vector<double>& requestedLines, 
   return seeds;
 }
 
-std::vector<TraceTask> buildAllTasks(const std::vector<double>& requestedLines,
-                                     bool doSingle,
-                                     bool doCirc,
-                                     const AparData* singleData,
-                                     const AparData* circData)
+std::vector<TraceTask> buildAllTasks(const std::vector<double> &requestedLines,
+                                     bool doSingle, bool doCirc,
+                                     const AparData *singleData,
+                                     const AparData *circData)
 {
   std::vector<TraceTask> allTasks;
-  const size_t divertorCount = static_cast<size_t>((doSingle ? 1 : 0) + (doCirc ? 1 : 0));
+  const size_t divertorCount =
+      static_cast<size_t>((doSingle ? 1 : 0) + (doCirc ? 1 : 0));
   allTasks.reserve(requestedLines.size() * divertorCount);
 
   if (doSingle && singleData != nullptr)
   {
-    const std::vector<Point3D> singleSeeds = buildSeedPoints(requestedLines, *singleData);
-    for (const Point3D& seed : singleSeeds)
+    const std::vector<Point3D> singleSeeds =
+        buildSeedPoints(requestedLines, *singleData);
+    for (const Point3D &seed : singleSeeds)
     {
       TraceTask t;
       t.divertorTag = "single";
@@ -685,8 +748,9 @@ std::vector<TraceTask> buildAllTasks(const std::vector<double>& requestedLines,
 
   if (doCirc && circData != nullptr)
   {
-    const std::vector<Point3D> circSeeds = buildSeedPoints(requestedLines, *circData);
-    for (const Point3D& seed : circSeeds)
+    const std::vector<Point3D> circSeeds =
+        buildSeedPoints(requestedLines, *circData);
+    for (const Point3D &seed : circSeeds)
     {
       TraceTask t;
       t.divertorTag = "circ";
@@ -705,66 +769,61 @@ size_t partitionBegin(size_t totalTasks, int rank, int nranks)
 
 size_t partitionEnd(size_t totalTasks, int rank, int nranks)
 {
-  return (totalTasks * static_cast<size_t>(rank + 1)) / static_cast<size_t>(nranks);
+  return (totalTasks * static_cast<size_t>(rank + 1)) /
+         static_cast<size_t>(nranks);
 }
 
-void traceLocalTasksForDivertor(const std::string& tag,
-                                const AparData& data,
-                                const ValidationConfig& config,
-                                const std::vector<TraceTask>& localTasks,
-                                int rank,
-                                int maxStatesPerSeed,
-                                int maxTrajPerSeed,
-                                int maxPuncPerSeed,
-                                std::vector<double>& ilinePerSeed,
-                                std::vector<int>& endRegionPerSeed,
-                                std::vector<double>& connectionLengthPerSeed,
-                                std::vector<int>& stateCountPerSeed,
-                                std::vector<int>& trajCountPerSeed,
-                                std::vector<int>& punctureCountPerSeed,
-                                std::vector<TrajectoryState>& states,
-                                std::vector<Point3D>& trajectories,
-                                std::vector<PuncturePoint>& punctures,
-                                std::vector<std::uint8_t>& punctureValid,
-                                bool& localFatal,
-                                std::string& localFatalMsg)
+void traceLocalTasksForDivertor(
+    const std::string &tag, const AparData &data,
+    const ValidationConfig &config, const std::vector<TraceTask> &localTasks,
+    int rank, int maxStatesPerSeed, int maxTrajPerSeed, int maxPuncPerSeed,
+    std::vector<double> &ilinePerSeed, std::vector<int> &endRegionPerSeed,
+    std::vector<double> &connectionLengthPerSeed,
+    std::vector<int> &stateCountPerSeed, std::vector<int> &trajCountPerSeed,
+    std::vector<int> &punctureCountPerSeed,
+    std::vector<TrajectoryState> &states, std::vector<Point3D> &trajectories,
+    std::vector<PuncturePoint> &punctures,
+    std::vector<std::uint8_t> &punctureValid, bool &localFatal,
+    std::string &localFatalMsg)
 {
   AparFieldModel model(data);
   FieldLineIntegrator integrator(model, config.traceOptions);
 
-  if (integrator.maxStatesPerSeed() != maxStatesPerSeed || integrator.maxTrajPerSeed() != maxTrajPerSeed ||
+  if (integrator.maxStatesPerSeed() != maxStatesPerSeed ||
+      integrator.maxTrajPerSeed() != maxTrajPerSeed ||
       integrator.maxPuncPerSeed() != maxPuncPerSeed)
   {
     localFatal = true;
-    localFatalMsg = "Integrator max-per-seed caps differ from preallocated array caps";
+    localFatalMsg =
+        "Integrator max-per-seed caps differ from preallocated array caps";
     return;
   }
 
-  TraceOutputViews outputViews = makeTraceOutputViews(states, trajectories, punctures, &punctureValid);
+  TraceOutputViews outputViews =
+      makeTraceOutputViews(states, trajectories, punctures, &punctureValid);
 
   for (size_t localIdx = 0; localIdx < localTasks.size(); ++localIdx)
   {
     if (localTasks[localIdx].divertorTag != tag)
       continue;
 
-    const TraceStatus traceStatus = integrator.traceLine(localTasks[localIdx].seedInd,
-                                                         localIdx,
-                                                         outputViews,
-                                                         stateCountPerSeed[localIdx],
-                                                         trajCountPerSeed[localIdx],
-                                                         punctureCountPerSeed[localIdx],
-                                                         endRegionPerSeed[localIdx],
-                                                         connectionLengthPerSeed[localIdx],
-                                                         ilinePerSeed[localIdx]);
+    const TraceStatus traceStatus = integrator.traceLine(
+        localTasks[localIdx].seedInd, localIdx, outputViews,
+        stateCountPerSeed[localIdx], trajCountPerSeed[localIdx],
+        punctureCountPerSeed[localIdx], endRegionPerSeed[localIdx],
+        connectionLengthPerSeed[localIdx], ilinePerSeed[localIdx]);
     if (isFatalTraceStatus(traceStatus))
     {
       localFatal = true;
-      localFatalMsg = "traceLine failed on rank " + std::to_string(rank) + " for local seed " + std::to_string(localIdx) + " with status " +
-        traceStatusName(traceStatus);
+      localFatalMsg = "traceLine failed on rank " + std::to_string(rank) +
+                      " for local seed " + std::to_string(localIdx) +
+                      " with status " + traceStatusName(traceStatus);
       return;
     }
 
-    std::cout << "Rank " << rank << " traced " << tag << " line " << localTasks[localIdx].seedInd.x << ": traj=" << trajCountPerSeed[localIdx]
+    std::cout << "Rank " << rank << " traced " << tag << " line "
+              << localTasks[localIdx].seedInd.x
+              << ": traj=" << trajCountPerSeed[localIdx]
               << ", punctures=" << punctureCountPerSeed[localIdx];
     if (traceStatus != TraceStatus::Ok)
       std::cout << ", status=" << traceStatusName(traceStatus);
@@ -773,36 +832,30 @@ void traceLocalTasksForDivertor(const std::string& tag,
 }
 
 #if defined(CODEX_USE_VISKORES)
-void traceLocalTasksForDivertorViskores(const std::string& tag,
-                                        const AparData& data,
-                                        const ValidationConfig& config,
-                                        ViskoresOutputMode viskoresOutputMode,
-                                        const std::vector<TraceTask>& localTasks,
-                                        int rank,
-                                        int maxStatesPerSeed,
-                                        int maxTrajPerSeed,
-                                        int maxPuncPerSeed,
-                                        std::vector<double>& ilinePerSeed,
-                                        std::vector<int>& endRegionPerSeed,
-                                        std::vector<double>& connectionLengthPerSeed,
-                                        std::vector<int>& stateCountPerSeed,
-                                        std::vector<int>& trajCountPerSeed,
-                                        std::vector<int>& punctureCountPerSeed,
-                                        std::vector<TrajectoryState>& states,
-                                        std::vector<Point3D>& trajectories,
-                                        std::vector<PuncturePoint>& punctures,
-                                        std::vector<std::uint8_t>& punctureValid,
-                                        double& localDeviceInvokeSeconds,
-                                        double& localHostPostprocessSeconds,
-                                        bool& localFatal,
-                                        std::string& localFatalMsg)
+void traceLocalTasksForDivertorViskores(
+    const std::string &tag, const AparData &data,
+    const ValidationConfig &config, ViskoresOutputMode viskoresOutputMode,
+    const std::vector<TraceTask> &localTasks, int rank, int maxStatesPerSeed,
+    int maxTrajPerSeed, int maxPuncPerSeed, std::vector<double> &ilinePerSeed,
+    std::vector<int> &endRegionPerSeed,
+    std::vector<double> &connectionLengthPerSeed,
+    std::vector<int> &stateCountPerSeed, std::vector<int> &trajCountPerSeed,
+    std::vector<int> &punctureCountPerSeed,
+    std::vector<TrajectoryState> &states, std::vector<Point3D> &trajectories,
+    std::vector<PuncturePoint> &punctures,
+    std::vector<std::uint8_t> &punctureValid, double &localDeviceInvokeSeconds,
+    double &localHostPostprocessSeconds, bool &localFatal,
+    std::string &localFatalMsg)
 {
   ViskoresFieldLineTracer tracer(data, config.traceOptions, viskoresOutputMode);
 
-  if (tracer.maxStatesPerSeed() != maxStatesPerSeed || tracer.maxTrajPerSeed() != maxTrajPerSeed || tracer.maxPuncPerSeed() != maxPuncPerSeed)
+  if (tracer.maxStatesPerSeed() != maxStatesPerSeed ||
+      tracer.maxTrajPerSeed() != maxTrajPerSeed ||
+      tracer.maxPuncPerSeed() != maxPuncPerSeed)
   {
     localFatal = true;
-    localFatalMsg = "Viskores tracer max-per-seed caps differ from preallocated array caps";
+    localFatalMsg =
+        "Viskores tracer max-per-seed caps differ from preallocated array caps";
     return;
   }
 
@@ -825,34 +878,32 @@ void traceLocalTasksForDivertorViskores(const std::string& tag,
   std::vector<TraceStatus> traceStatuses;
   double batchDeviceInvokeSeconds = 0.0;
   double batchHostPostprocessSeconds = 0.0;
-  tracer.traceLines(batchSeeds,
-                    batchGlobalSeedIndices,
-                    makeTraceOutputViews(states, trajectories, punctures, &punctureValid),
-                    ilinePerSeed,
-                    endRegionPerSeed,
-                    connectionLengthPerSeed,
-                    stateCountPerSeed,
-                    trajCountPerSeed,
-                    punctureCountPerSeed,
-                    traceStatuses,
-                    &batchDeviceInvokeSeconds,
-                    &batchHostPostprocessSeconds);
+  tracer.traceLines(
+      batchSeeds, batchGlobalSeedIndices,
+      makeTraceOutputViews(states, trajectories, punctures, &punctureValid),
+      ilinePerSeed, endRegionPerSeed, connectionLengthPerSeed,
+      stateCountPerSeed, trajCountPerSeed, punctureCountPerSeed, traceStatuses,
+      &batchDeviceInvokeSeconds, &batchHostPostprocessSeconds);
   localDeviceInvokeSeconds += batchDeviceInvokeSeconds;
   localHostPostprocessSeconds += batchHostPostprocessSeconds;
 
   for (std::size_t batchIdx = 0; batchIdx < batchSeeds.size(); ++batchIdx)
   {
-    const std::size_t localIdx = static_cast<std::size_t>(batchGlobalSeedIndices[batchIdx]);
+    const std::size_t localIdx =
+        static_cast<std::size_t>(batchGlobalSeedIndices[batchIdx]);
     const TraceStatus traceStatus = traceStatuses[batchIdx];
     if (isFatalTraceStatus(traceStatus))
     {
       localFatal = true;
-      localFatalMsg = "viskores trace failed on rank " + std::to_string(rank) + " for local seed " + std::to_string(localIdx) + " with status " +
-        traceStatusName(traceStatus);
+      localFatalMsg = "viskores trace failed on rank " + std::to_string(rank) +
+                      " for local seed " + std::to_string(localIdx) +
+                      " with status " + traceStatusName(traceStatus);
       return;
     }
 
-    std::cout << "Rank " << rank << " traced " << tag << " line " << localTasks[localIdx].seedInd.x << ": traj=" << trajCountPerSeed[localIdx]
+    std::cout << "Rank " << rank << " traced " << tag << " line "
+              << localTasks[localIdx].seedInd.x
+              << ": traj=" << trajCountPerSeed[localIdx]
               << ", punctures=" << punctureCountPerSeed[localIdx];
     if (traceStatus != TraceStatus::Ok)
       std::cout << ", status=" << traceStatusName(traceStatus);
@@ -863,7 +914,7 @@ void traceLocalTasksForDivertorViskores(const std::string& tag,
 
 } // namespace
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
   if (hasHelpArgument(argc, argv))
   {
@@ -874,7 +925,8 @@ int main(int argc, char** argv)
   MpiRuntime mpi(&argc, &argv);
 
 #if defined(CODEX_USE_MPI)
-  std::cout << "Rank " << mpi.rank << " MPI initialized (size=" << mpi.size << ")" << std::endl;
+  std::cout << "Rank " << mpi.rank << " MPI initialized (size=" << mpi.size
+            << ")" << std::endl;
 #endif
 
   ParsedCommandLineOptions options;
@@ -883,22 +935,26 @@ int main(int argc, char** argv)
 
   ValidationConfig config = options.config;
   const bool doCompare = options.doCompare;
-  const std::string& viskoresDevice = options.viskoresDevice;
+  const std::string &viskoresDevice = options.viskoresDevice;
   const bool viskoresDeviceSpecified = options.viskoresDeviceSpecified;
-  const std::string& viskoresOutputModeChoice = options.viskoresOutputModeChoice;
+  const std::string &viskoresOutputModeChoice =
+      options.viskoresOutputModeChoice;
   const bool viskoresOutputModeSpecified = options.viskoresOutputModeSpecified;
   const LineSpecMode lineSpecMode = options.lineSpecMode;
-  const std::vector<double>& requestedLines = options.requestedLines;
-  const TraceEngine traceEngine = parseTraceEngineChoice(options.traceEngineChoice);
+  const std::vector<double> &requestedLines = options.requestedLines;
+  const TraceEngine traceEngine =
+      parseTraceEngineChoice(options.traceEngineChoice);
 
 #if defined(CODEX_USE_VISKORES)
-  const ViskoresOutputMode viskoresOutputMode = parseViskoresOutputModeChoice(viskoresOutputModeChoice);
+  const ViskoresOutputMode viskoresOutputMode =
+      parseViskoresOutputModeChoice(viskoresOutputModeChoice);
   if (traceEngine == TraceEngine::Viskores)
   {
     configureOpenMpForViskoresSerial(viskoresDevice);
     viskores::cont::Initialize(argc, argv);
     std::string viskoresDeviceError;
-    if (!configureViskoresDevice(viskoresDevice, viskoresDeviceError, mpi.rank == 0))
+    if (!configureViskoresDevice(viskoresDevice, viskoresDeviceError,
+                                 mpi.rank == 0))
     {
       if (mpi.rank == 0)
         std::cerr << "Error: " << viskoresDeviceError << "\n";
@@ -909,19 +965,22 @@ int main(int argc, char** argv)
   if (traceEngine == TraceEngine::Viskores)
   {
     if (mpi.rank == 0)
-      std::cerr << "Error: --trace-engine viskores was requested, but this binary was built without Viskores support\n";
+      std::cerr << "Error: --trace-engine viskores was requested, but this "
+                   "binary was built without Viskores support\n";
     return 1;
   }
   if (viskoresDeviceSpecified)
   {
     if (mpi.rank == 0)
-      std::cerr << "Error: --viskores-device was specified, but this binary was built without Viskores support\n";
+      std::cerr << "Error: --viskores-device was specified, but this binary "
+                   "was built without Viskores support\n";
     return 1;
   }
   if (viskoresOutputModeSpecified)
   {
     if (mpi.rank == 0)
-      std::cerr << "Error: --viskores-output was specified, but this binary was built without Viskores support\n";
+      std::cerr << "Error: --viskores-output was specified, but this binary "
+                   "was built without Viskores support\n";
     return 1;
   }
 #endif
@@ -929,12 +988,14 @@ int main(int argc, char** argv)
   try
   {
     const SteadyClock::time_point totalStart = SteadyClock::now();
-    printTraceBackendSelection(mpi, traceEngine, viskoresDevice, viskoresOutputModeChoice);
+    printTraceBackendSelection(mpi, traceEngine, viskoresDevice,
+                               viskoresOutputModeChoice);
 
     if (doCompare && mpi.size > 1)
     {
       if (mpi.rank == 0)
-        std::cerr << "Error: --compare is currently only supported with a single MPI rank\n";
+        std::cerr << "Error: --compare is currently only supported with a "
+                     "single MPI rank\n";
       return 1;
     }
 
@@ -943,14 +1004,16 @@ int main(int argc, char** argv)
       if (traceEngine == TraceEngine::Viskores)
       {
         if (mpi.rank == 0)
-          std::cerr << "Error: --compare currently uses the CPU tracer only; run trace-only mode for viskores output comparison\n";
+          std::cerr << "Error: --compare currently uses the CPU tracer only; "
+                       "run trace-only mode for viskores output comparison\n";
         return 1;
       }
 
       if (lineSpecMode == LineSpecMode::range)
       {
         if (mpi.rank == 0)
-          std::cerr << "Error: --nlines is only supported in trace-only mode (no --compare)\n";
+          std::cerr << "Error: --nlines is only supported in trace-only mode "
+                       "(no --compare)\n";
         return 1;
       }
 
@@ -963,7 +1026,9 @@ int main(int argc, char** argv)
           if (!isIntegerVal(line))
           {
             if (mpi.rank == 0)
-              std::cerr << "Error: --compare requires integer line indices; got " << line << "\n";
+              std::cerr
+                  << "Error: --compare requires integer line indices; got "
+                  << line << "\n";
             return 1;
           }
           config.linesFilter.push_back(static_cast<int>(std::llround(line)));
@@ -976,13 +1041,15 @@ int main(int argc, char** argv)
       const SteadyClock::time_point compareEnd = SteadyClock::now();
 
       int passed = 0;
-      for (const auto& r : results)
+      for (const auto &r : results)
         if (r.pass)
           ++passed;
 
       if (mpi.rank == 0)
-        std::cout << "\nValidation summary: " << passed << "/" << results.size() << " cases passed\n";
-      printCompareTimingSummary(mpi, elapsedSeconds(compareStart, compareEnd), elapsedSeconds(totalStart, compareEnd));
+        std::cout << "\nValidation summary: " << passed << "/" << results.size()
+                  << " cases passed\n";
+      printCompareTimingSummary(mpi, elapsedSeconds(compareStart, compareEnd),
+                                elapsedSeconds(totalStart, compareEnd));
       return (passed == static_cast<int>(results.size())) ? 0 : 2;
     }
 
@@ -993,8 +1060,10 @@ int main(int argc, char** argv)
       return 1;
     }
 
-    const bool doSingle = (config.divertorFilter == "all" || config.divertorFilter == "single");
-    const bool doCirc = (config.divertorFilter == "all" || config.divertorFilter == "circ");
+    const bool doSingle =
+        (config.divertorFilter == "all" || config.divertorFilter == "single");
+    const bool doCirc =
+        (config.divertorFilter == "all" || config.divertorFilter == "circ");
     const bool useCombinedOutput = (lineSpecMode == LineSpecMode::range);
 
     if (!doSingle && !doCirc)
@@ -1015,12 +1084,15 @@ int main(int argc, char** argv)
     const double localLoadSeconds = elapsedSeconds(loadStart, loadEnd);
 
     const SteadyClock::time_point traceStart = SteadyClock::now();
-    const std::vector<TraceTask> allTasks =
-      buildAllTasks(requestedLines, doSingle, doCirc, doSingle ? &singleData : nullptr, doCirc ? &circData : nullptr);
-    const size_t localBegin = partitionBegin(allTasks.size(), mpi.rank, mpi.size);
+    const std::vector<TraceTask> allTasks = buildAllTasks(
+        requestedLines, doSingle, doCirc, doSingle ? &singleData : nullptr,
+        doCirc ? &circData : nullptr);
+    const size_t localBegin =
+        partitionBegin(allTasks.size(), mpi.rank, mpi.size);
     const size_t localEnd = partitionEnd(allTasks.size(), mpi.rank, mpi.size);
-    std::vector<TraceTask> localTasks(allTasks.begin() + static_cast<std::ptrdiff_t>(localBegin),
-                                      allTasks.begin() + static_cast<std::ptrdiff_t>(localEnd));
+    std::vector<TraceTask> localTasks(
+        allTasks.begin() + static_cast<std::ptrdiff_t>(localBegin),
+        allTasks.begin() + static_cast<std::ptrdiff_t>(localEnd));
 
     mpi.barrier();
     for (int printer = 0; printer < mpi.size; ++printer)
@@ -1039,9 +1111,12 @@ int main(int argc, char** argv)
       mpi.barrier();
     }
 
-    const bool compactViskoresOutput = (traceEngine == TraceEngine::Viskores && viskoresOutputModeChoice == "punctures");
+    const bool compactViskoresOutput =
+        (traceEngine == TraceEngine::Viskores &&
+         viskoresOutputModeChoice == "punctures");
     const int traceMaxStatesPerSeed = computeMaxStateCount(config.traceOptions);
-    const int maxStatesPerSeed = compactViskoresOutput ? 1 : traceMaxStatesPerSeed;
+    const int maxStatesPerSeed =
+        compactViskoresOutput ? 1 : traceMaxStatesPerSeed;
     const int maxTrajPerSeed = compactViskoresOutput ? 1 : maxStatesPerSeed;
     const int maxPuncPerSeed = std::max(1, config.traceOptions.npMax);
 
@@ -1052,10 +1127,15 @@ int main(int argc, char** argv)
     std::vector<int> stateCountPerSeed(localTaskCount, 0);
     std::vector<int> trajCountPerSeed(localTaskCount, 0);
     std::vector<int> punctureCountPerSeed(localTaskCount, 0);
-    std::vector<TrajectoryState> states(localTaskCount * static_cast<size_t>(maxStatesPerSeed));
-    std::vector<Point3D> trajectories(localTaskCount * static_cast<size_t>(maxTrajPerSeed));
-    std::vector<PuncturePoint> punctures(localTaskCount * static_cast<size_t>(maxPuncPerSeed));
-    std::vector<std::uint8_t> punctureValid(localTaskCount * static_cast<size_t>(maxPuncPerSeed), static_cast<std::uint8_t>(0));
+    std::vector<TrajectoryState> states(localTaskCount *
+                                        static_cast<size_t>(maxStatesPerSeed));
+    std::vector<Point3D> trajectories(localTaskCount *
+                                      static_cast<size_t>(maxTrajPerSeed));
+    std::vector<PuncturePoint> punctures(localTaskCount *
+                                         static_cast<size_t>(maxPuncPerSeed));
+    std::vector<std::uint8_t> punctureValid(
+        localTaskCount * static_cast<size_t>(maxPuncPerSeed),
+        static_cast<std::uint8_t>(0));
 
     bool localFatal = false;
     std::string localFatalMsg;
@@ -1063,99 +1143,39 @@ int main(int argc, char** argv)
     double localHostPostprocessSeconds = 0.0;
 
     if (doSingle && !localFatal && traceEngine != TraceEngine::Viskores)
-      traceLocalTasksForDivertor("single",
-                                 singleData,
-                                 config,
-                                 localTasks,
-                                 mpi.rank,
-                                 maxStatesPerSeed,
-                                 maxTrajPerSeed,
-                                 maxPuncPerSeed,
-                                 ilinePerSeed,
-                                 endRegionPerSeed,
-                                 connectionLengthPerSeed,
-                                 stateCountPerSeed,
-                                 trajCountPerSeed,
-                                 punctureCountPerSeed,
-                                 states,
-                                 trajectories,
-                                 punctures,
-                                 punctureValid,
-                                 localFatal,
-                                 localFatalMsg);
+      traceLocalTasksForDivertor(
+          "single", singleData, config, localTasks, mpi.rank, maxStatesPerSeed,
+          maxTrajPerSeed, maxPuncPerSeed, ilinePerSeed, endRegionPerSeed,
+          connectionLengthPerSeed, stateCountPerSeed, trajCountPerSeed,
+          punctureCountPerSeed, states, trajectories, punctures, punctureValid,
+          localFatal, localFatalMsg);
 #if defined(CODEX_USE_VISKORES)
     if (doSingle && !localFatal && traceEngine == TraceEngine::Viskores)
-      traceLocalTasksForDivertorViskores("single",
-                                         singleData,
-                                         config,
-                                         viskoresOutputMode,
-                                         localTasks,
-                                         mpi.rank,
-                                         maxStatesPerSeed,
-                                         maxTrajPerSeed,
-                                         maxPuncPerSeed,
-                                         ilinePerSeed,
-                                         endRegionPerSeed,
-                                         connectionLengthPerSeed,
-                                         stateCountPerSeed,
-                                         trajCountPerSeed,
-                                         punctureCountPerSeed,
-                                         states,
-                                         trajectories,
-                                         punctures,
-                                         punctureValid,
-                                         localDeviceInvokeSeconds,
-                                         localHostPostprocessSeconds,
-                                         localFatal,
-                                         localFatalMsg);
+      traceLocalTasksForDivertorViskores(
+          "single", singleData, config, viskoresOutputMode, localTasks,
+          mpi.rank, maxStatesPerSeed, maxTrajPerSeed, maxPuncPerSeed,
+          ilinePerSeed, endRegionPerSeed, connectionLengthPerSeed,
+          stateCountPerSeed, trajCountPerSeed, punctureCountPerSeed, states,
+          trajectories, punctures, punctureValid, localDeviceInvokeSeconds,
+          localHostPostprocessSeconds, localFatal, localFatalMsg);
 #endif
 
     if (doCirc && !localFatal && traceEngine != TraceEngine::Viskores)
-      traceLocalTasksForDivertor("circ",
-                                 circData,
-                                 config,
-                                 localTasks,
-                                 mpi.rank,
-                                 maxStatesPerSeed,
-                                 maxTrajPerSeed,
-                                 maxPuncPerSeed,
-                                 ilinePerSeed,
-                                 endRegionPerSeed,
-                                 connectionLengthPerSeed,
-                                 stateCountPerSeed,
-                                 trajCountPerSeed,
-                                 punctureCountPerSeed,
-                                 states,
-                                 trajectories,
-                                 punctures,
-                                 punctureValid,
-                                 localFatal,
-                                 localFatalMsg);
+      traceLocalTasksForDivertor(
+          "circ", circData, config, localTasks, mpi.rank, maxStatesPerSeed,
+          maxTrajPerSeed, maxPuncPerSeed, ilinePerSeed, endRegionPerSeed,
+          connectionLengthPerSeed, stateCountPerSeed, trajCountPerSeed,
+          punctureCountPerSeed, states, trajectories, punctures, punctureValid,
+          localFatal, localFatalMsg);
 #if defined(CODEX_USE_VISKORES)
     if (doCirc && !localFatal && traceEngine == TraceEngine::Viskores)
-      traceLocalTasksForDivertorViskores("circ",
-                                         circData,
-                                         config,
-                                         viskoresOutputMode,
-                                         localTasks,
-                                         mpi.rank,
-                                         maxStatesPerSeed,
-                                         maxTrajPerSeed,
-                                         maxPuncPerSeed,
-                                         ilinePerSeed,
-                                         endRegionPerSeed,
-                                         connectionLengthPerSeed,
-                                         stateCountPerSeed,
-                                         trajCountPerSeed,
-                                         punctureCountPerSeed,
-                                         states,
-                                         trajectories,
-                                         punctures,
-                                         punctureValid,
-                                         localDeviceInvokeSeconds,
-                                         localHostPostprocessSeconds,
-                                         localFatal,
-                                         localFatalMsg);
+      traceLocalTasksForDivertorViskores(
+          "circ", circData, config, viskoresOutputMode, localTasks, mpi.rank,
+          maxStatesPerSeed, maxTrajPerSeed, maxPuncPerSeed, ilinePerSeed,
+          endRegionPerSeed, connectionLengthPerSeed, stateCountPerSeed,
+          trajCountPerSeed, punctureCountPerSeed, states, trajectories,
+          punctures, punctureValid, localDeviceInvokeSeconds,
+          localHostPostprocessSeconds, localFatal, localFatalMsg);
 #endif
 
     const int anyFatal = mpi.allreduceMaxInt(localFatal ? 1 : 0);
@@ -1167,9 +1187,14 @@ int main(int argc, char** argv)
     }
 
     const SteadyClock::time_point traceEnd = SteadyClock::now();
-    const double localTraceSeconds = (traceEngine == TraceEngine::Viskores) ? localDeviceInvokeSeconds : elapsedSeconds(traceStart, traceEnd);
-    const double localReportedHostPostprocessSeconds = (traceEngine == TraceEngine::Viskores) ? localHostPostprocessSeconds : -1.0;
-    const char* traceTimingLabel = (traceEngine == TraceEngine::Viskores) ? "device-invoke" : "trace";
+    const double localTraceSeconds = (traceEngine == TraceEngine::Viskores)
+                                         ? localDeviceInvokeSeconds
+                                         : elapsedSeconds(traceStart, traceEnd);
+    const double localReportedHostPostprocessSeconds =
+        (traceEngine == TraceEngine::Viskores) ? localHostPostprocessSeconds
+                                               : -1.0;
+    const char *traceTimingLabel =
+        (traceEngine == TraceEngine::Viskores) ? "device-invoke" : "trace";
 
     const SteadyClock::time_point outputStart = SteadyClock::now();
     PoincareOutput output;
@@ -1178,30 +1203,17 @@ int main(int argc, char** argv)
     for (int writer = 0; writer < mpi.size; ++writer)
     {
       if (mpi.rank == writer && useCombinedOutput)
-        output.writeCombinedOutputsFlat(ilinePerSeed,
-                                        trajCountPerSeed,
-                                        punctureCountPerSeed,
-                                        maxTrajPerSeed,
-                                        maxPuncPerSeed,
-                                        trajectories,
-                                        punctures,
-                                        &punctureValid,
-                                        config.outputDir,
-                                        writer != 0,
-                                        writer == 0);
+        output.writeCombinedOutputsFlat(
+            ilinePerSeed, trajCountPerSeed, punctureCountPerSeed,
+            maxTrajPerSeed, maxPuncPerSeed, trajectories, punctures,
+            &punctureValid, config.outputDir, writer != 0, writer == 0);
       if (mpi.rank == writer && !useCombinedOutput)
         for (size_t i = 0; i < localTasks.size(); ++i)
-          output.writeLineOutputsFlat(ilinePerSeed[i],
-                                      i,
-                                      maxTrajPerSeed,
-                                      maxPuncPerSeed,
-                                      trajCountPerSeed[i],
-                                      punctureCountPerSeed[i],
-                                      trajectories,
-                                      punctures,
-                                      &punctureValid,
-                                      config.outputDir,
-                                      localTasks[i].divertorTag);
+          output.writeLineOutputsFlat(
+              ilinePerSeed[i], i, maxTrajPerSeed, maxPuncPerSeed,
+              trajCountPerSeed[i], punctureCountPerSeed[i], trajectories,
+              punctures, &punctureValid, config.outputDir,
+              localTasks[i].divertorTag);
 
       mpi.barrier();
     }
@@ -1210,19 +1222,22 @@ int main(int argc, char** argv)
     const double localTotalSeconds = elapsedSeconds(totalStart, outputEnd);
 
     if (mpi.rank == 0 && useCombinedOutput)
-      std::cout << "Wrote combined outputs: " << config.outputDir << "/ip_cxx.txt, " << config.outputDir << "/ip_cxx.TP.txt"
+      std::cout << "Wrote combined outputs: " << config.outputDir
+                << "/ip_cxx.txt, " << config.outputDir << "/ip_cxx.TP.txt"
                 << " and " << config.outputDir << "/traj_cxx.txt\n";
     if (mpi.rank == 0 && !useCombinedOutput)
       std::cout << "Wrote per-line outputs in rank order\n";
 
-    printTraceTimingSummary(
-      mpi, localLoadSeconds, localTraceSeconds, localOutputSeconds, localTotalSeconds, traceTimingLabel, localReportedHostPostprocessSeconds);
+    printTraceTimingSummary(mpi, localLoadSeconds, localTraceSeconds,
+                            localOutputSeconds, localTotalSeconds,
+                            traceTimingLabel,
+                            localReportedHostPostprocessSeconds);
 
     if (mpi.rank == 0)
       std::cout << "\nTrace-only run complete.\n";
     return 0;
   }
-  catch (const std::exception& ex)
+  catch (const std::exception &ex)
   {
     std::cerr << "Error: " << ex.what() << "\n";
 #if defined(CODEX_USE_MPI)
