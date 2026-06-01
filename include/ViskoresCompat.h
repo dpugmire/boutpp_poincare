@@ -8,6 +8,7 @@
 #define CODEX_EXEC VISKORES_EXEC
 #define CODEX_CONT VISKORES_CONT
 using CodeXId = viskores::Id;
+using CodeXViskoresFloat = viskores::Float64;
 #else
 #define CODEX_EXEC
 #define CODEX_CONT

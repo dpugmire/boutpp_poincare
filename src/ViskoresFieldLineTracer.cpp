@@ -164,7 +164,7 @@ void ViskoresFieldLineTracer::traceLines(
     viskores::cont::ArrayHandle<viskores::Id> batchStatusCodes;
     viskores::cont::ArrayHandle<viskores::Id> batchTrajectoryCounts;
     viskores::cont::ArrayHandle<viskores::Id> batchPunctureCounts;
-    viskores::cont::ArrayHandle<viskores::FloatDefault> batchConnectionLengths;
+    viskores::cont::ArrayHandle<CodeXViskoresFloat> batchConnectionLengths;
     viskores::cont::ArrayHandle<PuncturePoint> batchPunctures;
 
     batchStateCounts.Allocate(seedHandle.GetNumberOfValues());

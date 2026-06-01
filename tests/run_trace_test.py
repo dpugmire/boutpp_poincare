@@ -24,6 +24,10 @@ def parse_args():
     parser.add_argument("--viskores-device", default="serial")
     parser.add_argument("--np-max", type=int, default=700)
     parser.add_argument("--tolerance", type=float, default=1.0e-8)
+    parser.add_argument("--compare-policy", choices=("exact", "common-fraction", "leading-prefix"), default="exact")
+    parser.add_argument("--row-tolerance", type=float, default=None)
+    parser.add_argument("--min-similar-fraction", type=float, default=1.0)
+    parser.add_argument("--min-leading-rows", type=int, default=0)
     parser.add_argument("--mpi-exec", default="")
     parser.add_argument("--mpi-numproc-flag", default="-n")
     parser.add_argument("--mpi-procs", type=int, default=1)
@@ -178,31 +182,88 @@ def summarize_row_differences(generated_rows, reference_rows):
     return max_abs, l2
 
 
+def max_xyz_error(generated_row, reference_row):
+    return max(abs(generated_row[column] - reference_row[column]) for column in range(2, 5))
+
+
+def count_similar_rows(generated_rows, reference_rows, row_tolerance):
+    similar = 0
+    for generated_row, reference_row in zip(generated_rows, reference_rows):
+        if max_xyz_error(generated_row, reference_row) <= row_tolerance:
+            similar += 1
+    return similar
+
+
+def count_leading_similar_rows(generated_rows, reference_rows, row_tolerance):
+    similar = 0
+    for generated_row, reference_row in zip(generated_rows, reference_rows):
+        if max_xyz_error(generated_row, reference_row) > row_tolerance:
+            break
+        similar += 1
+    return similar
+
+
 def compare_outputs(args):
     output_dir = Path(args.output_dir)
     reference_dir = Path(args.reference_dir)
+    row_tolerance = args.tolerance if args.row_tolerance is None else args.row_tolerance
     failures = 0
+    checked = 0
+    passed = 0
 
     print(f"\nComparing Viskores {args.divertor} output to MATLAB reference")
-    print("line gen/ref rows maxAbsXYZ l2XYZ status")
+    print(f"policy={args.compare_policy} tolerance={row_tolerance:g}")
+    if args.compare_policy == "common-fraction":
+        print("line gen/ref common similar fraction maxAbsXYZ l2XYZ status")
+    elif args.compare_policy == "leading-prefix":
+        print("line gen/ref common prefix/min similar maxAbsXYZ l2XYZ status")
+    else:
+        print("line gen/ref rows maxAbsXYZ l2XYZ status")
 
     for line in numeric_lines(args.lines):
         generated = output_dir / f"ip_cxx.{args.divertor}.{line}.txt"
         reference = reference_dir / f"ip_matlab.{args.divertor}.{line}.txt"
         if not generated.exists() or not reference.exists():
             print(f"{line:4d} missing generated={generated.exists()} reference={reference.exists()} FAIL")
+            checked += 1
             failures += 1
             continue
 
         generated_rows = load_numeric_rows(generated)
         reference_rows = load_numeric_rows(reference)
         max_abs, l2 = summarize_row_differences(generated_rows, reference_rows)
-        ok = len(generated_rows) == len(reference_rows) and max_abs < args.tolerance
+        common_rows = min(len(generated_rows), len(reference_rows))
+
+        if args.compare_policy == "common-fraction":
+            similar_rows = count_similar_rows(generated_rows, reference_rows, row_tolerance)
+            fraction = similar_rows / common_rows if common_rows else 0.0
+            ok = common_rows > 0 and fraction >= args.min_similar_fraction
+            detail = f"{common_rows:4d} {similar_rows:7d} {fraction:8.3f}"
+        elif args.compare_policy == "leading-prefix":
+            leading_rows = count_leading_similar_rows(generated_rows, reference_rows, row_tolerance)
+            similar_rows = count_similar_rows(generated_rows, reference_rows, row_tolerance)
+            ok = leading_rows >= args.min_leading_rows
+            detail = f"{common_rows:4d} {leading_rows:4d}/{args.min_leading_rows:<3d} {similar_rows:7d}"
+        else:
+            ok = len(generated_rows) == len(reference_rows) and max_abs < args.tolerance
+            detail = ""
+
         status = "PASS" if ok else "FAIL"
+        checked += 1
+        if ok:
+            passed += 1
         if not ok:
             failures += 1
 
-        print(f"{line:4d} {len(generated_rows):4d}/{len(reference_rows):4d} {max_abs:.12g} {l2:.12g} {status}")
+        if detail:
+            print(f"{line:4d} {len(generated_rows):4d}/{len(reference_rows):4d} {detail} {max_abs:.12g} {l2:.12g} {status}")
+        else:
+            print(f"{line:4d} {len(generated_rows):4d}/{len(reference_rows):4d} {max_abs:.12g} {l2:.12g} {status}")
+
+    failed_percent = 100.0 * failures / checked if checked else 0.0
+    passed_percent = 100.0 * passed / checked if checked else 0.0
+    print(f"\nMATLAB comparison summary: checked={checked} passed={passed} failed={failures} "
+          f"passed={passed_percent:.1f}% failed={failed_percent:.1f}%")
 
     if failures:
         print(f"\nMATLAB comparison failed for {failures} case(s).")

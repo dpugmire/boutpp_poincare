@@ -15,7 +15,7 @@
 class ViskoresAparFieldExecutionObject
 {
 public:
-  using FloatType = viskores::FloatDefault;
+  using FloatType = CodeXViskoresFloat;
   using FloatArray = viskores::cont::ArrayHandle<FloatType>;
   using FloatPortal = typename FloatArray::ReadPortalType;
 
@@ -784,7 +784,7 @@ public:
 class ViskoresAparField : public viskores::cont::ExecutionObjectBase
 {
 public:
-  using FloatType = viskores::FloatDefault;
+  using FloatType = CodeXViskoresFloat;
   using FloatArray = viskores::cont::ArrayHandle<FloatType>;
 
   explicit ViskoresAparField(const AparData &data)
@@ -897,7 +897,7 @@ private:
 class ViskoresTraceStatesWorklet : public viskores::worklet::WorkletMapField
 {
 public:
-  using FloatType = viskores::FloatDefault;
+  using FloatType = CodeXViskoresFloat;
 
   ViskoresTraceStatesWorklet(viskores::Id maxStatesPerSeed, int direction)
       : maxStatesPerSeed_(maxStatesPerSeed), direction_(direction)
@@ -1169,7 +1169,7 @@ private:
 class ViskoresTracePuncturesWorklet : public viskores::worklet::WorkletMapField
 {
 public:
-  using FloatType = viskores::FloatDefault;
+  using FloatType = CodeXViskoresFloat;
 
   ViskoresTracePuncturesWorklet(viskores::Id maxStatesPerSeed,
                                 viskores::Id maxPuncPerSeed, int direction)

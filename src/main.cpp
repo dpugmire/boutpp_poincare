@@ -657,6 +657,8 @@ void printViskoresDeviceDiagnostics(
             << " KOKKOS=" << onOff(viskoresKokkosEnabled)
             << " KOKKOS_CUDA=" << onOff(viskoresKokkosCudaEnabled)
             << " KOKKOS_HIP=" << onOff(viskoresKokkosHipEnabled) << "\n";
+  std::cout << "Viskores trace scalar: Float64 (" << sizeof(CodeXViskoresFloat)
+            << " bytes)\n";
 }
 
 bool configureViskoresDevice(const std::string &valueLower,

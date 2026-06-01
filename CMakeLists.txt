@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(codex_cxx2 LANGUAGES CXX)
 
+set(CMAKE_CTEST_ARGUMENTS "--output-on-failure")
 include(CTest)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -135,10 +136,13 @@ if (BUILD_TESTING AND CODEX_USE_VISKORES)
     set(CODEX_TEST_VISKORES_DEVICE "serial" CACHE STRING "Viskores device used by CTest trace tests")
     set(CODEX_TEST_NP_MAX "700" CACHE STRING "Maximum punctures per field line used by CTest trace tests")
     set(CODEX_TEST_TOLERANCE "1e-8" CACHE STRING "Maximum absolute XYZ tolerance for MATLAB comparison tests")
+    set(CODEX_TEST_MATLAB_PARTIAL_TOLERANCE "1e-2" CACHE STRING "Maximum per-row XYZ tolerance for partial MATLAB comparison tests")
     set(CODEX_TEST_MPI_PROCS "2" CACHE STRING "Number of MPI ranks used by MPI CTest trace tests")
 
     set(CODEX_TEST_SINGLE_LINES "11,21,26,31,41,51,61,81,101,121,126,131,141,147,148,149,150,151,152,153,161,171,176,181,191,201")
     set(CODEX_TEST_CIRC_LINES "51,101,151,201,301,401,501")
+    set(CODEX_TEST_SINGLE_MATLAB_PREFIX_LINES "26,31")
+    set(CODEX_TEST_CIRC_MATLAB_PREFIX_LINES "51,101,151")
 
     function(codex_add_vp_test test_name test_mode divertor lines mpi_procs)
         set(test_args
@@ -153,6 +157,8 @@ if (BUILD_TESTING AND CODEX_USE_VISKORES)
             --viskores-device ${CODEX_TEST_VISKORES_DEVICE}
             --np-max ${CODEX_TEST_NP_MAX}
             --tolerance ${CODEX_TEST_TOLERANCE})
+
+        list(APPEND test_args ${ARGN})
 
         if (${mpi_procs} GREATER 1)
             list(APPEND test_args
@@ -172,15 +178,31 @@ if (BUILD_TESTING AND CODEX_USE_VISKORES)
 
     codex_add_vp_test(viskores_generate_single_text generate single ${CODEX_TEST_SINGLE_LINES} 1)
     codex_add_vp_test(viskores_generate_circ_text generate circ ${CODEX_TEST_CIRC_LINES} 1)
-    codex_add_vp_test(viskores_compare_single_matlab compare single ${CODEX_TEST_SINGLE_LINES} 1)
-    codex_add_vp_test(viskores_compare_circ_matlab compare circ ${CODEX_TEST_CIRC_LINES} 1)
+    codex_add_vp_test(viskores_compare_single_matlab_prefix compare single ${CODEX_TEST_SINGLE_MATLAB_PREFIX_LINES} 1
+        --compare-policy leading-prefix
+        --row-tolerance ${CODEX_TEST_MATLAB_PARTIAL_TOLERANCE}
+        --min-leading-rows 12)
+    codex_add_vp_test(viskores_compare_circ_matlab_prefix compare circ ${CODEX_TEST_CIRC_MATLAB_PREFIX_LINES} 1
+        --compare-policy leading-prefix
+        --row-tolerance ${CODEX_TEST_MATLAB_PARTIAL_TOLERANCE}
+        --min-leading-rows 20)
+    codex_add_vp_test(viskores_compare_single_matlab_exact_all compare single ${CODEX_TEST_SINGLE_LINES} 1
+        --compare-policy exact)
+    codex_add_vp_test(viskores_compare_circ_matlab_exact_all compare circ ${CODEX_TEST_CIRC_LINES} 1
+        --compare-policy exact)
 
     if (CODEX_USE_MPI AND MPIEXEC_EXECUTABLE)
         codex_add_vp_test(viskores_mpi_generate_single_text generate single ${CODEX_TEST_SINGLE_LINES} ${CODEX_TEST_MPI_PROCS})
         codex_add_vp_test(viskores_mpi_generate_circ_text generate circ ${CODEX_TEST_CIRC_LINES} ${CODEX_TEST_MPI_PROCS})
         codex_add_vp_test(viskores_mpi_compare_single_serial compare-serial single ${CODEX_TEST_SINGLE_LINES} ${CODEX_TEST_MPI_PROCS})
         codex_add_vp_test(viskores_mpi_compare_circ_serial compare-serial circ ${CODEX_TEST_CIRC_LINES} ${CODEX_TEST_MPI_PROCS})
-        codex_add_vp_test(viskores_mpi_compare_single_matlab compare single ${CODEX_TEST_SINGLE_LINES} ${CODEX_TEST_MPI_PROCS})
-        codex_add_vp_test(viskores_mpi_compare_circ_matlab compare circ ${CODEX_TEST_CIRC_LINES} ${CODEX_TEST_MPI_PROCS})
+        codex_add_vp_test(viskores_mpi_compare_single_matlab_prefix compare single ${CODEX_TEST_SINGLE_MATLAB_PREFIX_LINES} ${CODEX_TEST_MPI_PROCS}
+            --compare-policy leading-prefix
+            --row-tolerance ${CODEX_TEST_MATLAB_PARTIAL_TOLERANCE}
+            --min-leading-rows 12)
+        codex_add_vp_test(viskores_mpi_compare_circ_matlab_prefix compare circ ${CODEX_TEST_CIRC_MATLAB_PREFIX_LINES} ${CODEX_TEST_MPI_PROCS}
+            --compare-policy leading-prefix
+            --row-tolerance ${CODEX_TEST_MATLAB_PARTIAL_TOLERANCE}
+            --min-leading-rows 20)
     endif()
 endif()
