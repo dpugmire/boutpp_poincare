@@ -140,6 +140,26 @@ public:
            static_cast<viskores::Id>(iz);
   }
 
+  VISKORES_EXEC viskores::Id wrapZIndex(viskores::Id izExt) const
+  {
+    if (nzG <= 0)
+      return 0;
+
+    viskores::Id wrapped = izExt % static_cast<viskores::Id>(nzG);
+    if (wrapped < 0)
+      wrapped += static_cast<viskores::Id>(nzG);
+    return wrapped;
+  }
+
+  VISKORES_EXEC void periodicZStencilCentered(viskores::Id baseIdx,
+                                              viskores::Id outIdx[4]) const
+  {
+    outIdx[0] = baseIdx - 1;
+    outIdx[1] = baseIdx;
+    outIdx[2] = baseIdx + 1;
+    outIdx[3] = baseIdx + 2;
+  }
+
   VISKORES_EXEC viskores::Id idx2(viskores::Id ix, viskores::Id iy) const
   {
     return static_cast<viskores::Id>(ix) * static_cast<viskores::Id>(ny) +
@@ -221,24 +241,16 @@ public:
     return out;
   }
 
-  VISKORES_EXEC FloatType sampleClampedRow3D(const FloatPortal &data3d, int ix,
-                                             int iy, int izExt) const
+  VISKORES_EXEC FloatType samplePeriodicRow3D(const FloatPortal &data3d, int ix,
+                                              int iy, int izExt) const
   {
-    if (izExt <= 0)
-      return data3d.Get(idx3(ix, iy, 0));
-    if (izExt >= nzG)
-      return data3d.Get(idx3(ix, iy, nzG - 1));
-    return data3d.Get(idx3(ix, iy, izExt));
+    return data3d.Get(idx3(ix, iy, wrapZIndex(izExt)));
   }
 
-  VISKORES_EXEC FloatType sampleClampedXZ(const FloatPortal &data2d, int ix,
-                                          int izExt) const
+  VISKORES_EXEC FloatType samplePeriodicXZ(const FloatPortal &data2d, int ix,
+                                           int izExt) const
   {
-    if (izExt <= 0)
-      return data2d.Get(idxXZ(ix, 0));
-    if (izExt >= nzG)
-      return data2d.Get(idxXZ(ix, nzG - 1));
-    return data2d.Get(idxXZ(ix, izExt));
+    return data2d.Get(idxXZ(ix, wrapZIndex(izExt)));
   }
 
   VISKORES_EXEC FloatType interpXZ3DAtY(const FloatPortal &data3d, int y0,
@@ -318,7 +330,7 @@ public:
     int izBase =
         clampInt(static_cast<int>(std::floor(zq / dz_torus)), 0, nzG - 1);
     viskores::Id izs[4] = {0, 1, 2, 3};
-    cubicStencilCentered(izBase, nzG + 1, izs);
+    periodicZStencilCentered(izBase, izs);
 
     const FloatType xvals[4] = {xarray.Get(ixs[0]), xarray.Get(ixs[1]),
                                 xarray.Get(ixs[2]), xarray.Get(ixs[3])};
@@ -333,10 +345,10 @@ public:
       const FloatType zc2 = static_cast<FloatType>(izs[2]) * dz_torus;
       const FloatType zc3 = static_cast<FloatType>(izs[3]) * dz_torus;
 
-      const FloatType zv0 = sampleClampedRow3D(data3d, ix, y0, izs[0]);
-      const FloatType zv1 = sampleClampedRow3D(data3d, ix, y0, izs[1]);
-      const FloatType zv2 = sampleClampedRow3D(data3d, ix, y0, izs[2]);
-      const FloatType zv3 = sampleClampedRow3D(data3d, ix, y0, izs[3]);
+      const FloatType zv0 = samplePeriodicRow3D(data3d, ix, y0, izs[0]);
+      const FloatType zv1 = samplePeriodicRow3D(data3d, ix, y0, izs[1]);
+      const FloatType zv2 = samplePeriodicRow3D(data3d, ix, y0, izs[2]);
+      const FloatType zv3 = samplePeriodicRow3D(data3d, ix, y0, izs[3]);
 
       zinterp[i] = lagrange4(zq, zc0, zc1, zc2, zc3, zv0, zv1, zv2, zv3);
     }
@@ -418,7 +430,7 @@ public:
     int izBase =
         clampInt(static_cast<int>(std::floor(zq / dz_torus)), 0, nzG - 1);
     viskores::Id izs[4] = {0, 1, 2, 3};
-    cubicStencilCentered(izBase, nzG + 1, izs);
+    periodicZStencilCentered(izBase, izs);
 
     const FloatType xvals[4] = {xarray.Get(ixs[0]), xarray.Get(ixs[1]),
                                 xarray.Get(ixs[2]), xarray.Get(ixs[3])};
@@ -433,10 +445,10 @@ public:
       const FloatType zc2 = static_cast<FloatType>(izs[2]) * dz_torus;
       const FloatType zc3 = static_cast<FloatType>(izs[3]) * dz_torus;
 
-      const FloatType zv0 = sampleClampedXZ(data2d, ix, izs[0]);
-      const FloatType zv1 = sampleClampedXZ(data2d, ix, izs[1]);
-      const FloatType zv2 = sampleClampedXZ(data2d, ix, izs[2]);
-      const FloatType zv3 = sampleClampedXZ(data2d, ix, izs[3]);
+      const FloatType zv0 = samplePeriodicXZ(data2d, ix, izs[0]);
+      const FloatType zv1 = samplePeriodicXZ(data2d, ix, izs[1]);
+      const FloatType zv2 = samplePeriodicXZ(data2d, ix, izs[2]);
+      const FloatType zv3 = samplePeriodicXZ(data2d, ix, izs[3]);
 
       zinterp[i] = lagrange4(zq, zc0, zc1, zc2, zc3, zv0, zv1, zv2, zv3);
     }

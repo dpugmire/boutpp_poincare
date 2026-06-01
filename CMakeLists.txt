@@ -103,6 +103,28 @@ if (CODEX_USE_VISKORES)
             src/ViskoresFieldLineTracer.cpp)
 endif()
 
+if (BUILD_TESTING)
+    add_executable(test_periodic_z_spline
+        tests/test_periodic_z_spline.cpp
+        src/AparFieldModel.cpp
+        src/AparData.cpp
+        src/Interpolator.cpp)
+
+    target_include_directories(test_periodic_z_spline
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${NETCDF_C_INCLUDE_DIR}
+    )
+
+    target_link_libraries(test_periodic_z_spline
+        PRIVATE
+            ${NETCDF_C_LIBRARY}
+    )
+
+    add_test(NAME periodic_z_spline
+        COMMAND $<TARGET_FILE:test_periodic_z_spline>)
+endif()
+
 if (BUILD_TESTING AND CODEX_USE_VISKORES)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
 

@@ -1,5 +1,6 @@
 #include "AparFieldModel.h"
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -8,36 +9,36 @@
 namespace
 {
 
+int wrapZIndex(const AparData &data, int izExt)
+{
+  if (data.nzG <= 0)
+    return 0;
+
+  int wrapped = izExt % data.nzG;
+  if (wrapped < 0)
+    wrapped += data.nzG;
+  return wrapped;
+}
+
+void periodicZStencilCentered(int baseIdx, int outIdx[4])
+{
+  outIdx[0] = baseIdx - 1;
+  outIdx[1] = baseIdx;
+  outIdx[2] = baseIdx + 1;
+  outIdx[3] = baseIdx + 2;
+}
+
 double samplePeriodicRow3D(const AparData &data,
                            const std::vector<double> &data3d, int ix, int iy,
                            int izExt)
 {
-  if (izExt <= 0)
-    return data3d[data.idx3(ix, iy, 0)];
-  if (izExt >= data.nzG)
-    return data3d[data.idx3(ix, iy, 0)];
-  return data3d[data.idx3(ix, iy, izExt)];
+  return data3d[data.idx3(ix, iy, wrapZIndex(data, izExt))];
 }
 
-double sampleClampedRow3D(const AparData &data,
-                          const std::vector<double> &data3d, int ix, int iy,
-                          int izExt)
+double samplePeriodicXZ(const AparData &data, const std::vector<double> &data2d,
+                        int ix, int izExt)
 {
-  if (izExt <= 0)
-    return data3d[data.idx3(ix, iy, 0)];
-  if (izExt >= data.nzG)
-    return data3d[data.idx3(ix, iy, data.nzG - 1)];
-  return data3d[data.idx3(ix, iy, izExt)];
-}
-
-double sampleClampedXZ(const AparData &data, const std::vector<double> &data2d,
-                       int ix, int izExt)
-{
-  if (izExt <= 0)
-    return data2d[data.idx_xz(ix, 0)];
-  if (izExt >= data.nzG)
-    return data2d[data.idx_xz(ix, data.nzG - 1)];
-  return data2d[data.idx_xz(ix, izExt)];
+  return data2d[data.idx_xz(ix, wrapZIndex(data, izExt))];
 }
 
 } // namespace
@@ -109,7 +110,7 @@ AparFieldModel::interpPeriodicRow3DSpline(const std::vector<double> &data3d,
   izBase = Interpolator::clampInt(izBase, 0, data_.nzG - 1);
 
   int izs[4] = {0, 1, 2, 3};
-  Interpolator::cubicStencilCentered(izBase, data_.nzG + 1, izs);
+  periodicZStencilCentered(izBase, izs);
 
   const double zc0 = static_cast<double>(izs[0]) * data_.dz_torus;
   const double zc1 = static_cast<double>(izs[1]) * data_.dz_torus;
@@ -194,7 +195,7 @@ double AparFieldModel::interpXZ3DAtYSpline(const std::vector<double> &data3d,
   izBase = Interpolator::clampInt(izBase, 0, data_.nzG - 1);
 
   int izs[4] = {0, 1, 2, 3};
-  Interpolator::cubicStencilCentered(izBase, data_.nzG + 1, izs);
+  periodicZStencilCentered(izBase, izs);
 
   const double xvals[4] = {data_.xarray[ixs[0]], data_.xarray[ixs[1]],
                            data_.xarray[ixs[2]], data_.xarray[ixs[3]]};
@@ -209,10 +210,10 @@ double AparFieldModel::interpXZ3DAtYSpline(const std::vector<double> &data3d,
     const double zc2 = static_cast<double>(izs[2]) * data_.dz_torus;
     const double zc3 = static_cast<double>(izs[3]) * data_.dz_torus;
 
-    const double zv0 = sampleClampedRow3D(data_, data3d, ix, y0, izs[0]);
-    const double zv1 = sampleClampedRow3D(data_, data3d, ix, y0, izs[1]);
-    const double zv2 = sampleClampedRow3D(data_, data3d, ix, y0, izs[2]);
-    const double zv3 = sampleClampedRow3D(data_, data3d, ix, y0, izs[3]);
+    const double zv0 = samplePeriodicRow3D(data_, data3d, ix, y0, izs[0]);
+    const double zv1 = samplePeriodicRow3D(data_, data3d, ix, y0, izs[1]);
+    const double zv2 = samplePeriodicRow3D(data_, data3d, ix, y0, izs[2]);
+    const double zv3 = samplePeriodicRow3D(data_, data3d, ix, y0, izs[3]);
 
     zinterp[i] =
         Interpolator::lagrange4(zq, zc0, zc1, zc2, zc3, zv0, zv1, zv2, zv3);
@@ -286,7 +287,7 @@ double AparFieldModel::interpXZ2DSpline(const std::vector<double> &data2d,
   int izBase = static_cast<int>(std::floor(zq / data_.dz_torus));
   izBase = Interpolator::clampInt(izBase, 0, data_.nzG - 1);
   int izs[4] = {0, 1, 2, 3};
-  Interpolator::cubicStencilCentered(izBase, data_.nzG + 1, izs);
+  periodicZStencilCentered(izBase, izs);
 
   const double xvals[4] = {data_.xarray[ixs[0]], data_.xarray[ixs[1]],
                            data_.xarray[ixs[2]], data_.xarray[ixs[3]]};
@@ -301,10 +302,10 @@ double AparFieldModel::interpXZ2DSpline(const std::vector<double> &data2d,
     const double zc2 = static_cast<double>(izs[2]) * data_.dz_torus;
     const double zc3 = static_cast<double>(izs[3]) * data_.dz_torus;
 
-    const double zv0 = sampleClampedXZ(data_, data2d, ix, izs[0]);
-    const double zv1 = sampleClampedXZ(data_, data2d, ix, izs[1]);
-    const double zv2 = sampleClampedXZ(data_, data2d, ix, izs[2]);
-    const double zv3 = sampleClampedXZ(data_, data2d, ix, izs[3]);
+    const double zv0 = samplePeriodicXZ(data_, data2d, ix, izs[0]);
+    const double zv1 = samplePeriodicXZ(data_, data2d, ix, izs[1]);
+    const double zv2 = samplePeriodicXZ(data_, data2d, ix, izs[2]);
+    const double zv3 = samplePeriodicXZ(data_, data2d, ix, izs[3]);
 
     zinterp[i] =
         Interpolator::lagrange4(zq, zc0, zc1, zc2, zc3, zv0, zv1, zv2, zv3);
