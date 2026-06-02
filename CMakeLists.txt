@@ -10,6 +10,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(CODEX_USE_MPI "Enable MPI parallel tracing over particles" OFF)
 option(CODEX_USE_VISKORES "Enable Viskores runtime integration" OFF)
+option(CODEX_USE_ADIOS "Enable ADIOS2 output" OFF)
 set(CODEX_VISKORES_FLOAT_PRECISION "viskores" CACHE STRING "Viskores trace scalar precision: viskores, float32, or float64")
 set_property(CACHE CODEX_VISKORES_FLOAT_PRECISION PROPERTY STRINGS viskores float32 float64)
 
@@ -39,6 +40,12 @@ if (CODEX_USE_VISKORES)
         # Also avoid linking a second OpenMP runtime beside Viskores' runtime.
         set_target_properties(viskores::openmp PROPERTIES INTERFACE_COMPILE_OPTIONS "")
         set_target_properties(viskores::openmp PROPERTIES INTERFACE_LINK_LIBRARIES "")
+    endif()
+endif()
+if (CODEX_USE_ADIOS)
+    find_package(adios2 CONFIG QUIET)
+    if (NOT adios2_FOUND)
+        find_package(ADIOS2 REQUIRED CONFIG)
     endif()
 endif()
 
@@ -120,6 +127,50 @@ if (CODEX_USE_VISKORES)
             src/ViskoresFieldLineTracer.cpp)
 endif()
 
+if (CODEX_USE_ADIOS)
+    target_sources(trace_fieldlines PRIVATE src/AdiosPoincareOutput.cpp)
+    target_compile_definitions(trace_fieldlines PRIVATE CODEX_USE_ADIOS=1)
+    if (CODEX_USE_MPI)
+        if (TARGET adios2::cxx_mpi)
+            set(CODEX_ADIOS_TARGET adios2::cxx_mpi)
+        elseif (TARGET adios2::adios2_mpi)
+            set(CODEX_ADIOS_TARGET adios2::adios2_mpi)
+        elseif (TARGET ADIOS2::adios2_mpi)
+            set(CODEX_ADIOS_TARGET ADIOS2::adios2_mpi)
+        else()
+            message(FATAL_ERROR "CODEX_USE_ADIOS=ON with CODEX_USE_MPI=ON requires an MPI-enabled ADIOS2 C++ target")
+        endif()
+    else()
+        if (TARGET adios2::cxx)
+            set(CODEX_ADIOS_TARGET adios2::cxx)
+        elseif (TARGET adios2::adios2)
+            set(CODEX_ADIOS_TARGET adios2::adios2)
+        elseif (TARGET ADIOS2::adios2)
+            set(CODEX_ADIOS_TARGET ADIOS2::adios2)
+        else()
+            message(FATAL_ERROR "CODEX_USE_ADIOS=ON requires an ADIOS2 C++ target")
+        endif()
+    endif()
+    message(STATUS "ADIOS2 output target: ${CODEX_ADIOS_TARGET}")
+    target_link_libraries(trace_fieldlines PRIVATE ${CODEX_ADIOS_TARGET})
+endif()
+
+if (BUILD_TESTING AND CODEX_USE_ADIOS)
+    add_executable(test_adios_poincare_reader
+        tests/adios_validate_poincare.cpp)
+    target_link_libraries(test_adios_poincare_reader
+        PRIVATE
+            ${CODEX_ADIOS_TARGET})
+    if (CODEX_USE_MPI)
+        target_compile_definitions(test_adios_poincare_reader
+            PRIVATE
+                CODEX_USE_MPI=1)
+        target_link_libraries(test_adios_poincare_reader
+            PRIVATE
+                MPI::MPI_CXX)
+    endif()
+endif()
+
 if (BUILD_TESTING)
     add_executable(test_periodic_z_spline
         tests/test_periodic_z_spline.cpp
@@ -159,6 +210,8 @@ if (BUILD_TESTING AND CODEX_USE_VISKORES)
     set(CODEX_TEST_CIRC_LINES "51,101,151,201,301,401,501")
     set(CODEX_TEST_SINGLE_MATLAB_PREFIX_LINES "26,31")
     set(CODEX_TEST_CIRC_MATLAB_PREFIX_LINES "51,101,151")
+    set(CODEX_TEST_ADIOS_SINGLE_LINES "26" CACHE STRING "Single-null line used by ADIOS schema smoke tests")
+    set(CODEX_TEST_ADIOS_CIRC_LINES "51" CACHE STRING "Circular line used by ADIOS schema smoke tests")
 
     function(codex_add_vp_test test_name test_mode divertor lines mpi_procs)
         set(test_args
@@ -207,6 +260,23 @@ if (BUILD_TESTING AND CODEX_USE_VISKORES)
     codex_add_vp_test(viskores_compare_circ_matlab_exact_all compare circ ${CODEX_TEST_CIRC_LINES} 1
         --compare-policy exact)
 
+    if (CODEX_USE_ADIOS)
+        codex_add_vp_test(viskores_generate_single_adios generate single ${CODEX_TEST_SINGLE_LINES} 1
+            --output-format both
+            --output ${CMAKE_CURRENT_BINARY_DIR}/test-output/viskores_generate_single_adios/poincare.bp)
+        codex_add_vp_test(viskores_generate_circ_adios generate circ ${CODEX_TEST_CIRC_LINES} 1
+            --output-format both
+            --output ${CMAKE_CURRENT_BINARY_DIR}/test-output/viskores_generate_circ_adios/poincare.bp)
+        codex_add_vp_test(viskores_adios_smoke_single adios-smoke single ${CODEX_TEST_ADIOS_SINGLE_LINES} 1
+            --output-format adios
+            --output ${CMAKE_CURRENT_BINARY_DIR}/test-output/viskores_adios_smoke_single/poincare.bp
+            --adios-validator $<TARGET_FILE:test_adios_poincare_reader>)
+        codex_add_vp_test(viskores_adios_smoke_circ adios-smoke circ ${CODEX_TEST_ADIOS_CIRC_LINES} 1
+            --output-format adios
+            --output ${CMAKE_CURRENT_BINARY_DIR}/test-output/viskores_adios_smoke_circ/poincare.bp
+            --adios-validator $<TARGET_FILE:test_adios_poincare_reader>)
+    endif()
+
     if (CODEX_USE_MPI AND MPIEXEC_EXECUTABLE)
         codex_add_vp_test(viskores_mpi_generate_single_text generate single ${CODEX_TEST_SINGLE_LINES} ${CODEX_TEST_MPI_PROCS})
         codex_add_vp_test(viskores_mpi_generate_circ_text generate circ ${CODEX_TEST_CIRC_LINES} ${CODEX_TEST_MPI_PROCS})
@@ -220,5 +290,13 @@ if (BUILD_TESTING AND CODEX_USE_VISKORES)
             --compare-policy leading-prefix
             --row-tolerance ${CODEX_TEST_MATLAB_PARTIAL_TOLERANCE}
             --min-leading-rows 20)
+        if (CODEX_USE_ADIOS)
+            codex_add_vp_test(viskores_mpi_generate_single_adios generate single ${CODEX_TEST_SINGLE_LINES} ${CODEX_TEST_MPI_PROCS}
+                --output-format both
+                --output ${CMAKE_CURRENT_BINARY_DIR}/test-output/viskores_mpi_generate_single_adios/poincare.bp)
+            codex_add_vp_test(viskores_mpi_generate_circ_adios generate circ ${CODEX_TEST_CIRC_LINES} ${CODEX_TEST_MPI_PROCS}
+                --output-format both
+                --output ${CMAKE_CURRENT_BINARY_DIR}/test-output/viskores_mpi_generate_circ_adios/poincare.bp)
+        endif()
     endif()
 endif()

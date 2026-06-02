@@ -13,7 +13,7 @@ SKIP_EXIT_CODE = 77
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run Viskores trace tests and optionally compare to MATLAB output.")
-    parser.add_argument("--mode", choices=("generate", "compare", "compare-serial"), required=True)
+    parser.add_argument("--mode", choices=("generate", "compare", "compare-serial", "adios-smoke"), required=True)
     parser.add_argument("--exe", required=True)
     parser.add_argument("--divertor", choices=("single", "circ"), required=True)
     parser.add_argument("--lines", required=True)
@@ -22,6 +22,10 @@ def parse_args():
     parser.add_argument("--reference-dir", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--viskores-device", default="serial")
+    parser.add_argument("--output-format", choices=("text", "adios", "both"), default="text")
+    parser.add_argument("--output", default="")
+    parser.add_argument("--adios-file", default="")
+    parser.add_argument("--adios-validator", default="")
     parser.add_argument("--np-max", type=int, default=700)
     parser.add_argument("--tolerance", type=float, default=1.0e-8)
     parser.add_argument("--compare-policy", choices=("exact", "common-fraction", "leading-prefix"), default="exact")
@@ -88,6 +92,8 @@ def check_inputs(args):
         missing.append(str(circ_apar))
     if args.mode == "compare" and not reference_dir.exists():
         missing.append(str(reference_dir))
+    if args.mode == "adios-smoke" and (not args.adios_validator or not Path(args.adios_validator).exists()):
+        missing.append("ADIOS validator (--adios-validator)")
 
     if missing:
         print("Skipping test because required files are missing:")
@@ -95,6 +101,13 @@ def check_inputs(args):
             print(f"  {path}")
         return False
     return True
+
+
+def adios_output_path(args, output_dir):
+    output_path = args.output or args.adios_file
+    if output_path:
+        return Path(output_path)
+    return output_dir / "poincare.bp"
 
 
 def run_trace(args, output_dir_override=None, mpi_procs_override=None):
@@ -118,9 +131,15 @@ def run_trace(args, output_dir_override=None, mpi_procs_override=None):
         args.lines,
         "--np-max",
         str(args.np_max),
-        "--output-dir",
+        "--text-output-dir",
         str(output_dir),
+        "--output-format",
+        args.output_format,
     ]
+
+    adios_file = adios_output_path(args, output_dir)
+    if args.output_format in ("adios", "both"):
+        trace_command += ["--output", str(adios_file)]
 
     if args.divertor == "single":
         trace_command += ["--single-apar", args.single_apar]
@@ -135,6 +154,35 @@ def run_trace(args, output_dir_override=None, mpi_procs_override=None):
     print("Running:")
     print(" ".join(command), flush=True)
     subprocess.run(command, check=True)
+
+    if args.output_format in ("adios", "both") and not adios_file.exists():
+        raise RuntimeError(f"Expected ADIOS output was not created: {adios_file}")
+    return adios_file
+
+
+def validate_adios_file(args, adios_file):
+    if args.output_format not in ("adios", "both"):
+        print("--mode adios-smoke requires ADIOS output")
+        return 1
+
+    lines = numeric_lines(args.lines)
+    if len(lines) != 1:
+        print("--mode adios-smoke expects exactly one line")
+        return 1
+
+    command = [
+        args.adios_validator,
+        "--file",
+        str(adios_file),
+        "--divertor",
+        args.divertor,
+        "--iline",
+        str(lines[0]),
+    ]
+    print("Validating ADIOS output:")
+    print(" ".join(command), flush=True)
+    subprocess.run(command, check=True)
+    return 0
 
 
 def combine_outputs(args, output_dir_override=None):
@@ -322,10 +370,17 @@ def main():
     if args.mode == "compare-serial":
         return compare_mpi_to_serial(args)
 
-    run_trace(args)
-    combine_outputs(args)
+    adios_file = run_trace(args)
+    if args.mode == "adios-smoke":
+        return validate_adios_file(args, adios_file)
+
+    if args.output_format in ("text", "both"):
+        combine_outputs(args)
 
     if args.mode == "compare":
+        if args.output_format not in ("text", "both"):
+            print("--mode compare requires text output")
+            return 1
         return compare_outputs(args)
 
     return 0

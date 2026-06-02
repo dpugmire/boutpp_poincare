@@ -7,13 +7,13 @@
   --nlines 150.5 151.5 5 \
   --nturns 100 \
   --direction 1 \
-  --output-dir ./outputs
+  --text-output-dir ./outputs
 
 
 .build/trace_fieldlines \
   --divertor circ \
   --nlines 100 150 10 --np-max 500 \
-  --output-dir ./outputs_circ_check
+  --text-output-dir ./outputs_circ_check
 
 
 MPI and viskores version.
@@ -25,7 +25,7 @@ FI_PROVIDER=tcp mpirun -np 2 ./build/trace_fieldlines \
   --np-max 100 \
   --direction 1 \
   --viskores-device serial \
-  --output-dir ./outputs
+  --text-output-dir ./outputs
 
 
 ## build options
@@ -43,6 +43,15 @@ MPI support is controlled separately:
 cmake -S . -B build-viskores2 \
   -DCODEX_USE_VISKORES=ON \
   -DCODEX_USE_MPI=ON
+```
+
+ADIOS2 output is optional:
+
+```sh
+cmake -S . -B build-viskores2 \
+  -DCODEX_USE_VISKORES=ON \
+  -DCODEX_USE_ADIOS=ON \
+  -DCMAKE_PREFIX_PATH=/path/to/adios2/install
 ```
 
 The Viskores trace scalar precision is controlled with:
@@ -73,6 +82,62 @@ default scalar size:
 Viskores trace scalar: float64 (8 bytes), FloatDefault=4 bytes
 ```
 
+When built with ADIOS, ADIOS is the default runtime output format. Text output
+is mainly for tests and debugging.
+
+Production ADIOS output can be written with:
+
+```sh
+./build-viskores2/trace_fieldlines \
+  --trace-engine viskores \
+  --viskores-device serial \
+  --divertor single \
+  --single-apar ./data/apar.single.nc \
+  --nlines 25 150 4000 \
+  --np-max 700 \
+  --output ./poincare.single.bp
+```
+
+To write both ADIOS and debug text files:
+
+```sh
+./build-viskores2/trace_fieldlines \
+  --trace-engine viskores \
+  --viskores-device serial \
+  --divertor single \
+  --single-apar ./data/apar.single.nc \
+  --lines 26 \
+  --np-max 700 \
+  --output-format both \
+  --output ./outputs/poincare.bp \
+  --text-output-dir ./outputs
+```
+
+Valid output formats are `adios`, `text`, and `both`. If ADIOS output is
+requested from a binary that was not configured with `-DCODEX_USE_ADIOS=ON`,
+the program fails early with an error. `--adios-file` is kept as an alias for
+`--output`, and `--output-dir` is kept as an alias for `--text-output-dir`.
+
+The ADIOS file stores compact puncture arrays using seed offsets and counts:
+
+```text
+divertor = "single" or "circ"  (attribute)
+
+seed_id[num_seeds]
+iline[num_seeds]
+end_region[num_seeds]
+length[num_seeds]
+offset[num_seeds]
+count[num_seeds]
+
+trace_step[num_punctures]
+x[num_punctures]
+y[num_punctures]
+z[num_punctures]
+theta[num_punctures]
+psi[num_punctures]
+```
+
 
 
 ## frontier
@@ -95,9 +160,10 @@ cmake \
   -DCMAKE_CXX_COMPILER=$(which hipcc) \
   -DCODEX_USE_VISKORES=ON \
   -DCODEX_USE_MPI=ON \
+  -DCODEX_USE_ADIOS=ON \
   -DCODEX_VISKORES_FLOAT_PRECISION=viskores \
   -DNETCDF_ROOT=/sw/frontier/spack-envs/cpe24.11-cpu/opt/rocmcc-6.2.4/netcdf-c-4.9.2-carmizyrtjebis2dqn4tq4gpmf7xfah3 \
-  -DCMAKE_PREFIX_PATH="/ccs/home/pugmire/software/frontier/viskores/install;/ccs/home/pugmire/software/frontier/kokkos/install" \
+  -DCMAKE_PREFIX_PATH="/ccs/home/pugmire/software/frontier/viskores/install;/ccs/home/pugmire/software/frontier/kokkos/install;/path/to/adios2/install" \
   ..
 ```
 

@@ -28,6 +28,9 @@
 #include "FieldLineIntegrator.h"
 #include "PoincareOutput.h"
 #include "ValidationSuite.h"
+#if defined(CODEX_USE_ADIOS)
+#include "AdiosPoincareOutput.h"
+#endif
 #if defined(CODEX_USE_VISKORES)
 #include "ViskoresFieldLineTracer.h"
 #endif
@@ -136,21 +139,36 @@ struct TraceTask
   Point3D seedInd;
 };
 
+const char *defaultOutputFormatChoice()
+{
+#if defined(CODEX_USE_ADIOS)
+  return "adios";
+#else
+  return "text";
+#endif
+}
+
 void printUsage(const char *prog)
 {
   std::cout << "Usage: " << prog << " [options]\n"
             << "Options:\n"
             << "  --reference-dir DIR   MATLAB reference directory (default: "
                "/Users/dpn/proj/bout++/ben_zhu_poincare/zperiod_5)\n"
-            << "  --output-dir DIR      Output directory for generated files "
+            << "  --output FILE         ADIOS BP output path (default: "
+               "poincare.bp)\n"
+            << "  --text-output-dir DIR Text/debug output directory "
                "(default: ./outputs)\n"
+            << "  --output-dir DIR      Alias for --text-output-dir\n"
+            << "  --output-format FMT   text|adios|both (default: "
+            << defaultOutputFormatChoice() << ")\n"
+            << "  --adios-file FILE     Alias for --output\n"
             << "  --single-apar FILE    apar.single.nc path\n"
             << "  --circ-apar FILE      apar.circ.nc path\n"
             << "  --divertor TAG        all|single|circ (default: all)\n"
             << "  --lines LIST          comma-separated x-index values (double "
                "supported)\n"
             << "  --nlines X0 X1 N      generate N evenly-spaced lines from X0 "
-               "to X1 (double supported; writes ip_cxx.txt/traj_cxx.txt)\n"
+               "to X1 (double supported)\n"
             << "  --direction DIR       +1 or -1 (default: 1)\n"
             << "  --np-max N            max punctures per line (default: 100)\n"
             << "  --max-steps N         max integration steps per line "
@@ -251,6 +269,13 @@ enum class TraceEngine
   Viskores
 };
 
+enum class OutputFormat
+{
+  Text,
+  Adios,
+  Both
+};
+
 bool isFatalTraceStatus(TraceStatus status)
 {
   return status == TraceStatus::InvalidConfiguration ||
@@ -280,9 +305,36 @@ bool isSupportedViskoresOutputModeChoice(const std::string &valueLower)
   return valueLower == "punctures" || valueLower == "states";
 }
 
+bool isSupportedOutputFormatChoice(const std::string &valueLower)
+{
+  return valueLower == "text" || valueLower == "adios" ||
+         valueLower == "both";
+}
+
 TraceEngine parseTraceEngineChoice(const std::string &valueLower)
 {
   return (valueLower == "viskores") ? TraceEngine::Viskores : TraceEngine::Cpu;
+}
+
+OutputFormat parseOutputFormatChoice(const std::string &valueLower)
+{
+  if (valueLower == "adios")
+    return OutputFormat::Adios;
+  if (valueLower == "both")
+    return OutputFormat::Both;
+  return OutputFormat::Text;
+}
+
+bool outputFormatWritesText(OutputFormat outputFormat)
+{
+  return outputFormat == OutputFormat::Text ||
+         outputFormat == OutputFormat::Both;
+}
+
+bool outputFormatWritesAdios(OutputFormat outputFormat)
+{
+  return outputFormat == OutputFormat::Adios ||
+         outputFormat == OutputFormat::Both;
 }
 
 #if defined(CODEX_USE_VISKORES)
@@ -302,6 +354,9 @@ struct ParsedCommandLineOptions
   bool viskoresDeviceSpecified = false;
   std::string viskoresOutputModeChoice = "punctures";
   bool viskoresOutputModeSpecified = false;
+  std::string outputFormatChoice;
+  std::string outputFile;
+  bool outputFileSpecified = false;
   LineSpecMode lineSpecMode = LineSpecMode::none;
   std::vector<double> requestedLines;
 };
@@ -312,6 +367,8 @@ ParsedCommandLineOptions makeDefaultCommandLineOptions()
   options.config.referenceDir =
       "/Users/dpn/proj/bout++/ben_zhu_poincare/zperiod_5";
   options.config.outputDir = "./outputs";
+  options.outputFile = "poincare.bp";
+  options.outputFormatChoice = defaultOutputFormatChoice();
   options.config.aparSinglePath =
       "/Users/dpn/proj/bout++/ben_zhu_poincare/apar.single.nc";
   options.config.aparCircPath =
@@ -338,6 +395,28 @@ bool parseCommandLineArguments(int argc, char **argv, const MpiRuntime &mpi,
     if (arg == "--output-dir" && i + 1 < argc)
     {
       options.config.outputDir = argv[++i];
+      continue;
+    }
+    if (arg == "--text-output-dir" && i + 1 < argc)
+    {
+      options.config.outputDir = argv[++i];
+      continue;
+    }
+    if (arg == "--output" && i + 1 < argc)
+    {
+      options.outputFile = argv[++i];
+      options.outputFileSpecified = true;
+      continue;
+    }
+    if (arg == "--output-format" && i + 1 < argc)
+    {
+      options.outputFormatChoice = toLowerAscii(argv[++i]);
+      continue;
+    }
+    if (arg == "--adios-file" && i + 1 < argc)
+    {
+      options.outputFile = argv[++i];
+      options.outputFileSpecified = true;
       continue;
     }
     if (arg == "--single-apar" && i + 1 < argc)
@@ -482,12 +561,38 @@ bool parseCommandLineArguments(int argc, char **argv, const MpiRuntime &mpi,
     return false;
   }
 
+  if (!isSupportedOutputFormatChoice(options.outputFormatChoice))
+  {
+    if (mpi.rank == 0)
+      std::cerr << "Error: --output-format must be one of text|adios|both\n";
+    return false;
+  }
+
+  if (options.outputFileSpecified &&
+      !outputFormatWritesAdios(
+          parseOutputFormatChoice(options.outputFormatChoice)))
+  {
+    if (mpi.rank == 0)
+      std::cerr << "Error: --output/--adios-file requires "
+                   "--output-format adios|both\n";
+    return false;
+  }
+
   return true;
 }
 
 const char *traceEngineName(TraceEngine traceEngine)
 {
   return (traceEngine == TraceEngine::Viskores) ? "viskores" : "cpu";
+}
+
+std::string viskoresPrecisionName()
+{
+#if defined(CODEX_USE_VISKORES)
+  return CODEX_VISKORES_FLOAT_PRECISION_NAME;
+#else
+  return "none";
+#endif
 }
 
 void printTraceBackendSelection(const MpiRuntime &mpi, TraceEngine traceEngine,
@@ -948,6 +1053,30 @@ int main(int argc, char **argv)
   const std::vector<double> &requestedLines = options.requestedLines;
   const TraceEngine traceEngine =
       parseTraceEngineChoice(options.traceEngineChoice);
+  const OutputFormat requestedOutputFormat =
+      parseOutputFormatChoice(options.outputFormatChoice);
+  const OutputFormat outputFormat =
+      doCompare ? OutputFormat::Text : requestedOutputFormat;
+  const bool writeTextOutput = outputFormatWritesText(outputFormat);
+  const bool writeAdiosOutput = outputFormatWritesAdios(outputFormat);
+  const std::string outputFile = options.outputFile;
+
+#if !defined(CODEX_USE_ADIOS)
+  if (writeAdiosOutput)
+  {
+    if (mpi.rank == 0)
+      std::cerr << "Error: ADIOS output was requested, but this binary was "
+                   "built without CODEX_USE_ADIOS=ON\n";
+    return 1;
+  }
+#endif
+  if (writeAdiosOutput && config.divertorFilter != "single" &&
+      config.divertorFilter != "circ")
+  {
+    if (mpi.rank == 0)
+      std::cerr << "Error: ADIOS output requires --divertor single|circ\n";
+    return 1;
+  }
 
 #if defined(CODEX_USE_VISKORES)
   const ViskoresOutputMode viskoresOutputMode =
@@ -1204,33 +1333,60 @@ int main(int argc, char **argv)
     PoincareOutput output;
     mpi.barrier();
 
-    for (int writer = 0; writer < mpi.size; ++writer)
+    if (writeAdiosOutput)
     {
-      if (mpi.rank == writer && useCombinedOutput)
-        output.writeCombinedOutputsFlat(
-            ilinePerSeed, trajCountPerSeed, punctureCountPerSeed,
-            maxTrajPerSeed, maxPuncPerSeed, trajectories, punctures,
-            &punctureValid, config.outputDir, writer != 0, writer == 0);
-      if (mpi.rank == writer && !useCombinedOutput)
-        for (size_t i = 0; i < localTasks.size(); ++i)
-          output.writeLineOutputsFlat(
-              ilinePerSeed[i], i, maxTrajPerSeed, maxPuncPerSeed,
-              trajCountPerSeed[i], punctureCountPerSeed[i], trajectories,
-              punctures, &punctureValid, config.outputDir,
-              localTasks[i].divertorTag);
+#if defined(CODEX_USE_ADIOS)
+      AdiosPoincareMetadata adiosMetadata;
+      adiosMetadata.divertor = config.divertorFilter;
+      adiosMetadata.traceEngine = traceEngineName(traceEngine);
+      adiosMetadata.viskoresDevice = viskoresDevice;
+      adiosMetadata.viskoresOutputMode = viskoresOutputModeChoice;
+      adiosMetadata.viskoresPrecision = viskoresPrecisionName();
 
+      AdiosPoincareOutput adiosOutput;
+      adiosOutput.writeFlatOutputs(
+          ilinePerSeed, endRegionPerSeed, connectionLengthPerSeed,
+          punctureCountPerSeed, localBegin, allTasks.size(), maxPuncPerSeed,
+          punctures, &punctureValid, outputFile, adiosMetadata);
+#endif
+    }
+
+    if (writeTextOutput)
+    {
+      for (int writer = 0; writer < mpi.size; ++writer)
+      {
+        if (mpi.rank == writer && useCombinedOutput)
+          output.writeCombinedOutputsFlat(
+              ilinePerSeed, trajCountPerSeed, punctureCountPerSeed,
+              maxTrajPerSeed, maxPuncPerSeed, trajectories, punctures,
+              &punctureValid, config.outputDir, writer != 0, writer == 0);
+        if (mpi.rank == writer && !useCombinedOutput)
+          for (size_t i = 0; i < localTasks.size(); ++i)
+            output.writeLineOutputsFlat(
+                ilinePerSeed[i], i, maxTrajPerSeed, maxPuncPerSeed,
+                trajCountPerSeed[i], punctureCountPerSeed[i], trajectories,
+                punctures, &punctureValid, config.outputDir,
+                localTasks[i].divertorTag);
+
+        mpi.barrier();
+      }
+    }
+    else
+    {
       mpi.barrier();
     }
     const SteadyClock::time_point outputEnd = SteadyClock::now();
     const double localOutputSeconds = elapsedSeconds(outputStart, outputEnd);
     const double localTotalSeconds = elapsedSeconds(totalStart, outputEnd);
 
-    if (mpi.rank == 0 && useCombinedOutput)
+    if (mpi.rank == 0 && writeTextOutput && useCombinedOutput)
       std::cout << "Wrote combined outputs: " << config.outputDir
                 << "/ip_cxx.txt, " << config.outputDir << "/ip_cxx.TP.txt"
                 << " and " << config.outputDir << "/traj_cxx.txt\n";
-    if (mpi.rank == 0 && !useCombinedOutput)
+    if (mpi.rank == 0 && writeTextOutput && !useCombinedOutput)
       std::cout << "Wrote per-line outputs in rank order\n";
+    if (mpi.rank == 0 && writeAdiosOutput)
+      std::cout << "Wrote ADIOS output: " << outputFile << "\n";
 
     printTraceTimingSummary(mpi, localLoadSeconds, localTraceSeconds,
                             localOutputSeconds, localTotalSeconds,
