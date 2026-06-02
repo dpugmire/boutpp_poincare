@@ -28,6 +28,51 @@ FI_PROVIDER=tcp mpirun -np 2 ./build/trace_fieldlines \
   --output-dir ./outputs
 
 
+## build options
+
+The Viskores backend is enabled at configure time:
+
+```sh
+cmake -S . -B build-viskores2 \
+  -DCODEX_USE_VISKORES=ON
+```
+
+MPI support is controlled separately:
+
+```sh
+cmake -S . -B build-viskores2 \
+  -DCODEX_USE_VISKORES=ON \
+  -DCODEX_USE_MPI=ON
+```
+
+The Viskores trace scalar precision is controlled with:
+
+```sh
+-DCODEX_VISKORES_FLOAT_PRECISION=viskores
+-DCODEX_VISKORES_FLOAT_PRECISION=float32
+-DCODEX_VISKORES_FLOAT_PRECISION=float64
+```
+
+The default is `viskores`, which uses `viskores::FloatDefault`. Use `float32`
+to force `viskores::Float32`, or `float64` to force `viskores::Float64` in the
+trace worklets and Viskores output arrays. This option does not reconfigure the
+Viskores install and does not change Viskores ID width.
+
+For example, to force double precision in the trace worklets:
+
+```sh
+cmake -S . -B build-viskores2 \
+  -DCODEX_USE_VISKORES=ON \
+  -DCODEX_VISKORES_FLOAT_PRECISION=float64
+```
+
+At runtime the executable prints the selected trace scalar and the Viskores
+default scalar size:
+
+```text
+Viskores trace scalar: float64 (8 bytes), FloatDefault=4 bytes
+```
+
 
 
 ## frontier
@@ -42,6 +87,19 @@ module load cmake
 module load git
 module load emacs
 module load cray-netcdf-hdf5parallel/4.9.2.1
+
+Example Frontier configure command:
+
+```sh
+cmake \
+  -DCMAKE_CXX_COMPILER=$(which hipcc) \
+  -DCODEX_USE_VISKORES=ON \
+  -DCODEX_USE_MPI=ON \
+  -DCODEX_VISKORES_FLOAT_PRECISION=viskores \
+  -DNETCDF_ROOT=/sw/frontier/spack-envs/cpe24.11-cpu/opt/rocmcc-6.2.4/netcdf-c-4.9.2-carmizyrtjebis2dqn4tq4gpmf7xfah3 \
+  -DCMAKE_PREFIX_PATH="/ccs/home/pugmire/software/frontier/viskores/install;/ccs/home/pugmire/software/frontier/kokkos/install" \
+  ..
+```
 
 
 ## tests

@@ -10,6 +10,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(CODEX_USE_MPI "Enable MPI parallel tracing over particles" OFF)
 option(CODEX_USE_VISKORES "Enable Viskores runtime integration" OFF)
+set(CODEX_VISKORES_FLOAT_PRECISION "viskores" CACHE STRING "Viskores trace scalar precision: viskores, float32, or float64")
+set_property(CACHE CODEX_VISKORES_FLOAT_PRECISION PROPERTY STRINGS viskores float32 float64)
 
 set(NETCDF_ROOT "" CACHE PATH "NetCDF C installation prefix")
 if (CODEX_USE_MPI)
@@ -19,6 +21,18 @@ if (CODEX_USE_VISKORES)
     find_package(Viskores REQUIRED CONFIG)
     find_package(OpenMP REQUIRED COMPONENTS CXX)
     find_package(Kokkos CONFIG QUIET)
+    string(TOLOWER "${CODEX_VISKORES_FLOAT_PRECISION}" CODEX_VISKORES_FLOAT_PRECISION_LOWER)
+    if (NOT CODEX_VISKORES_FLOAT_PRECISION_LOWER MATCHES "^(viskores|float32|float64)$")
+        message(FATAL_ERROR "CODEX_VISKORES_FLOAT_PRECISION must be one of: viskores, float32, float64")
+    endif()
+    if (CODEX_VISKORES_FLOAT_PRECISION_LOWER STREQUAL "float32")
+        set(CODEX_VISKORES_FLOAT_PRECISION_DEFINE CODEX_VISKORES_FLOAT_PRECISION_FLOAT32=1)
+    elseif (CODEX_VISKORES_FLOAT_PRECISION_LOWER STREQUAL "float64")
+        set(CODEX_VISKORES_FLOAT_PRECISION_DEFINE CODEX_VISKORES_FLOAT_PRECISION_FLOAT64=1)
+    else()
+        set(CODEX_VISKORES_FLOAT_PRECISION_DEFINE CODEX_VISKORES_FLOAT_PRECISION_VISKORES=1)
+    endif()
+    message(STATUS "CodeX Viskores trace precision: ${CODEX_VISKORES_FLOAT_PRECISION_LOWER}")
     if (APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND TARGET viskores::openmp)
         # Some Viskores installs export -fopenmp=libomp, while this local
         # AppleClang build uses the flags detected by FindOpenMP instead.
@@ -87,7 +101,9 @@ if (CODEX_USE_MPI)
 endif()
 
 if (CODEX_USE_VISKORES)
-    target_compile_definitions(trace_fieldlines PRIVATE CODEX_USE_VISKORES=1)
+    target_compile_definitions(trace_fieldlines PRIVATE
+        CODEX_USE_VISKORES=1
+        ${CODEX_VISKORES_FLOAT_PRECISION_DEFINE})
     target_compile_options(trace_fieldlines PRIVATE $<TARGET_PROPERTY:OpenMP::OpenMP_CXX,INTERFACE_COMPILE_OPTIONS>)
     target_compile_definitions(trace_fieldlines PRIVATE $<TARGET_PROPERTY:OpenMP::OpenMP_CXX,INTERFACE_COMPILE_DEFINITIONS>)
     target_include_directories(trace_fieldlines PRIVATE $<TARGET_PROPERTY:OpenMP::OpenMP_CXX,INTERFACE_INCLUDE_DIRECTORIES>)
