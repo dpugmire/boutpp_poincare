@@ -223,6 +223,25 @@ psi[num_punctures]
 psi_n[num_punctures]             (optional)
 ```
 
+Example plotting commands:
+
+```sh
+python3 plot.py ./outputs/circ_openmp.bp ./outputs/circ_openmp
+
+python3 heatmap.py ./outputs/circ_openmp.bp \
+  -o ./outputs/circ_openmp_yz_heatmap.png \
+  --bins 300 300 \
+  --log \
+  --equal-aspect
+
+python3 heatmap.py ./outputs/circ_openmp.bp \
+  -o ./outputs/circ_openmp_theta_psin_heatmap.png \
+  --x-var theta \
+  --y-var psi_n \
+  --bins 300 200 \
+  --log
+```
+
 
 
 ## frontier
