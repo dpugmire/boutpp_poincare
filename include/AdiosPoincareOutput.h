@@ -15,6 +15,9 @@ struct AdiosPoincareMetadata
   std::string viskoresDevice;
   std::string viskoresOutputMode;
   std::string viskoresPrecision;
+  bool hasPsiNormalization = false;
+  double psiAxis = 0.0;
+  double psiBndry = 0.0;
 };
 
 class AdiosPoincareOutput

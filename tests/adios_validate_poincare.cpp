@@ -19,6 +19,10 @@ struct Options
   std::string filePath;
   std::string divertor;
   double iline = 0.0;
+  bool psiAxisSpecified = false;
+  bool psiBndrySpecified = false;
+  double psiAxis = 0.0;
+  double psiBndry = 0.0;
 };
 
 class MpiRuntime
@@ -62,6 +66,18 @@ bool parseOptions(int argc, char **argv, Options &options)
       options.iline = std::stod(argv[++i]);
       continue;
     }
+    if (arg == "--psi-axis" && i + 1 < argc)
+    {
+      options.psiAxis = std::stod(argv[++i]);
+      options.psiAxisSpecified = true;
+      continue;
+    }
+    if (arg == "--psi-bndry" && i + 1 < argc)
+    {
+      options.psiBndry = std::stod(argv[++i]);
+      options.psiBndrySpecified = true;
+      continue;
+    }
 
     std::cerr << "Unknown or incomplete argument: " << arg << "\n";
     return false;
@@ -75,6 +91,16 @@ bool parseOptions(int argc, char **argv, Options &options)
   if (options.divertor != "single" && options.divertor != "circ")
   {
     std::cerr << "Missing or invalid --divertor single|circ\n";
+    return false;
+  }
+  if (options.psiAxisSpecified != options.psiBndrySpecified)
+  {
+    std::cerr << "--psi-axis and --psi-bndry must be provided together\n";
+    return false;
+  }
+  if (options.psiAxisSpecified && options.psiAxis == options.psiBndry)
+  {
+    std::cerr << "--psi-axis and --psi-bndry must differ\n";
     return false;
   }
 
@@ -185,6 +211,27 @@ int validate(const Options &options)
       readScalarAttribute<std::string>(io, "viskores_output_mode", failures);
   const std::string viskoresPrecision =
       readScalarAttribute<std::string>(io, "viskores_precision", failures);
+  double psiAxis = 0.0;
+  double psiBndry = 0.0;
+  if (options.psiAxisSpecified)
+  {
+    psiAxis = readScalarAttribute<double>(io, "psi_axis", failures);
+    psiBndry = readScalarAttribute<double>(io, "psi_bndry", failures);
+    const std::string psiAxisVariable =
+        readScalarAttribute<std::string>(io, "psi_axis_netcdf_variable",
+                                         failures);
+    const std::string psiBndryVariable =
+        readScalarAttribute<std::string>(io, "psi_bndry_netcdf_variable",
+                                         failures);
+    require(std::abs(psiAxis - options.psiAxis) <= 1.0e-12,
+            "psi_axis attribute mismatch", failures);
+    require(std::abs(psiBndry - options.psiBndry) <= 1.0e-12,
+            "psi_bndry attribute mismatch", failures);
+    require(psiAxisVariable == "psi_axis",
+            "psi_axis_netcdf_variable attribute mismatch", failures);
+    require(psiBndryVariable == "psi_bndry",
+            "psi_bndry_netcdf_variable attribute mismatch", failures);
+  }
 
   require(schemaVersion == 1, "schema_version is not 1", failures);
   require(numSeeds == 1, "num_seeds is not 1", failures);
@@ -228,6 +275,11 @@ int validate(const Options &options)
       readVector<double>(io, engine, "theta", punctureCount, failures);
   const std::vector<double> psi =
       readVector<double>(io, engine, "psi", punctureCount, failures);
+  std::vector<double> psiN;
+  if (options.psiAxisSpecified)
+  {
+    psiN = readVector<double>(io, engine, "psi_n", punctureCount, failures);
+  }
 
   if (seedId.size() == 1)
     require(seedId[0] == 0, "seed_id[0] is not 0", failures);
@@ -251,6 +303,22 @@ int validate(const Options &options)
   requireFiniteVector("z", z, failures);
   requireFiniteVector("theta", theta, failures);
   requireFiniteVector("psi", psi, failures);
+  requireFiniteVector("psi_n", psiN, failures);
+
+  if (options.psiAxisSpecified && psiN.size() == psi.size())
+  {
+    const double denominator = psiBndry - psiAxis;
+    for (std::size_t i = 0; i < psi.size(); ++i)
+    {
+      const double expected = (psi[i] - psiAxis) / denominator;
+      if (std::abs(psiN[i] - expected) > 1.0e-12)
+      {
+        failures.push_back("psi_n does not match normalization formula at " +
+                           std::to_string(i));
+        break;
+      }
+    }
+  }
 
   for (std::size_t i = 0; i < traceStep.size(); ++i)
   {
@@ -268,6 +336,12 @@ int validate(const Options &options)
   std::cout << "Validated ADIOS Poincare output: " << options.filePath << "\n";
   std::cout << "divertor=" << divertor << " num_seeds=" << numSeeds
             << " num_punctures=" << numPunctures << "\n";
+  if (options.psiAxisSpecified)
+  {
+    std::cout << "psi_n = (psi - psi_axis) / (psi_bndry - psi_axis), "
+              << "psi_axis=" << psiAxis << " psi_bndry=" << psiBndry
+              << "\n";
+  }
 
   if (!failures.empty())
   {

@@ -26,6 +26,9 @@ def parse_args():
     parser.add_argument("--output", default="")
     parser.add_argument("--adios-file", default="")
     parser.add_argument("--adios-validator", default="")
+    parser.add_argument("--psi-axis", type=float, default=None)
+    parser.add_argument("--psi-bndry", type=float, default=None)
+    parser.add_argument("--grid-file", default="")
     parser.add_argument("--np-max", type=int, default=700)
     parser.add_argument("--tolerance", type=float, default=1.0e-8)
     parser.add_argument("--compare-policy", choices=("exact", "common-fraction", "leading-prefix"), default="exact")
@@ -140,6 +143,12 @@ def run_trace(args, output_dir_override=None, mpi_procs_override=None):
     adios_file = adios_output_path(args, output_dir)
     if args.output_format in ("adios", "both"):
         trace_command += ["--output", str(adios_file)]
+    if args.psi_axis is not None:
+        trace_command += ["--psi-axis", str(args.psi_axis)]
+    if args.psi_bndry is not None:
+        trace_command += ["--psi-bndry", str(args.psi_bndry)]
+    if args.grid_file:
+        trace_command += ["--grid-file", args.grid_file]
 
     if args.divertor == "single":
         trace_command += ["--single-apar", args.single_apar]
@@ -179,6 +188,10 @@ def validate_adios_file(args, adios_file):
         "--iline",
         str(lines[0]),
     ]
+    if args.psi_axis is not None:
+        command += ["--psi-axis", str(args.psi_axis)]
+    if args.psi_bndry is not None:
+        command += ["--psi-bndry", str(args.psi_bndry)]
     print("Validating ADIOS output:")
     print(" ".join(command), flush=True)
     subprocess.run(command, check=True)

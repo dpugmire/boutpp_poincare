@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+#include <netcdf.h>
+
 #if defined(CODEX_USE_MPI)
 #include <mpi.h>
 #endif
@@ -139,6 +141,55 @@ struct TraceTask
   Point3D seedInd;
 };
 
+struct PsiNormalization
+{
+  bool enabled = false;
+  double psiAxis = 0.0;
+  double psiBndry = 0.0;
+};
+
+void ncCheckMain(int status, const std::string &where)
+{
+  if (status != NC_NOERR)
+    throw std::runtime_error(where + ": " + nc_strerror(status));
+}
+
+double readScalarDoubleFromNetcdf(int ncid, const std::string &name)
+{
+  int varid = -1;
+  ncCheckMain(nc_inq_varid(ncid, name.c_str(), &varid),
+              "nc_inq_varid(" + name + ")");
+
+  double value = 0.0;
+  ncCheckMain(nc_get_var_double(ncid, varid, &value),
+              "nc_get_var_double(" + name + ")");
+  return value;
+}
+
+PsiNormalization readPsiNormalizationFromGridFile(
+    const std::string &gridFile)
+{
+  int ncid = -1;
+  ncCheckMain(nc_open(gridFile.c_str(), NC_NOWRITE, &ncid),
+              "nc_open(" + gridFile + ")");
+
+  PsiNormalization normalization;
+  try
+  {
+    normalization.enabled = true;
+    normalization.psiAxis = readScalarDoubleFromNetcdf(ncid, "psi_axis");
+    normalization.psiBndry = readScalarDoubleFromNetcdf(ncid, "psi_bndry");
+  }
+  catch (...)
+  {
+    nc_close(ncid);
+    throw;
+  }
+
+  ncCheckMain(nc_close(ncid), "nc_close(" + gridFile + ")");
+  return normalization;
+}
+
 const char *defaultOutputFormatChoice()
 {
 #if defined(CODEX_USE_ADIOS)
@@ -162,6 +213,12 @@ void printUsage(const char *prog)
             << "  --output-format FMT   text|adios|both (default: "
             << defaultOutputFormatChoice() << ")\n"
             << "  --adios-file FILE     Alias for --output\n"
+            << "  --psi-axis VALUE      Grid NetCDF psi_axis value for "
+               "normalized psi output\n"
+            << "  --psi-bndry VALUE     Grid NetCDF psi_bndry value for "
+               "normalized psi output\n"
+            << "  --grid-file FILE      Read psi_axis and psi_bndry from a "
+               "BOUT++ grid NetCDF file\n"
             << "  --single-apar FILE    apar.single.nc path\n"
             << "  --circ-apar FILE      apar.circ.nc path\n"
             << "  --divertor TAG        all|single|circ (default: all)\n"
@@ -357,6 +414,12 @@ struct ParsedCommandLineOptions
   std::string outputFormatChoice;
   std::string outputFile;
   bool outputFileSpecified = false;
+  bool psiAxisSpecified = false;
+  bool psiBndrySpecified = false;
+  double psiAxis = 0.0;
+  double psiBndry = 0.0;
+  std::string gridFile;
+  bool gridFileSpecified = false;
   LineSpecMode lineSpecMode = LineSpecMode::none;
   std::vector<double> requestedLines;
 };
@@ -417,6 +480,24 @@ bool parseCommandLineArguments(int argc, char **argv, const MpiRuntime &mpi,
     {
       options.outputFile = argv[++i];
       options.outputFileSpecified = true;
+      continue;
+    }
+    if (arg == "--psi-axis" && i + 1 < argc)
+    {
+      options.psiAxis = std::stod(argv[++i]);
+      options.psiAxisSpecified = true;
+      continue;
+    }
+    if (arg == "--psi-bndry" && i + 1 < argc)
+    {
+      options.psiBndry = std::stod(argv[++i]);
+      options.psiBndrySpecified = true;
+      continue;
+    }
+    if (arg == "--grid-file" && i + 1 < argc)
+    {
+      options.gridFile = argv[++i];
+      options.gridFileSpecified = true;
       continue;
     }
     if (arg == "--single-apar" && i + 1 < argc)
@@ -578,7 +659,88 @@ bool parseCommandLineArguments(int argc, char **argv, const MpiRuntime &mpi,
     return false;
   }
 
+  if (options.psiAxisSpecified != options.psiBndrySpecified)
+  {
+    if (mpi.rank == 0)
+      std::cerr << "Error: --psi-axis and --psi-bndry must be provided "
+                   "together\n";
+    return false;
+  }
+
+  if (options.psiAxisSpecified)
+  {
+    if (!std::isfinite(options.psiAxis) || !std::isfinite(options.psiBndry))
+    {
+      if (mpi.rank == 0)
+        std::cerr << "Error: --psi-axis and --psi-bndry must be finite\n";
+      return false;
+    }
+    if (options.psiAxis == options.psiBndry)
+    {
+      if (mpi.rank == 0)
+        std::cerr << "Error: --psi-axis and --psi-bndry must differ\n";
+      return false;
+    }
+  }
+
   return true;
+}
+
+bool validatePsiNormalization(const PsiNormalization &normalization,
+                              const MpiRuntime &mpi)
+{
+  if (!normalization.enabled)
+    return true;
+
+  if (!std::isfinite(normalization.psiAxis) ||
+      !std::isfinite(normalization.psiBndry))
+  {
+    if (mpi.rank == 0)
+      std::cerr << "Error: psi_axis and psi_bndry must be finite\n";
+    return false;
+  }
+
+  if (normalization.psiAxis == normalization.psiBndry)
+  {
+    if (mpi.rank == 0)
+      std::cerr << "Error: psi_axis and psi_bndry must differ\n";
+    return false;
+  }
+
+  return true;
+}
+
+bool resolvePsiNormalization(const ParsedCommandLineOptions &options,
+                             const MpiRuntime &mpi,
+                             PsiNormalization &normalization)
+{
+  if (options.psiAxisSpecified)
+  {
+    normalization.enabled = true;
+    normalization.psiAxis = options.psiAxis;
+    normalization.psiBndry = options.psiBndry;
+    return validatePsiNormalization(normalization, mpi);
+  }
+
+  if (!options.gridFileSpecified)
+  {
+    normalization = PsiNormalization{};
+    return true;
+  }
+
+  try
+  {
+    normalization = readPsiNormalizationFromGridFile(options.gridFile);
+  }
+  catch (const std::exception &error)
+  {
+    if (mpi.rank == 0)
+      std::cerr << "Error: failed to read psi_axis/psi_bndry from grid file "
+                << options.gridFile << ": " << error.what() << "\n";
+    return false;
+  }
+
+  return validatePsiNormalization(normalization, mpi);
 }
 
 const char *traceEngineName(TraceEngine traceEngine)
@@ -1078,6 +1240,11 @@ int main(int argc, char **argv)
     return 1;
   }
 
+  PsiNormalization psiNormalization;
+  if (writeAdiosOutput &&
+      !resolvePsiNormalization(options, mpi, psiNormalization))
+    return 1;
+
 #if defined(CODEX_USE_VISKORES)
   const ViskoresOutputMode viskoresOutputMode =
       parseViskoresOutputModeChoice(viskoresOutputModeChoice);
@@ -1342,6 +1509,9 @@ int main(int argc, char **argv)
       adiosMetadata.viskoresDevice = viskoresDevice;
       adiosMetadata.viskoresOutputMode = viskoresOutputModeChoice;
       adiosMetadata.viskoresPrecision = viskoresPrecisionName();
+      adiosMetadata.hasPsiNormalization = psiNormalization.enabled;
+      adiosMetadata.psiAxis = psiNormalization.psiAxis;
+      adiosMetadata.psiBndry = psiNormalization.psiBndry;
 
       AdiosPoincareOutput adiosOutput;
       adiosOutput.writeFlatOutputs(

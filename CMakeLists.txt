@@ -212,6 +212,10 @@ if (BUILD_TESTING AND CODEX_USE_VISKORES)
     set(CODEX_TEST_CIRC_MATLAB_PREFIX_LINES "51,101,151")
     set(CODEX_TEST_ADIOS_SINGLE_LINES "26" CACHE STRING "Single-null line used by ADIOS schema smoke tests")
     set(CODEX_TEST_ADIOS_CIRC_LINES "51" CACHE STRING "Circular line used by ADIOS schema smoke tests")
+    set(CODEX_TEST_ADIOS_SINGLE_PSI_AXIS "-0.2754453" CACHE STRING "Single-null psi_axis value used by ADIOS schema smoke tests")
+    set(CODEX_TEST_ADIOS_SINGLE_PSI_BNDRY "-0.1304577" CACHE STRING "Single-null psi_bndry value used by ADIOS schema smoke tests")
+    set(CODEX_TEST_ADIOS_CIRC_PSI_AXIS "-1.5170289278030396" CACHE STRING "Circular psi_axis value used by ADIOS schema smoke tests")
+    set(CODEX_TEST_ADIOS_CIRC_PSI_BNDRY "-0.5056424736976624" CACHE STRING "Circular psi_bndry value used by ADIOS schema smoke tests")
 
     function(codex_add_vp_test test_name test_mode divertor lines mpi_procs)
         set(test_args
@@ -270,10 +274,14 @@ if (BUILD_TESTING AND CODEX_USE_VISKORES)
         codex_add_vp_test(viskores_adios_smoke_single adios-smoke single ${CODEX_TEST_ADIOS_SINGLE_LINES} 1
             --output-format adios
             --output ${CMAKE_CURRENT_BINARY_DIR}/test-output/viskores_adios_smoke_single/poincare.bp
+            --psi-axis ${CODEX_TEST_ADIOS_SINGLE_PSI_AXIS}
+            --psi-bndry ${CODEX_TEST_ADIOS_SINGLE_PSI_BNDRY}
             --adios-validator $<TARGET_FILE:test_adios_poincare_reader>)
         codex_add_vp_test(viskores_adios_smoke_circ adios-smoke circ ${CODEX_TEST_ADIOS_CIRC_LINES} 1
             --output-format adios
             --output ${CMAKE_CURRENT_BINARY_DIR}/test-output/viskores_adios_smoke_circ/poincare.bp
+            --psi-axis ${CODEX_TEST_ADIOS_CIRC_PSI_AXIS}
+            --psi-bndry ${CODEX_TEST_ADIOS_CIRC_PSI_BNDRY}
             --adios-validator $<TARGET_FILE:test_adios_poincare_reader>)
     endif()
 

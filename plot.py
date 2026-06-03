@@ -34,34 +34,89 @@ def read_required(stream, name, numpy):
     return numpy.asarray(values).reshape(-1)
 
 
+def variable_available(stream, name):
+    available_variables = getattr(stream, "available_variables", None)
+    if available_variables is None:
+        return None
+
+    try:
+        return name in available_variables()
+    except Exception:
+        return None
+
+
+def read_optional(stream, name, numpy):
+    available = variable_available(stream, name)
+    if available is False:
+        return None
+
+    try:
+        values = stream.read(name)
+    except Exception as error:
+        if available is True:
+            raise RuntimeError(f"Failed to read ADIOS variable '{name}'") from error
+        return None
+
+    return numpy.asarray(values).reshape(-1)
+
+
+def append_step_arrays(stream, arrays, numpy):
+    for name in ("y", "z", "theta", "psi"):
+        arrays[name].append(read_required(stream, name, numpy))
+
+    psi_n = read_optional(stream, "psi_n", numpy)
+    if psi_n is not None:
+        arrays["psi_plot"].append(psi_n)
+        return "psi_n"
+
+    arrays["psi_plot"].append(arrays["psi"][-1])
+    return "psi"
+
+
+def finish_step_arrays(arrays, psi_name, step_count, path, numpy):
+    if step_count == 0:
+        raise RuntimeError(f"No ADIOS steps found in {path}")
+
+    result = {
+        name: numpy.concatenate(values)
+        for name, values in arrays.items()
+    }
+    result["psi_plot_name"] = psi_name
+    return result
+
+
 def read_with_stream(adios2, path, numpy):
-    arrays = {"y": [], "z": [], "theta": [], "psi": []}
+    arrays = {"y": [], "z": [], "theta": [], "psi": [], "psi_plot": []}
+    psi_name = None
     step_count = 0
 
     with adios2.Stream(str(path), "r") as stream:
         for _ in stream.steps():
-            for name in arrays:
-                arrays[name].append(read_required(stream, name, numpy))
+            step_psi_name = append_step_arrays(stream, arrays, numpy)
+            if psi_name is None:
+                psi_name = step_psi_name
+            elif psi_name != step_psi_name:
+                raise RuntimeError("ADIOS steps mix psi and psi_n plotting variables")
             step_count += 1
 
-    if step_count == 0:
-        raise RuntimeError(f"No ADIOS steps found in {path}")
-    return {name: numpy.concatenate(values) for name, values in arrays.items()}
+    return finish_step_arrays(arrays, psi_name, step_count, path, numpy)
 
 
 def read_with_open(adios2, path, numpy):
-    arrays = {"y": [], "z": [], "theta": [], "psi": []}
+    arrays = {"y": [], "z": [], "theta": [], "psi": [], "psi_plot": []}
+    psi_name = None
     step_count = 0
 
     with adios2.open(str(path), "r") as stream:
         for _ in stream:
-            for name in arrays:
-                arrays[name].append(read_required(stream, name, numpy))
+            step_psi_name = append_step_arrays(stream, arrays, numpy)
+            if psi_name is None:
+                psi_name = step_psi_name
+            elif psi_name != step_psi_name:
+                raise RuntimeError("ADIOS steps mix psi and psi_n plotting variables")
             step_count += 1
 
-    if step_count == 0:
-        raise RuntimeError(f"No ADIOS steps found in {path}")
-    return {name: numpy.concatenate(values) for name, values in arrays.items()}
+    return finish_step_arrays(arrays, psi_name, step_count, path, numpy)
 
 
 def read_with_file_reader(adios2, path, numpy):
@@ -73,6 +128,14 @@ def read_with_file_reader(adios2, path, numpy):
                 arrays[name] = numpy.asarray(reader.read(name)).reshape(-1)
             except Exception as error:
                 raise RuntimeError(f"Failed to read ADIOS variable '{name}'") from error
+
+        psi_n = read_optional(reader, "psi_n", numpy)
+        if psi_n is not None:
+            arrays["psi_plot"] = psi_n
+            arrays["psi_plot_name"] = "psi_n"
+        else:
+            arrays["psi_plot"] = arrays["psi"]
+            arrays["psi_plot_name"] = "psi"
     finally:
         close = getattr(reader, "close", None)
         if close is not None:
@@ -154,10 +217,10 @@ def main():
     plot_scatter(
         matplotlib,
         arrays["theta"],
-        arrays["psi"],
+        arrays["psi_plot"],
         "theta",
-        "psi",
-        f"theta,psi punctures ({puncture_count} points)",
+        arrays["psi_plot_name"],
+        f"theta,{arrays['psi_plot_name']} punctures ({puncture_count} points)",
         theta_psi_path,
     )
 

@@ -54,6 +54,22 @@ cmake -S . -B build-viskores2 \
   -DCMAKE_PREFIX_PATH=/path/to/adios2/install
 ```
 
+On macOS, use Homebrew LLVM/libomp for OpenMP builds. AppleClang commonly
+cannot satisfy CMake's OpenMP package checks by itself. This assumes Viskores
+was built with OpenMP enabled.
+
+```sh
+cmake -S . -B build-openmp \
+  -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
+  -DCODEX_USE_VISKORES=ON \
+  -DCODEX_USE_ADIOS=ON \
+  -DCODEX_TEST_VISKORES_DEVICE=openmp \
+  -DCMAKE_PREFIX_PATH="/Users/dpn/proj/bout++/ben_zhu_poincare/codex_cxx2/viskores/install;/Users/dpn/sw/adios2/master/install;/opt/homebrew/opt/libomp" \
+  -DOpenMP_ROOT=/opt/homebrew/opt/libomp
+
+cmake --build build-openmp -j
+```
+
 The Viskores trace scalar precision is controlled with:
 
 ```sh
@@ -98,6 +114,70 @@ Production ADIOS output can be written with:
   --output ./poincare.single.bp
 ```
 
+Example circular OpenMP run on macOS:
+
+```sh
+export OMP_NUM_THREADS=8
+
+./build-openmp/trace_fieldlines \
+  --trace-engine viskores \
+  --viskores-device openmp \
+  --divertor circ \
+  --circ-apar ./data/apar.circ.nc \
+  --grid-file ./data/grid.circ.nc \
+  --lines 51,101,151 \
+  --np-max 100 \
+  --output ./outputs/circ_openmp.bp
+```
+
+If normalized poloidal flux should be included in ADIOS output, pass the
+normalization values from the original BOUT++ grid NetCDF file. The grid
+variable names are:
+
+```text
+psi_axis
+psi_bndry
+```
+
+The code then writes `psi_n` using:
+
+```text
+psi_n = (psi - psi_axis) / (psi_bndry - psi_axis)
+```
+
+Example:
+
+```sh
+./build-viskores2/trace_fieldlines \
+  --trace-engine viskores \
+  --viskores-device serial \
+  --divertor single \
+  --single-apar ./data/apar.single.nc \
+  --nlines 25 150 4000 \
+  --np-max 700 \
+  --psi-axis -0.4244792 \
+  --psi-bndry -0.2475445 \
+  --output ./poincare.single.bp
+```
+
+Alternatively, pass the original BOUT++ grid file and the code reads those two
+NetCDF variables directly:
+
+```sh
+./build-viskores2/trace_fieldlines \
+  --trace-engine viskores \
+  --viskores-device serial \
+  --divertor single \
+  --single-apar ./data/apar.single.nc \
+  --nlines 25 150 4000 \
+  --np-max 700 \
+  --grid-file /path/to/bout.grid.nc \
+  --output ./poincare.single.bp
+```
+
+If `--psi-axis`/`--psi-bndry` and `--grid-file` are all provided, the explicit
+command-line values are used.
+
 To write both ADIOS and debug text files:
 
 ```sh
@@ -122,6 +202,10 @@ The ADIOS file stores compact puncture arrays using seed offsets and counts:
 
 ```text
 divertor = "single" or "circ"  (attribute)
+psi_axis                         (attribute, optional)
+psi_bndry                        (attribute, optional)
+psi_axis_netcdf_variable         (attribute, optional: "psi_axis")
+psi_bndry_netcdf_variable        (attribute, optional: "psi_bndry")
 
 seed_id[num_seeds]
 iline[num_seeds]
@@ -136,6 +220,7 @@ y[num_punctures]
 z[num_punctures]
 theta[num_punctures]
 psi[num_punctures]
+psi_n[num_punctures]             (optional)
 ```
 
 

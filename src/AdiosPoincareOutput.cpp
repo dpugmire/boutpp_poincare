@@ -1,6 +1,7 @@
 #include "AdiosPoincareOutput.h"
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <stdexcept>
 
@@ -103,6 +104,15 @@ void AdiosPoincareOutput::writeFlatOutputs(
   std::vector<double> z;
   std::vector<double> theta;
   std::vector<double> psi;
+  std::vector<double> psiN;
+
+  const double psiDenominator = metadata.psiBndry - metadata.psiAxis;
+  if (metadata.hasPsiNormalization &&
+      (!std::isfinite(psiDenominator) || psiDenominator == 0.0))
+  {
+    throw std::runtime_error(
+        "ADIOS psi normalization requires finite, distinct psi_axis and psi_bndry");
+  }
 
   std::uint64_t localPunctureOffset = 0;
   for (std::size_t seed = 0; seed < localSeedCount; ++seed)
@@ -144,6 +154,8 @@ void AdiosPoincareOutput::writeFlatOutputs(
       z.push_back(p.xyz.z);
       theta.push_back(p.thetaPsi.x);
       psi.push_back(p.thetaPsi.y);
+      if (metadata.hasPsiNormalization)
+        psiN.push_back((p.thetaPsi.y - metadata.psiAxis) / psiDenominator);
       ++validPuncturesForSeed;
     }
 
@@ -176,6 +188,13 @@ void AdiosPoincareOutput::writeFlatOutputs(
                                   metadata.viskoresOutputMode);
   io.DefineAttribute<std::string>("viskores_precision",
                                   metadata.viskoresPrecision);
+  if (metadata.hasPsiNormalization)
+  {
+    io.DefineAttribute<double>("psi_axis", metadata.psiAxis);
+    io.DefineAttribute<double>("psi_bndry", metadata.psiBndry);
+    io.DefineAttribute<std::string>("psi_axis_netcdf_variable", "psi_axis");
+    io.DefineAttribute<std::string>("psi_bndry_netcdf_variable", "psi_bndry");
+  }
 
   const std::size_t seedStart = globalSeedBegin;
   const auto seedIdVar =
@@ -201,6 +220,7 @@ void AdiosPoincareOutput::writeFlatOutputs(
   adios2::Variable<double> zVar;
   adios2::Variable<double> thetaVar;
   adios2::Variable<double> psiVar;
+  adios2::Variable<double> psiNVar;
 
   if (globalPunctureCount > 0)
   {
@@ -223,6 +243,11 @@ void AdiosPoincareOutput::writeFlatOutputs(
                              localPunctureCount);
     psiVar = defineVector<double>(io, "psi", totalPunctureCount,
                                   punctureStart, localPunctureCount);
+    if (metadata.hasPsiNormalization)
+    {
+      psiNVar = defineVector<double>(io, "psi_n", totalPunctureCount,
+                                     punctureStart, localPunctureCount);
+    }
   }
 
   adios2::Engine engine = io.Open(outputPath, adios2::Mode::Write);
@@ -241,6 +266,8 @@ void AdiosPoincareOutput::writeFlatOutputs(
     putVector(engine, zVar, z);
     putVector(engine, thetaVar, theta);
     putVector(engine, psiVar, psi);
+    if (metadata.hasPsiNormalization)
+      putVector(engine, psiNVar, psiN);
   }
   engine.Close();
 }
