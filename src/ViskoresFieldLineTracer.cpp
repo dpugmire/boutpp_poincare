@@ -251,7 +251,7 @@ void ViskoresFieldLineTracer::traceLines(
 
   if (outputMode_ == ViskoresOutputMode::Punctures)
   {
-    const bool collectDiagnostics =
+    const bool reportDiagnostics =
         options_.traceDiagnostics && diagnostics != nullptr;
     viskores::cont::Invoker invoker;
 
@@ -276,13 +276,10 @@ void ViskoresFieldLineTracer::traceLines(
     batchTrajectoryCounts.Allocate(seedHandle.GetNumberOfValues());
     batchPunctureCounts.Allocate(seedHandle.GetNumberOfValues());
     batchConnectionLengths.Allocate(seedHandle.GetNumberOfValues());
-    if (collectDiagnostics)
-    {
-      batchSignChangeCounts.Allocate(seedHandle.GetNumberOfValues());
-      batchRefinementIterations.Allocate(seedHandle.GetNumberOfValues());
-      batchDedupRejectCounts.Allocate(seedHandle.GetNumberOfValues());
-      batchYRejectCounts.Allocate(seedHandle.GetNumberOfValues());
-    }
+    batchSignChangeCounts.Allocate(seedHandle.GetNumberOfValues());
+    batchRefinementIterations.Allocate(seedHandle.GetNumberOfValues());
+    batchDedupRejectCounts.Allocate(seedHandle.GetNumberOfValues());
+    batchYRejectCounts.Allocate(seedHandle.GetNumberOfValues());
     batchPunctures.Allocate(seedHandle.GetNumberOfValues() *
                             static_cast<viskores::Id>(maxPuncPerSeed_));
 
@@ -290,26 +287,14 @@ void ViskoresFieldLineTracer::traceLines(
 
     viskores::cont::Timer deviceTimer(invoker.GetDevice());
     deviceTimer.Start();
-    if (collectDiagnostics)
-    {
-      ViskoresTracePuncturesDiagnosticWorklet worklet(
-          maxTraceStatesPerSeed_, maxPuncPerSeed_, options_.direction,
-          options_.punctureDetection, options_.punctureRefinement);
-      invoker(worklet, seedHandle, field, batchStateCounts, batchEndRegions,
-              batchStatusCodes, batchTrajectoryCounts, batchPunctureCounts,
-              batchConnectionLengths, batchSignChangeCounts,
-              batchRefinementIterations, batchDedupRejectCounts,
-              batchYRejectCounts, batchPunctures);
-    }
-    else
-    {
-      ViskoresTracePuncturesWorklet worklet(
-          maxTraceStatesPerSeed_, maxPuncPerSeed_, options_.direction,
-          options_.punctureDetection, options_.punctureRefinement);
-      invoker(worklet, seedHandle, field, batchStateCounts, batchEndRegions,
-              batchStatusCodes, batchTrajectoryCounts, batchPunctureCounts,
-              batchConnectionLengths, batchPunctures);
-    }
+    ViskoresTracePuncturesDiagnosticWorklet worklet(
+        maxTraceStatesPerSeed_, maxPuncPerSeed_, options_.direction,
+        options_.punctureDetection, options_.punctureRefinement);
+    invoker(worklet, seedHandle, field, batchStateCounts, batchEndRegions,
+            batchStatusCodes, batchTrajectoryCounts, batchPunctureCounts,
+            batchConnectionLengths, batchSignChangeCounts,
+            batchRefinementIterations, batchDedupRejectCounts,
+            batchYRejectCounts, batchPunctures);
     deviceTimer.Stop();
     if (deviceInvokeSeconds != nullptr)
       *deviceInvokeSeconds = static_cast<double>(deviceTimer.GetElapsedTime());
@@ -375,7 +360,7 @@ void ViskoresFieldLineTracer::traceLines(
       }
     }
 
-    if (collectDiagnostics)
+    if (reportDiagnostics)
     {
       const auto signChangeCountPortal = batchSignChangeCounts.ReadPortal();
       const auto refinementIterationPortal =
