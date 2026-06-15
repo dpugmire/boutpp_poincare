@@ -152,12 +152,22 @@ public:
   }
 
   VISKORES_EXEC void periodicZStencilCentered(viskores::Id baseIdx,
+                                              viskores::Id &i0,
+                                              viskores::Id &i1,
+                                              viskores::Id &i2,
+                                              viskores::Id &i3) const
+  {
+    i0 = baseIdx - 1;
+    i1 = baseIdx;
+    i2 = baseIdx + 1;
+    i3 = baseIdx + 2;
+  }
+
+  VISKORES_EXEC void periodicZStencilCentered(viskores::Id baseIdx,
                                               viskores::Id outIdx[4]) const
   {
-    outIdx[0] = baseIdx - 1;
-    outIdx[1] = baseIdx;
-    outIdx[2] = baseIdx + 1;
-    outIdx[3] = baseIdx + 2;
+    periodicZStencilCentered(baseIdx, outIdx[0], outIdx[1], outIdx[2],
+                             outIdx[3]);
   }
 
   VISKORES_EXEC viskores::Id idx2(viskores::Id ix, viskores::Id iy) const
@@ -180,45 +190,55 @@ public:
 
   VISKORES_EXEC void cubicStencilCentered(viskores::Id baseIdx,
                                           viskores::Id nNodes,
-                                          viskores::Id outIdx[4]) const
+                                          viskores::Id &i0, viskores::Id &i1,
+                                          viskores::Id &i2,
+                                          viskores::Id &i3) const
   {
     if (nNodes < 4)
     {
-      outIdx[0] = 0;
-      outIdx[1] = clampInt(baseIdx, 0, (nNodes > 0) ? (nNodes - 1) : 0);
-      outIdx[2] = outIdx[1];
-      outIdx[3] = outIdx[1];
+      i0 = 0;
+      i1 = clampInt(baseIdx, 0, (nNodes > 0) ? (nNodes - 1) : 0);
+      i2 = i1;
+      i3 = i1;
       return;
     }
 
     if (baseIdx <= 1)
     {
-      outIdx[0] = 0;
-      outIdx[1] = 1;
-      outIdx[2] = 2;
-      outIdx[3] = 3;
+      i0 = 0;
+      i1 = 1;
+      i2 = 2;
+      i3 = 3;
       return;
     }
 
     if (baseIdx >= nNodes - 3)
     {
-      outIdx[0] = nNodes - 4;
-      outIdx[1] = nNodes - 3;
-      outIdx[2] = nNodes - 2;
-      outIdx[3] = nNodes - 1;
+      i0 = nNodes - 4;
+      i1 = nNodes - 3;
+      i2 = nNodes - 2;
+      i3 = nNodes - 1;
       return;
     }
 
-    outIdx[0] = baseIdx - 1;
-    outIdx[1] = baseIdx;
-    outIdx[2] = baseIdx + 1;
-    outIdx[3] = baseIdx + 2;
+    i0 = baseIdx - 1;
+    i1 = baseIdx;
+    i2 = baseIdx + 1;
+    i3 = baseIdx + 2;
   }
 
-  VISKORES_EXEC FloatType lagrange4(FloatType x, FloatType x0, FloatType x1,
-                                    FloatType x2, FloatType x3, FloatType y0,
-                                    FloatType y1, FloatType y2,
-                                    FloatType y3) const
+  VISKORES_EXEC void cubicStencilCentered(viskores::Id baseIdx,
+                                          viskores::Id nNodes,
+                                          viskores::Id outIdx[4]) const
+  {
+    cubicStencilCentered(baseIdx, nNodes, outIdx[0], outIdx[1], outIdx[2],
+                         outIdx[3]);
+  }
+
+  VISKORES_EXEC bool lagrange4Weights(FloatType x, FloatType x0, FloatType x1,
+                                      FloatType x2, FloatType x3,
+                                      FloatType &w0, FloatType &w1,
+                                      FloatType &w2, FloatType &w3) const
   {
     const FloatType d01 = x0 - x1;
     const FloatType d02 = x0 - x2;
@@ -236,18 +256,37 @@ public:
     if (std::fabs(d01) < 1.0e-20 || std::fabs(d02) < 1.0e-20 ||
         std::fabs(d03) < 1.0e-20 || std::fabs(d12) < 1.0e-20 ||
         std::fabs(d13) < 1.0e-20 || std::fabs(d23) < 1.0e-20)
+      return false;
+
+    w0 = ((x - x1) * (x - x2) * (x - x3)) / (d01 * d02 * d03);
+    w1 = ((x - x0) * (x - x2) * (x - x3)) / (d10 * d12 * d13);
+    w2 = ((x - x0) * (x - x1) * (x - x3)) / (d20 * d21 * d23);
+    w3 = ((x - x0) * (x - x1) * (x - x2)) / (d30 * d31 * d32);
+    return true;
+  }
+
+  VISKORES_EXEC FloatType applyLagrange4Weights(bool valid, FloatType w0,
+                                                FloatType w1, FloatType w2,
+                                                FloatType w3, FloatType y0,
+                                                FloatType y1, FloatType y2,
+                                                FloatType y3) const
+  {
+    if (!valid)
       return y1;
+    return y0 * w0 + y1 * w1 + y2 * w2 + y3 * w3;
+  }
 
-    const FloatType l0 =
-        ((x - x1) * (x - x2) * (x - x3)) / (d01 * d02 * d03);
-    const FloatType l1 =
-        ((x - x0) * (x - x2) * (x - x3)) / (d10 * d12 * d13);
-    const FloatType l2 =
-        ((x - x0) * (x - x1) * (x - x3)) / (d20 * d21 * d23);
-    const FloatType l3 =
-        ((x - x0) * (x - x1) * (x - x2)) / (d30 * d31 * d32);
-
-    return y0 * l0 + y1 * l1 + y2 * l2 + y3 * l3;
+  VISKORES_EXEC FloatType lagrange4(FloatType x, FloatType x0, FloatType x1,
+                                    FloatType x2, FloatType x3, FloatType y0,
+                                    FloatType y1, FloatType y2,
+                                    FloatType y3) const
+  {
+    FloatType w0 = 0.0;
+    FloatType w1 = 0.0;
+    FloatType w2 = 0.0;
+    FloatType w3 = 0.0;
+    const bool valid = lagrange4Weights(x, x0, x1, x2, x3, w0, w1, w2, w3);
+    return applyLagrange4Weights(valid, w0, w1, w2, w3, y0, y1, y2, y3);
   }
 
   VISKORES_EXEC FloatType samplePeriodicRow3D(const FloatPortal &data3d, int ix,
@@ -260,6 +299,37 @@ public:
                                            int izExt) const
   {
     return data2d.Get(idxXZ(ix, wrapZIndex(izExt)));
+  }
+
+  VISKORES_EXEC FloatType applyZStencil3D(const FloatPortal &data3d, int ix,
+                                          int iy, viskores::Id iz0,
+                                          viskores::Id iz1, viskores::Id iz2,
+                                          viskores::Id iz3,
+                                          bool weightsValid, FloatType w0,
+                                          FloatType w1, FloatType w2,
+                                          FloatType w3) const
+  {
+    const FloatType v0 = samplePeriodicRow3D(data3d, ix, iy, iz0);
+    const FloatType v1 = samplePeriodicRow3D(data3d, ix, iy, iz1);
+    const FloatType v2 = samplePeriodicRow3D(data3d, ix, iy, iz2);
+    const FloatType v3 = samplePeriodicRow3D(data3d, ix, iy, iz3);
+    return applyLagrange4Weights(weightsValid, w0, w1, w2, w3, v0, v1, v2,
+                                 v3);
+  }
+
+  VISKORES_EXEC FloatType applyZStencilXZ(const FloatPortal &data2d, int ix,
+                                          viskores::Id iz0, viskores::Id iz1,
+                                          viskores::Id iz2, viskores::Id iz3,
+                                          bool weightsValid, FloatType w0,
+                                          FloatType w1, FloatType w2,
+                                          FloatType w3) const
+  {
+    const FloatType v0 = samplePeriodicXZ(data2d, ix, iz0);
+    const FloatType v1 = samplePeriodicXZ(data2d, ix, iz1);
+    const FloatType v2 = samplePeriodicXZ(data2d, ix, iz2);
+    const FloatType v3 = samplePeriodicXZ(data2d, ix, iz3);
+    return applyLagrange4Weights(weightsValid, w0, w1, w2, w3, v0, v1, v2,
+                                 v3);
   }
 
   VISKORES_EXEC FloatType interpXZ3DAtY(const FloatPortal &data3d, int y0,
@@ -317,6 +387,75 @@ public:
     return v0 + tx * (v1 - v0);
   }
 
+  VISKORES_EXEC void interpXZ3DPairAtY(const FloatPortal &dataA,
+                                       const FloatPortal &dataB, int y0,
+                                       FloatType x, FloatType z,
+                                       FloatType &outA,
+                                       FloatType &outB) const
+  {
+    if (nx < 2 || nzG < 1)
+    {
+      outA = 0.0;
+      outB = 0.0;
+      return;
+    }
+
+    y0 = clampInt(y0, 0, ny - 1);
+
+    int ix0 = 0;
+    FloatType tx = 0.0;
+    if (x <= xarray.Get(0))
+    {
+      ix0 = 0;
+      tx = 0.0;
+    }
+    else if (x >= xarray.Get(nx - 1))
+    {
+      ix0 = nx - 2;
+      tx = 1.0;
+    }
+    else
+    {
+      ix0 = lowerBracket(xarray, x);
+      const FloatType denom = xarray.Get(ix0 + 1) - xarray.Get(ix0);
+      tx = (std::fabs(denom) > 1.0e-20) ? ((x - xarray.Get(ix0)) / denom) : 0.0;
+    }
+    if (tx < 0.0)
+      tx = 0.0;
+    if (tx > 1.0)
+      tx = 1.0;
+
+    const FloatType zWrapped = wrapZ(z);
+    const FloatType zf = zWrapped / dz_torus;
+    int iz0 = clampInt(static_cast<int>(std::floor(zf)), 0, nzG - 1);
+    const int iz1 = (iz0 + 1) % nzG;
+    FloatType tz = zf - static_cast<FloatType>(iz0);
+    if (tz < 0.0)
+      tz = 0.0;
+    if (tz > 1.0)
+      tz = 1.0;
+
+    int ix1 = ix0 + 1;
+    if (ix1 >= nx)
+      ix1 = nx - 1;
+
+    const FloatType a00 = dataA.Get(idx3(ix0, y0, iz0));
+    const FloatType a01 = dataA.Get(idx3(ix0, y0, iz1));
+    const FloatType a10 = dataA.Get(idx3(ix1, y0, iz0));
+    const FloatType a11 = dataA.Get(idx3(ix1, y0, iz1));
+    const FloatType b00 = dataB.Get(idx3(ix0, y0, iz0));
+    const FloatType b01 = dataB.Get(idx3(ix0, y0, iz1));
+    const FloatType b10 = dataB.Get(idx3(ix1, y0, iz0));
+    const FloatType b11 = dataB.Get(idx3(ix1, y0, iz1));
+
+    const FloatType a0 = a00 + tz * (a01 - a00);
+    const FloatType a1 = a10 + tz * (a11 - a10);
+    const FloatType b0 = b00 + tz * (b01 - b00);
+    const FloatType b1 = b10 + tz * (b11 - b10);
+    outA = a0 + tx * (a1 - a0);
+    outB = b0 + tx * (b1 - b0);
+  }
+
   VISKORES_EXEC FloatType interpXZ3DAtYSpline(const FloatPortal &data3d, int y0,
                                               FloatType x, FloatType z) const
   {
@@ -332,38 +471,143 @@ public:
       xq = xarray.Get(nx - 1);
 
     const int ixBase = lowerBracket(xarray, xq);
-    viskores::Id ixs[4] = {0, 1, 2, 3};
-    cubicStencilCentered(ixBase, nx, ixs);
+    viskores::Id ix0 = 0;
+    viskores::Id ix1 = 1;
+    viskores::Id ix2 = 2;
+    viskores::Id ix3 = 3;
+    cubicStencilCentered(ixBase, nx, ix0, ix1, ix2, ix3);
 
     const FloatType zq = wrapZ(z);
     int izBase =
         clampInt(static_cast<int>(std::floor(zq / dz_torus)), 0, nzG - 1);
-    viskores::Id izs[4] = {0, 1, 2, 3};
-    periodicZStencilCentered(izBase, izs);
+    viskores::Id iz0 = 0;
+    viskores::Id iz1 = 1;
+    viskores::Id iz2 = 2;
+    viskores::Id iz3 = 3;
+    periodicZStencilCentered(izBase, iz0, iz1, iz2, iz3);
 
-    const FloatType xvals[4] = {xarray.Get(ixs[0]), xarray.Get(ixs[1]),
-                                xarray.Get(ixs[2]), xarray.Get(ixs[3])};
+    const FloatType zc0 = static_cast<FloatType>(iz0) * dz_torus;
+    const FloatType zc1 = static_cast<FloatType>(iz1) * dz_torus;
+    const FloatType zc2 = static_cast<FloatType>(iz2) * dz_torus;
+    const FloatType zc3 = static_cast<FloatType>(iz3) * dz_torus;
 
-    FloatType zinterp[4] = {0.0, 0.0, 0.0, 0.0};
-    for (int i = 0; i < 4; ++i)
+    FloatType wz0 = 0.0;
+    FloatType wz1 = 0.0;
+    FloatType wz2 = 0.0;
+    FloatType wz3 = 0.0;
+    const bool zWeightsValid =
+        lagrange4Weights(zq, zc0, zc1, zc2, zc3, wz0, wz1, wz2, wz3);
+
+    const FloatType zinterp0 = applyZStencil3D(
+        data3d, static_cast<int>(ix0), y0, iz0, iz1, iz2, iz3, zWeightsValid,
+        wz0, wz1, wz2, wz3);
+    const FloatType zinterp1 = applyZStencil3D(
+        data3d, static_cast<int>(ix1), y0, iz0, iz1, iz2, iz3, zWeightsValid,
+        wz0, wz1, wz2, wz3);
+    const FloatType zinterp2 = applyZStencil3D(
+        data3d, static_cast<int>(ix2), y0, iz0, iz1, iz2, iz3, zWeightsValid,
+        wz0, wz1, wz2, wz3);
+    const FloatType zinterp3 = applyZStencil3D(
+        data3d, static_cast<int>(ix3), y0, iz0, iz1, iz2, iz3, zWeightsValid,
+        wz0, wz1, wz2, wz3);
+
+    FloatType wx0 = 0.0;
+    FloatType wx1 = 0.0;
+    FloatType wx2 = 0.0;
+    FloatType wx3 = 0.0;
+    const bool xWeightsValid =
+        lagrange4Weights(xq, xarray.Get(ix0), xarray.Get(ix1),
+                         xarray.Get(ix2), xarray.Get(ix3), wx0, wx1, wx2,
+                         wx3);
+    return applyLagrange4Weights(xWeightsValid, wx0, wx1, wx2, wx3, zinterp0,
+                                 zinterp1, zinterp2, zinterp3);
+  }
+
+  VISKORES_EXEC void interpXZ3DPairAtYSpline(const FloatPortal &dataA,
+                                             const FloatPortal &dataB, int y0,
+                                             FloatType x, FloatType z,
+                                             FloatType &outA,
+                                             FloatType &outB) const
+  {
+    if (nx < 4 || nzG < 4)
     {
-      const int ix = ixs[i];
-
-      const FloatType zc0 = static_cast<FloatType>(izs[0]) * dz_torus;
-      const FloatType zc1 = static_cast<FloatType>(izs[1]) * dz_torus;
-      const FloatType zc2 = static_cast<FloatType>(izs[2]) * dz_torus;
-      const FloatType zc3 = static_cast<FloatType>(izs[3]) * dz_torus;
-
-      const FloatType zv0 = samplePeriodicRow3D(data3d, ix, y0, izs[0]);
-      const FloatType zv1 = samplePeriodicRow3D(data3d, ix, y0, izs[1]);
-      const FloatType zv2 = samplePeriodicRow3D(data3d, ix, y0, izs[2]);
-      const FloatType zv3 = samplePeriodicRow3D(data3d, ix, y0, izs[3]);
-
-      zinterp[i] = lagrange4(zq, zc0, zc1, zc2, zc3, zv0, zv1, zv2, zv3);
+      interpXZ3DPairAtY(dataA, dataB, y0, x, z, outA, outB);
+      return;
     }
 
-    return lagrange4(xq, xvals[0], xvals[1], xvals[2], xvals[3], zinterp[0],
-                     zinterp[1], zinterp[2], zinterp[3]);
+    y0 = clampInt(y0, 0, ny - 1);
+
+    FloatType xq = x;
+    if (xq < xarray.Get(0))
+      xq = xarray.Get(0);
+    if (xq > xarray.Get(nx - 1))
+      xq = xarray.Get(nx - 1);
+
+    const int ixBase = lowerBracket(xarray, xq);
+    viskores::Id ix0 = 0;
+    viskores::Id ix1 = 1;
+    viskores::Id ix2 = 2;
+    viskores::Id ix3 = 3;
+    cubicStencilCentered(ixBase, nx, ix0, ix1, ix2, ix3);
+
+    const FloatType zq = wrapZ(z);
+    int izBase =
+        clampInt(static_cast<int>(std::floor(zq / dz_torus)), 0, nzG - 1);
+    viskores::Id iz0 = 0;
+    viskores::Id iz1 = 1;
+    viskores::Id iz2 = 2;
+    viskores::Id iz3 = 3;
+    periodicZStencilCentered(izBase, iz0, iz1, iz2, iz3);
+
+    const FloatType zc0 = static_cast<FloatType>(iz0) * dz_torus;
+    const FloatType zc1 = static_cast<FloatType>(iz1) * dz_torus;
+    const FloatType zc2 = static_cast<FloatType>(iz2) * dz_torus;
+    const FloatType zc3 = static_cast<FloatType>(iz3) * dz_torus;
+
+    FloatType wz0 = 0.0;
+    FloatType wz1 = 0.0;
+    FloatType wz2 = 0.0;
+    FloatType wz3 = 0.0;
+    const bool zWeightsValid =
+        lagrange4Weights(zq, zc0, zc1, zc2, zc3, wz0, wz1, wz2, wz3);
+
+    const FloatType a0 = applyZStencil3D(
+        dataA, static_cast<int>(ix0), y0, iz0, iz1, iz2, iz3, zWeightsValid,
+        wz0, wz1, wz2, wz3);
+    const FloatType a1 = applyZStencil3D(
+        dataA, static_cast<int>(ix1), y0, iz0, iz1, iz2, iz3, zWeightsValid,
+        wz0, wz1, wz2, wz3);
+    const FloatType a2 = applyZStencil3D(
+        dataA, static_cast<int>(ix2), y0, iz0, iz1, iz2, iz3, zWeightsValid,
+        wz0, wz1, wz2, wz3);
+    const FloatType a3 = applyZStencil3D(
+        dataA, static_cast<int>(ix3), y0, iz0, iz1, iz2, iz3, zWeightsValid,
+        wz0, wz1, wz2, wz3);
+    const FloatType b0 = applyZStencil3D(
+        dataB, static_cast<int>(ix0), y0, iz0, iz1, iz2, iz3, zWeightsValid,
+        wz0, wz1, wz2, wz3);
+    const FloatType b1 = applyZStencil3D(
+        dataB, static_cast<int>(ix1), y0, iz0, iz1, iz2, iz3, zWeightsValid,
+        wz0, wz1, wz2, wz3);
+    const FloatType b2 = applyZStencil3D(
+        dataB, static_cast<int>(ix2), y0, iz0, iz1, iz2, iz3, zWeightsValid,
+        wz0, wz1, wz2, wz3);
+    const FloatType b3 = applyZStencil3D(
+        dataB, static_cast<int>(ix3), y0, iz0, iz1, iz2, iz3, zWeightsValid,
+        wz0, wz1, wz2, wz3);
+
+    FloatType wx0 = 0.0;
+    FloatType wx1 = 0.0;
+    FloatType wx2 = 0.0;
+    FloatType wx3 = 0.0;
+    const bool xWeightsValid =
+        lagrange4Weights(xq, xarray.Get(ix0), xarray.Get(ix1),
+                         xarray.Get(ix2), xarray.Get(ix3), wx0, wx1, wx2,
+                         wx3);
+    outA = applyLagrange4Weights(xWeightsValid, wx0, wx1, wx2, wx3, a0, a1,
+                                 a2, a3);
+    outB = applyLagrange4Weights(xWeightsValid, wx0, wx1, wx2, wx3, b0, b1,
+                                 b2, b3);
   }
 
   VISKORES_EXEC FloatType interpXZ2D(const FloatPortal &data2d, FloatType x,
@@ -419,6 +663,72 @@ public:
     return v0 + tx * (v1 - v0);
   }
 
+  VISKORES_EXEC void interpXZ2DPair(const FloatPortal &dataA,
+                                    const FloatPortal &dataB, FloatType x,
+                                    FloatType z, FloatType &outA,
+                                    FloatType &outB) const
+  {
+    if (nx < 2 || nzG < 1)
+    {
+      outA = 0.0;
+      outB = 0.0;
+      return;
+    }
+
+    int ix0 = 0;
+    FloatType tx = 0.0;
+    if (x <= xarray.Get(0))
+    {
+      ix0 = 0;
+      tx = 0.0;
+    }
+    else if (x >= xarray.Get(nx - 1))
+    {
+      ix0 = nx - 2;
+      tx = 1.0;
+    }
+    else
+    {
+      ix0 = lowerBracket(xarray, x);
+      const FloatType denom = xarray.Get(ix0 + 1) - xarray.Get(ix0);
+      tx = (std::fabs(denom) > 1.0e-20) ? ((x - xarray.Get(ix0)) / denom) : 0.0;
+    }
+    if (tx < 0.0)
+      tx = 0.0;
+    if (tx > 1.0)
+      tx = 1.0;
+
+    const FloatType zWrapped = wrapZ(z);
+    const FloatType zf = zWrapped / dz_torus;
+    int iz0 = clampInt(static_cast<int>(std::floor(zf)), 0, nzG - 1);
+    const int iz1 = (iz0 + 1) % nzG;
+    FloatType tz = zf - static_cast<FloatType>(iz0);
+    if (tz < 0.0)
+      tz = 0.0;
+    if (tz > 1.0)
+      tz = 1.0;
+
+    int ix1 = ix0 + 1;
+    if (ix1 >= nx)
+      ix1 = nx - 1;
+
+    const FloatType a00 = dataA.Get(idxXZ(ix0, iz0));
+    const FloatType a01 = dataA.Get(idxXZ(ix0, iz1));
+    const FloatType a10 = dataA.Get(idxXZ(ix1, iz0));
+    const FloatType a11 = dataA.Get(idxXZ(ix1, iz1));
+    const FloatType b00 = dataB.Get(idxXZ(ix0, iz0));
+    const FloatType b01 = dataB.Get(idxXZ(ix0, iz1));
+    const FloatType b10 = dataB.Get(idxXZ(ix1, iz0));
+    const FloatType b11 = dataB.Get(idxXZ(ix1, iz1));
+
+    const FloatType a0 = a00 + tz * (a01 - a00);
+    const FloatType a1 = a10 + tz * (a11 - a10);
+    const FloatType b0 = b00 + tz * (b01 - b00);
+    const FloatType b1 = b10 + tz * (b11 - b10);
+    outA = a0 + tx * (a1 - a0);
+    outB = b0 + tx * (b1 - b0);
+  }
+
   VISKORES_EXEC FloatType interpXZ2DSpline(const FloatPortal &data2d,
                                            FloatType x, FloatType z) const
   {
@@ -432,38 +742,141 @@ public:
       xq = xarray.Get(nx - 1);
 
     const int ixBase = lowerBracket(xarray, xq);
-    viskores::Id ixs[4] = {0, 1, 2, 3};
-    cubicStencilCentered(ixBase, nx, ixs);
+    viskores::Id ix0 = 0;
+    viskores::Id ix1 = 1;
+    viskores::Id ix2 = 2;
+    viskores::Id ix3 = 3;
+    cubicStencilCentered(ixBase, nx, ix0, ix1, ix2, ix3);
 
     const FloatType zq = wrapZ(z);
     int izBase =
         clampInt(static_cast<int>(std::floor(zq / dz_torus)), 0, nzG - 1);
-    viskores::Id izs[4] = {0, 1, 2, 3};
-    periodicZStencilCentered(izBase, izs);
+    viskores::Id iz0 = 0;
+    viskores::Id iz1 = 1;
+    viskores::Id iz2 = 2;
+    viskores::Id iz3 = 3;
+    periodicZStencilCentered(izBase, iz0, iz1, iz2, iz3);
 
-    const FloatType xvals[4] = {xarray.Get(ixs[0]), xarray.Get(ixs[1]),
-                                xarray.Get(ixs[2]), xarray.Get(ixs[3])};
+    const FloatType zc0 = static_cast<FloatType>(iz0) * dz_torus;
+    const FloatType zc1 = static_cast<FloatType>(iz1) * dz_torus;
+    const FloatType zc2 = static_cast<FloatType>(iz2) * dz_torus;
+    const FloatType zc3 = static_cast<FloatType>(iz3) * dz_torus;
 
-    FloatType zinterp[4] = {0.0, 0.0, 0.0, 0.0};
-    for (int i = 0; i < 4; ++i)
+    FloatType wz0 = 0.0;
+    FloatType wz1 = 0.0;
+    FloatType wz2 = 0.0;
+    FloatType wz3 = 0.0;
+    const bool zWeightsValid =
+        lagrange4Weights(zq, zc0, zc1, zc2, zc3, wz0, wz1, wz2, wz3);
+
+    const FloatType zinterp0 = applyZStencilXZ(
+        data2d, static_cast<int>(ix0), iz0, iz1, iz2, iz3, zWeightsValid, wz0,
+        wz1, wz2, wz3);
+    const FloatType zinterp1 = applyZStencilXZ(
+        data2d, static_cast<int>(ix1), iz0, iz1, iz2, iz3, zWeightsValid, wz0,
+        wz1, wz2, wz3);
+    const FloatType zinterp2 = applyZStencilXZ(
+        data2d, static_cast<int>(ix2), iz0, iz1, iz2, iz3, zWeightsValid, wz0,
+        wz1, wz2, wz3);
+    const FloatType zinterp3 = applyZStencilXZ(
+        data2d, static_cast<int>(ix3), iz0, iz1, iz2, iz3, zWeightsValid, wz0,
+        wz1, wz2, wz3);
+
+    FloatType wx0 = 0.0;
+    FloatType wx1 = 0.0;
+    FloatType wx2 = 0.0;
+    FloatType wx3 = 0.0;
+    const bool xWeightsValid =
+        lagrange4Weights(xq, xarray.Get(ix0), xarray.Get(ix1),
+                         xarray.Get(ix2), xarray.Get(ix3), wx0, wx1, wx2,
+                         wx3);
+    return applyLagrange4Weights(xWeightsValid, wx0, wx1, wx2, wx3, zinterp0,
+                                 zinterp1, zinterp2, zinterp3);
+  }
+
+  VISKORES_EXEC void interpXZ2DPairSpline(const FloatPortal &dataA,
+                                          const FloatPortal &dataB,
+                                          FloatType x, FloatType z,
+                                          FloatType &outA,
+                                          FloatType &outB) const
+  {
+    if (nx < 4 || nzG < 4)
     {
-      const int ix = ixs[i];
-
-      const FloatType zc0 = static_cast<FloatType>(izs[0]) * dz_torus;
-      const FloatType zc1 = static_cast<FloatType>(izs[1]) * dz_torus;
-      const FloatType zc2 = static_cast<FloatType>(izs[2]) * dz_torus;
-      const FloatType zc3 = static_cast<FloatType>(izs[3]) * dz_torus;
-
-      const FloatType zv0 = samplePeriodicXZ(data2d, ix, izs[0]);
-      const FloatType zv1 = samplePeriodicXZ(data2d, ix, izs[1]);
-      const FloatType zv2 = samplePeriodicXZ(data2d, ix, izs[2]);
-      const FloatType zv3 = samplePeriodicXZ(data2d, ix, izs[3]);
-
-      zinterp[i] = lagrange4(zq, zc0, zc1, zc2, zc3, zv0, zv1, zv2, zv3);
+      interpXZ2DPair(dataA, dataB, x, z, outA, outB);
+      return;
     }
 
-    return lagrange4(xq, xvals[0], xvals[1], xvals[2], xvals[3], zinterp[0],
-                     zinterp[1], zinterp[2], zinterp[3]);
+    FloatType xq = x;
+    if (xq < xarray.Get(0))
+      xq = xarray.Get(0);
+    if (xq > xarray.Get(nx - 1))
+      xq = xarray.Get(nx - 1);
+
+    const int ixBase = lowerBracket(xarray, xq);
+    viskores::Id ix0 = 0;
+    viskores::Id ix1 = 1;
+    viskores::Id ix2 = 2;
+    viskores::Id ix3 = 3;
+    cubicStencilCentered(ixBase, nx, ix0, ix1, ix2, ix3);
+
+    const FloatType zq = wrapZ(z);
+    int izBase =
+        clampInt(static_cast<int>(std::floor(zq / dz_torus)), 0, nzG - 1);
+    viskores::Id iz0 = 0;
+    viskores::Id iz1 = 1;
+    viskores::Id iz2 = 2;
+    viskores::Id iz3 = 3;
+    periodicZStencilCentered(izBase, iz0, iz1, iz2, iz3);
+
+    const FloatType zc0 = static_cast<FloatType>(iz0) * dz_torus;
+    const FloatType zc1 = static_cast<FloatType>(iz1) * dz_torus;
+    const FloatType zc2 = static_cast<FloatType>(iz2) * dz_torus;
+    const FloatType zc3 = static_cast<FloatType>(iz3) * dz_torus;
+
+    FloatType wz0 = 0.0;
+    FloatType wz1 = 0.0;
+    FloatType wz2 = 0.0;
+    FloatType wz3 = 0.0;
+    const bool zWeightsValid =
+        lagrange4Weights(zq, zc0, zc1, zc2, zc3, wz0, wz1, wz2, wz3);
+
+    const FloatType a0 = applyZStencilXZ(
+        dataA, static_cast<int>(ix0), iz0, iz1, iz2, iz3, zWeightsValid, wz0,
+        wz1, wz2, wz3);
+    const FloatType a1 = applyZStencilXZ(
+        dataA, static_cast<int>(ix1), iz0, iz1, iz2, iz3, zWeightsValid, wz0,
+        wz1, wz2, wz3);
+    const FloatType a2 = applyZStencilXZ(
+        dataA, static_cast<int>(ix2), iz0, iz1, iz2, iz3, zWeightsValid, wz0,
+        wz1, wz2, wz3);
+    const FloatType a3 = applyZStencilXZ(
+        dataA, static_cast<int>(ix3), iz0, iz1, iz2, iz3, zWeightsValid, wz0,
+        wz1, wz2, wz3);
+    const FloatType b0 = applyZStencilXZ(
+        dataB, static_cast<int>(ix0), iz0, iz1, iz2, iz3, zWeightsValid, wz0,
+        wz1, wz2, wz3);
+    const FloatType b1 = applyZStencilXZ(
+        dataB, static_cast<int>(ix1), iz0, iz1, iz2, iz3, zWeightsValid, wz0,
+        wz1, wz2, wz3);
+    const FloatType b2 = applyZStencilXZ(
+        dataB, static_cast<int>(ix2), iz0, iz1, iz2, iz3, zWeightsValid, wz0,
+        wz1, wz2, wz3);
+    const FloatType b3 = applyZStencilXZ(
+        dataB, static_cast<int>(ix3), iz0, iz1, iz2, iz3, zWeightsValid, wz0,
+        wz1, wz2, wz3);
+
+    FloatType wx0 = 0.0;
+    FloatType wx1 = 0.0;
+    FloatType wx2 = 0.0;
+    FloatType wx3 = 0.0;
+    const bool xWeightsValid =
+        lagrange4Weights(xq, xarray.Get(ix0), xarray.Get(ix1),
+                         xarray.Get(ix2), xarray.Get(ix3), wx0, wx1, wx2,
+                         wx3);
+    outA = applyLagrange4Weights(xWeightsValid, wx0, wx1, wx2, wx3, a0, a1,
+                                 a2, a3);
+    outB = applyLagrange4Weights(xWeightsValid, wx0, wx1, wx2, wx3, b0, b1,
+                                 b2, b3);
   }
 
   VISKORES_EXEC FloatType interpXIndex2D(const FloatPortal &data2d, int yidx0,
@@ -698,8 +1111,11 @@ public:
 
     if (stage == 0)
     {
-      deriv.dxdy = interpXZ3DAtYSpline(dxdy, yp, point.x, point.z);
-      deriv.dzdy = interpXZ3DAtYSpline(dzdy, yp, point.x, point.z);
+      FloatType dxOut = 0.0;
+      FloatType dzOut = 0.0;
+      interpXZ3DPairAtYSpline(dxdy, dzdy, yp, point.x, point.z, dxOut, dzOut);
+      deriv.dxdy = dxOut;
+      deriv.dzdy = dzOut;
       return;
     }
 
@@ -709,25 +1125,38 @@ public:
       {
         if (usePlus)
         {
-          deriv.dxdy = interpXZ2DSpline(dxdy_p1, point.x, point.z);
-          deriv.dzdy = interpXZ2DSpline(dzdy_p1, point.x, point.z);
+          FloatType dxOut = 0.0;
+          FloatType dzOut = 0.0;
+          interpXZ2DPairSpline(dxdy_p1, dzdy_p1, point.x, point.z, dxOut,
+                               dzOut);
+          deriv.dxdy = dxOut;
+          deriv.dzdy = dzOut;
         }
         else
         {
-          deriv.dxdy = interpXZ2DSpline(dxdy_m1, point.x, point.z);
-          deriv.dzdy = interpXZ2DSpline(dzdy_m1, point.x, point.z);
+          FloatType dxOut = 0.0;
+          FloatType dzOut = 0.0;
+          interpXZ2DPairSpline(dxdy_m1, dzdy_m1, point.x, point.z, dxOut,
+                               dzOut);
+          deriv.dxdy = dxOut;
+          deriv.dzdy = dzOut;
         }
       }
       else
       {
-        deriv.dxdy = interpXZ3DAtYSpline(dxdy, yn, point.x, point.z);
-        deriv.dzdy = interpXZ3DAtYSpline(dzdy, yn, point.x, point.z);
+        FloatType dxOut = 0.0;
+        FloatType dzOut = 0.0;
+        interpXZ3DPairAtYSpline(dxdy, dzdy, yn, point.x, point.z, dxOut,
+                                 dzOut);
+        deriv.dxdy = dxOut;
+        deriv.dzdy = dzOut;
       }
       return;
     }
 
-    const FloatType dxP = interpXZ3DAtYSpline(dxdy, yp, point.x, point.z);
-    const FloatType dzP = interpXZ3DAtYSpline(dzdy, yp, point.x, point.z);
+    FloatType dxP = 0.0;
+    FloatType dzP = 0.0;
+    interpXZ3DPairAtYSpline(dxdy, dzdy, yp, point.x, point.z, dxP, dzP);
 
     FloatType dxN = 0.0;
     FloatType dzN = 0.0;
@@ -735,19 +1164,16 @@ public:
     {
       if (usePlus)
       {
-        dxN = interpXZ2DSpline(dxdy_p1, point.x, point.z);
-        dzN = interpXZ2DSpline(dzdy_p1, point.x, point.z);
+        interpXZ2DPairSpline(dxdy_p1, dzdy_p1, point.x, point.z, dxN, dzN);
       }
       else
       {
-        dxN = interpXZ2DSpline(dxdy_m1, point.x, point.z);
-        dzN = interpXZ2DSpline(dzdy_m1, point.x, point.z);
+        interpXZ2DPairSpline(dxdy_m1, dzdy_m1, point.x, point.z, dxN, dzN);
       }
     }
     else
     {
-      dxN = interpXZ3DAtYSpline(dxdy, yn, point.x, point.z);
-      dzN = interpXZ3DAtYSpline(dzdy, yn, point.x, point.z);
+      interpXZ3DPairAtYSpline(dxdy, dzdy, yn, point.x, point.z, dxN, dzN);
     }
 
     deriv.dxdy = 0.5 * (dxP + dxN);
