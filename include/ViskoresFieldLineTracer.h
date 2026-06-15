@@ -11,6 +11,7 @@
 enum class ViskoresOutputMode
 {
   Punctures,
+  Rk4,
   States
 };
 

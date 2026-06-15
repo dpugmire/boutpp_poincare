@@ -276,11 +276,13 @@ void printUsage(const char *prog)
             << "  --viskores-device DEV viskores device: serial|openmp|kokkos "
                "(default: serial)\n"
             << "  --viskores-output MODE viskores output mode: "
-               "punctures|states (default: punctures)\n"
+               "punctures|rk4|states (default: punctures)\n"
             << "  --puncture-detection MODE compact Viskores puncture "
                "detection: on|off (default: on)\n"
             << "  --puncture-refine MODE compact Viskores puncture "
                "refinement: on|off (default: on)\n"
+            << "  --trace-diagnostics MODE compact Viskores diagnostic "
+               "counters: on|off (default: off)\n"
             << "  --per-seed-log       print one trace-result line per seed "
                "(default: off)\n"
             << "  --compare             enable MATLAB comparison mode (default "
@@ -676,7 +678,8 @@ bool isSupportedTraceEngineChoice(const std::string &valueLower)
 
 bool isSupportedViskoresOutputModeChoice(const std::string &valueLower)
 {
-  return valueLower == "punctures" || valueLower == "states";
+  return valueLower == "punctures" || valueLower == "rk4" ||
+         valueLower == "states";
 }
 
 bool isSupportedOutputFormatChoice(const std::string &valueLower)
@@ -714,8 +717,11 @@ bool outputFormatWritesAdios(OutputFormat outputFormat)
 #if defined(CODEX_USE_VISKORES)
 ViskoresOutputMode parseViskoresOutputModeChoice(const std::string &valueLower)
 {
-  return (valueLower == "states") ? ViskoresOutputMode::States
-                                  : ViskoresOutputMode::Punctures;
+  if (valueLower == "states")
+    return ViskoresOutputMode::States;
+  if (valueLower == "rk4")
+    return ViskoresOutputMode::Rk4;
+  return ViskoresOutputMode::Punctures;
 }
 #endif
 
@@ -929,6 +935,19 @@ bool parseCommandLineArguments(int argc, char **argv, const MpiRuntime &mpi,
       options.config.traceOptions.punctureRefinement = enabled;
       continue;
     }
+    if (arg == "--trace-diagnostics" && i + 1 < argc)
+    {
+      bool enabled = false;
+      const std::string valueLower = toLowerAscii(argv[++i]);
+      if (!parseOnOffChoice(valueLower, enabled))
+      {
+        if (mpi.rank == 0)
+          std::cerr << "Error: --trace-diagnostics must be on|off\n";
+        return false;
+      }
+      options.config.traceOptions.traceDiagnostics = enabled;
+      continue;
+    }
     if (arg == "--compare")
     {
       options.doCompare = true;
@@ -987,7 +1006,8 @@ bool parseCommandLineArguments(int argc, char **argv, const MpiRuntime &mpi,
   if (!isSupportedViskoresOutputModeChoice(options.viskoresOutputModeChoice))
   {
     if (mpi.rank == 0)
-      std::cerr << "Error: --viskores-output must be one of punctures|states\n";
+      std::cerr
+          << "Error: --viskores-output must be one of punctures|rk4|states\n";
     return false;
   }
 
@@ -1126,6 +1146,8 @@ void printTraceBackendSelection(const MpiRuntime &mpi, TraceEngine traceEngine,
                 << (traceOptions.punctureDetection ? "on" : "off")
                 << ", puncture-refine="
                 << (traceOptions.punctureRefinement ? "on" : "off")
+                << ", trace-diagnostics="
+                << (traceOptions.traceDiagnostics ? "on" : "off")
                 << ", viskores-active=" << (viskoresActive ? "yes" : "no");
       if (!viskoresActive)
         std::cout << " (device ignored unless --trace-engine viskores)";
@@ -1670,6 +1692,21 @@ int main(int argc, char **argv)
                    "--viskores-output punctures\n";
     return 1;
   }
+  if (config.traceOptions.traceDiagnostics && traceEngine != TraceEngine::Viskores)
+  {
+    if (mpi.rank == 0)
+      std::cerr << "Error: --trace-diagnostics on requires "
+                   "--trace-engine viskores\n";
+    return 1;
+  }
+  if (config.traceOptions.traceDiagnostics &&
+      viskoresOutputModeChoice != "punctures")
+  {
+    if (mpi.rank == 0)
+      std::cerr << "Error: --trace-diagnostics on requires "
+                   "--viskores-output punctures\n";
+    return 1;
+  }
 
   try
   {
@@ -1803,7 +1840,8 @@ int main(int argc, char **argv)
 
     const bool compactViskoresOutput =
         (traceEngine == TraceEngine::Viskores &&
-         viskoresOutputModeChoice == "punctures");
+         (viskoresOutputModeChoice == "punctures" ||
+          viskoresOutputModeChoice == "rk4"));
     const int traceMaxStatesPerSeed = computeMaxStateCount(config.traceOptions);
     const int maxStatesPerSeed =
         compactViskoresOutput ? 1 : traceMaxStatesPerSeed;
@@ -1834,7 +1872,9 @@ int main(int argc, char **argv)
     traceDiagnostics.dedupRejectsPerSeed.assign(localTaskCount, 0);
     traceDiagnostics.yRejectsPerSeed.assign(localTaskCount, 0);
     TraceDiagnostics *traceDiagnosticsForSummary =
-        (traceEngine == TraceEngine::Viskores && compactViskoresOutput)
+        (traceEngine == TraceEngine::Viskores &&
+         viskoresOutputModeChoice == "punctures" &&
+         config.traceOptions.traceDiagnostics)
             ? &traceDiagnostics
             : nullptr;
 

@@ -67,6 +67,7 @@ struct TraceOptions
   int maxSteps = 0; // <=0 => auto cap: kDefaultMaxStepsPerPuncture * npMax
   bool punctureDetection = true;
   bool punctureRefinement = true;
+  bool traceDiagnostics = false;
 };
 
 struct TraceDiagnostics
