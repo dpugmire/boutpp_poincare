@@ -220,25 +220,34 @@ public:
                                     FloatType y1, FloatType y2,
                                     FloatType y3) const
   {
-    const FloatType xs[4] = {x0, x1, x2, x3};
-    const FloatType ys[4] = {y0, y1, y2, y3};
+    const FloatType d01 = x0 - x1;
+    const FloatType d02 = x0 - x2;
+    const FloatType d03 = x0 - x3;
+    const FloatType d10 = x1 - x0;
+    const FloatType d12 = x1 - x2;
+    const FloatType d13 = x1 - x3;
+    const FloatType d20 = x2 - x0;
+    const FloatType d21 = x2 - x1;
+    const FloatType d23 = x2 - x3;
+    const FloatType d30 = x3 - x0;
+    const FloatType d31 = x3 - x1;
+    const FloatType d32 = x3 - x2;
 
-    FloatType out = 0.0;
-    for (int i = 0; i < 4; ++i)
-    {
-      FloatType li = 1.0;
-      for (int j = 0; j < 4; ++j)
-      {
-        if (i == j)
-          continue;
-        const FloatType den = xs[i] - xs[j];
-        if (std::fabs(den) < 1.0e-20)
-          return ys[1];
-        li *= (x - xs[j]) / den;
-      }
-      out += ys[i] * li;
-    }
-    return out;
+    if (std::fabs(d01) < 1.0e-20 || std::fabs(d02) < 1.0e-20 ||
+        std::fabs(d03) < 1.0e-20 || std::fabs(d12) < 1.0e-20 ||
+        std::fabs(d13) < 1.0e-20 || std::fabs(d23) < 1.0e-20)
+      return y1;
+
+    const FloatType l0 =
+        ((x - x1) * (x - x2) * (x - x3)) / (d01 * d02 * d03);
+    const FloatType l1 =
+        ((x - x0) * (x - x2) * (x - x3)) / (d10 * d12 * d13);
+    const FloatType l2 =
+        ((x - x0) * (x - x1) * (x - x3)) / (d20 * d21 * d23);
+    const FloatType l3 =
+        ((x - x0) * (x - x1) * (x - x2)) / (d30 * d31 * d32);
+
+    return y0 * l0 + y1 * l1 + y2 * l2 + y3 * l3;
   }
 
   VISKORES_EXEC FloatType samplePeriodicRow3D(const FloatPortal &data3d, int ix,
