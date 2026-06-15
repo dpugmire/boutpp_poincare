@@ -85,7 +85,7 @@ void ViskoresFieldLineTracer::traceLines(
     std::vector<int> &stateCountPerSeed, std::vector<int> &trajCountPerSeed,
     std::vector<int> &punctureCountPerSeed,
     std::vector<TraceStatus> &traceStatuses, double *deviceInvokeSeconds,
-    double *hostPostprocessSeconds) const
+    double *hostPostprocessSeconds, TraceDiagnostics *diagnostics) const
 {
   traceStatuses.assign(seeds.size(), TraceStatus::Ok);
   if (deviceInvokeSeconds != nullptr)
@@ -125,6 +125,29 @@ void ViskoresFieldLineTracer::traceLines(
     throw std::runtime_error(
         "Per-seed metadata arrays must all have the same size");
   }
+  if (diagnostics != nullptr)
+  {
+    const bool diagnosticsEmpty =
+        diagnostics->signChangeCandidatesPerSeed.empty() &&
+        diagnostics->refinementIterationsPerSeed.empty() &&
+        diagnostics->dedupRejectsPerSeed.empty() &&
+        diagnostics->yRejectsPerSeed.empty();
+    if (diagnosticsEmpty)
+    {
+      diagnostics->signChangeCandidatesPerSeed.assign(totalSeeds, 0);
+      diagnostics->refinementIterationsPerSeed.assign(totalSeeds, 0);
+      diagnostics->dedupRejectsPerSeed.assign(totalSeeds, 0);
+      diagnostics->yRejectsPerSeed.assign(totalSeeds, 0);
+    }
+    else if (diagnostics->signChangeCandidatesPerSeed.size() != totalSeeds ||
+             diagnostics->refinementIterationsPerSeed.size() != totalSeeds ||
+             diagnostics->dedupRejectsPerSeed.size() != totalSeeds ||
+             diagnostics->yRejectsPerSeed.size() != totalSeeds)
+    {
+      throw std::runtime_error(
+          "Trace diagnostic arrays must all have the same size as the seeds");
+    }
+  }
   if (outputMode_ == ViskoresOutputMode::States &&
       (outputs.statesSize <
            totalSeeds * static_cast<std::size_t>(maxStatesPerSeed_) ||
@@ -153,7 +176,9 @@ void ViskoresFieldLineTracer::traceLines(
   if (outputMode_ == ViskoresOutputMode::Punctures)
   {
     ViskoresTracePuncturesWorklet worklet(maxTraceStatesPerSeed_,
-                                          maxPuncPerSeed_, options_.direction);
+                                          maxPuncPerSeed_, options_.direction,
+                                          options_.punctureDetection,
+                                          options_.punctureRefinement);
     viskores::cont::Invoker invoker;
 
     auto seedHandle =
@@ -165,6 +190,10 @@ void ViskoresFieldLineTracer::traceLines(
     viskores::cont::ArrayHandle<viskores::Id> batchTrajectoryCounts;
     viskores::cont::ArrayHandle<viskores::Id> batchPunctureCounts;
     viskores::cont::ArrayHandle<CodeXViskoresFloat> batchConnectionLengths;
+    viskores::cont::ArrayHandle<viskores::Id> batchSignChangeCounts;
+    viskores::cont::ArrayHandle<viskores::Id> batchRefinementIterations;
+    viskores::cont::ArrayHandle<viskores::Id> batchDedupRejectCounts;
+    viskores::cont::ArrayHandle<viskores::Id> batchYRejectCounts;
     viskores::cont::ArrayHandle<PuncturePoint> batchPunctures;
 
     batchStateCounts.Allocate(seedHandle.GetNumberOfValues());
@@ -173,6 +202,10 @@ void ViskoresFieldLineTracer::traceLines(
     batchTrajectoryCounts.Allocate(seedHandle.GetNumberOfValues());
     batchPunctureCounts.Allocate(seedHandle.GetNumberOfValues());
     batchConnectionLengths.Allocate(seedHandle.GetNumberOfValues());
+    batchSignChangeCounts.Allocate(seedHandle.GetNumberOfValues());
+    batchRefinementIterations.Allocate(seedHandle.GetNumberOfValues());
+    batchDedupRejectCounts.Allocate(seedHandle.GetNumberOfValues());
+    batchYRejectCounts.Allocate(seedHandle.GetNumberOfValues());
     batchPunctures.Allocate(seedHandle.GetNumberOfValues() *
                             static_cast<viskores::Id>(maxPuncPerSeed_));
 
@@ -182,7 +215,9 @@ void ViskoresFieldLineTracer::traceLines(
     deviceTimer.Start();
     invoker(worklet, seedHandle, field, batchStateCounts, batchEndRegions,
             batchStatusCodes, batchTrajectoryCounts, batchPunctureCounts,
-            batchConnectionLengths, batchPunctures);
+            batchConnectionLengths, batchSignChangeCounts,
+            batchRefinementIterations, batchDedupRejectCounts,
+            batchYRejectCounts, batchPunctures);
     deviceTimer.Stop();
     if (deviceInvokeSeconds != nullptr)
       *deviceInvokeSeconds = static_cast<double>(deviceTimer.GetElapsedTime());
@@ -195,6 +230,11 @@ void ViskoresFieldLineTracer::traceLines(
     const auto trajectoryCountPortal = batchTrajectoryCounts.ReadPortal();
     const auto punctureCountPortal = batchPunctureCounts.ReadPortal();
     const auto connectionLengthPortal = batchConnectionLengths.ReadPortal();
+    const auto signChangeCountPortal = batchSignChangeCounts.ReadPortal();
+    const auto refinementIterationPortal =
+        batchRefinementIterations.ReadPortal();
+    const auto dedupRejectPortal = batchDedupRejectCounts.ReadPortal();
+    const auto yRejectPortal = batchYRejectCounts.ReadPortal();
     const auto puncturePortal = batchPunctures.ReadPortal();
 
     for (std::size_t batchIdx = 0; batchIdx < seeds.size(); ++batchIdx)
@@ -224,6 +264,21 @@ void ViskoresFieldLineTracer::traceLines(
                                maxPuncPerSeed_));
       connectionLengthPerSeed[globalSeedIndex] = static_cast<double>(
           connectionLengthPortal.Get(static_cast<viskores::Id>(batchIdx)));
+      if (diagnostics != nullptr)
+      {
+        diagnostics->signChangeCandidatesPerSeed[globalSeedIndex] =
+            static_cast<int>(
+                signChangeCountPortal.Get(static_cast<viskores::Id>(batchIdx)));
+        diagnostics->refinementIterationsPerSeed[globalSeedIndex] =
+            static_cast<int>(refinementIterationPortal.Get(
+                static_cast<viskores::Id>(batchIdx)));
+        diagnostics->dedupRejectsPerSeed[globalSeedIndex] =
+            static_cast<int>(
+                dedupRejectPortal.Get(static_cast<viskores::Id>(batchIdx)));
+        diagnostics->yRejectsPerSeed[globalSeedIndex] =
+            static_cast<int>(
+                yRejectPortal.Get(static_cast<viskores::Id>(batchIdx)));
+      }
       clearSeedPunctureValid(outputs, globalSeedIndex, maxPuncPerSeed_);
 
       const int statusCode = static_cast<int>(

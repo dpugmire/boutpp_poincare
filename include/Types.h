@@ -65,6 +65,16 @@ struct TraceOptions
   int direction = 1;
   int npMax = 100;
   int maxSteps = 0; // <=0 => auto cap: kDefaultMaxStepsPerPuncture * npMax
+  bool punctureDetection = true;
+  bool punctureRefinement = true;
+};
+
+struct TraceDiagnostics
+{
+  std::vector<int> signChangeCandidatesPerSeed;
+  std::vector<int> refinementIterationsPerSeed;
+  std::vector<int> dedupRejectsPerSeed;
+  std::vector<int> yRejectsPerSeed;
 };
 
 struct ValidationCase

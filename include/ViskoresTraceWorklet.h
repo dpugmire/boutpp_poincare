@@ -1172,9 +1172,12 @@ public:
   using FloatType = CodeXViskoresFloat;
 
   ViskoresTracePuncturesWorklet(viskores::Id maxStatesPerSeed,
-                                viskores::Id maxPuncPerSeed, int direction)
+                                viskores::Id maxPuncPerSeed, int direction,
+                                bool punctureDetection,
+                                bool punctureRefinement)
       : maxStatesPerSeed_(maxStatesPerSeed), maxPuncPerSeed_(maxPuncPerSeed),
-        direction_(direction)
+        direction_(direction), punctureDetection_(punctureDetection),
+        punctureRefinement_(punctureRefinement)
   {
   }
 
@@ -1182,20 +1185,26 @@ public:
       void(FieldIn seeds, ExecObject field, WholeArrayOut stateCounts,
            WholeArrayOut endRegions, WholeArrayOut statusCodes,
            WholeArrayOut trajectoryCounts, WholeArrayOut punctureCounts,
-           WholeArrayOut connectionLengths, WholeArrayOut punctures);
+           WholeArrayOut connectionLengths, WholeArrayOut signChangeCounts,
+           WholeArrayOut refinementIterations, WholeArrayOut dedupRejectCounts,
+           WholeArrayOut yRejectCounts, WholeArrayOut punctures);
   using ExecutionSignature = void(InputIndex, _1, _2, _3, _4, _5, _6, _7, _8,
-                                  _9);
+                                  _9, _10, _11, _12, _13);
   using InputDomain = _1;
 
   template <typename FieldExecType, typename IntPortal1, typename IntPortal2,
             typename IntPortal3, typename IntPortal4, typename IntPortal5,
-            typename FloatPortalType, typename PuncturePortalType>
+            typename FloatPortalType, typename IntPortal6, typename IntPortal7,
+            typename IntPortal8, typename IntPortal9,
+            typename PuncturePortalType>
   VISKORES_EXEC void
   operator()(const viskores::Id &idx, const Point3D &seedInd,
              const FieldExecType &field, IntPortal1 &stateCounts,
              IntPortal2 &endRegions, IntPortal3 &statusCodes,
              IntPortal4 &trajectoryCounts, IntPortal5 &punctureCounts,
-             FloatPortalType &connectionLengths,
+             FloatPortalType &connectionLengths, IntPortal6 &signChangeCounts,
+             IntPortal7 &refinementIterations,
+             IntPortal8 &dedupRejectCounts, IntPortal9 &yRejectCounts,
              PuncturePortalType &puncturesOut) const
   {
     stateCounts.Set(idx, 0);
@@ -1204,6 +1213,10 @@ public:
     trajectoryCounts.Set(idx, 0);
     punctureCounts.Set(idx, 0);
     connectionLengths.Set(idx, 0.0);
+    signChangeCounts.Set(idx, 0);
+    refinementIterations.Set(idx, 0);
+    dedupRejectCounts.Set(idx, 0);
+    yRejectCounts.Set(idx, 0);
 
     if (maxStatesPerSeed_ <= 0 || maxPuncPerSeed_ <= 0)
     {
@@ -1247,6 +1260,10 @@ public:
     viskores::Id localStateCount = 0;
     int localPunctureCount = 0;
     FloatType connectionLength = 0.0;
+    int signChangeCandidateCount = 0;
+    int refinementIterationCount = 0;
+    int dedupRejectCount = 0;
+    int yRejectCount = 0;
     FloatType lastFitRoot = -1.0e30;
     const viskores::Id punctureBase = idx * maxPuncPerSeed_;
 
@@ -1262,7 +1279,9 @@ public:
     TrajectoryState prevPrevState = initial;
     TrajectoryState prevState = initial;
     bool havePrevPrevState = false;
-    Point3D prevTrajectory = field.reconstructTrajectoryXYZ(initial);
+    Point3D prevTrajectory;
+    if (punctureDetection_)
+      prevTrajectory = field.reconstructTrajectoryXYZ(initial);
     ++localStateCount;
 
     int iturn = 1;
@@ -1327,8 +1346,9 @@ public:
           ++localStateCount;
           consumeStep(field, prevPrevState, prevState, step, prevTrajectory,
                       havePrevPrevState, localStateCount, connectionLength,
-                      localPunctureCount, lastFitRoot, punctureBase,
-                      puncturesOut);
+                      localPunctureCount, signChangeCandidateCount,
+                      refinementIterationCount, dedupRejectCount, yRejectCount,
+                      lastFitRoot, punctureBase, puncturesOut);
 
           current = next;
           yStart = yEnd;
@@ -1391,8 +1411,9 @@ public:
           ++localStateCount;
           consumeStep(field, prevPrevState, prevState, step, prevTrajectory,
                       havePrevPrevState, localStateCount, connectionLength,
-                      localPunctureCount, lastFitRoot, punctureBase,
-                      puncturesOut);
+                      localPunctureCount, signChangeCandidateCount,
+                      refinementIterationCount, dedupRejectCount, yRejectCount,
+                      lastFitRoot, punctureBase, puncturesOut);
 
           current = next;
           yStart = yEnd;
@@ -1411,6 +1432,10 @@ public:
     trajectoryCounts.Set(idx, 0);
     punctureCounts.Set(idx, localPunctureCount);
     connectionLengths.Set(idx, connectionLength);
+    signChangeCounts.Set(idx, signChangeCandidateCount);
+    refinementIterations.Set(idx, refinementIterationCount);
+    dedupRejectCounts.Set(idx, dedupRejectCount);
+    yRejectCounts.Set(idx, yRejectCount);
     if (region < 10)
     {
       statusCodes.Set(
@@ -1503,7 +1528,9 @@ private:
       bool havePrevPrevState, const TrajectoryState &s0,
       const TrajectoryState &s1, const Point3D &prevTrajectory,
       const Point3D &currentTrajectory, viskores::Id stateCount,
-      int &punctureCount, FloatType &lastFitRoot, viskores::Id punctureBase,
+      int &punctureCount, int &signChangeCandidateCount,
+      int &refinementIterationCount, int &dedupRejectCount, int &yRejectCount,
+      FloatType &lastFitRoot, viskores::Id punctureBase,
       PuncturePortalType &puncturesOut) const
   {
     if (punctureCount >= static_cast<int>(maxPuncPerSeed_))
@@ -1515,6 +1542,7 @@ private:
     const FloatType xCurr = currentTrajectory.x;
     if (!hasSignChange(xPrev, xCurr))
       return;
+    ++signChangeCandidateCount;
 
     FloatType alpha = 0.5;
     const FloatType denom = xCurr - xPrev;
@@ -1532,7 +1560,7 @@ private:
     constexpr FloatType alphaTol = 1.0e-6;
     constexpr int maxIter = 10;
 
-    if (bestAbsX > xTol)
+    if (punctureRefinement_ && bestAbsX > xTol)
     {
       FloatType aLeft = 0.0;
       FloatType aRight = 1.0;
@@ -1562,6 +1590,7 @@ private:
         {
           if ((aRight - aLeft) <= alphaTol)
             break;
+          ++refinementIterationCount;
 
           FloatType aNext = 0.5 * (aLeft + aRight);
           const FloatType secantDenom = fRight - fLeft;
@@ -1606,10 +1635,16 @@ private:
     const FloatType fitRoot = static_cast<FloatType>(stateCount - 1) + alpha;
     constexpr FloatType dedupEps = 1.0e-5;
     if (std::fabs(fitRoot - lastFitRoot) < dedupEps)
+    {
+      ++dedupRejectCount;
       return;
+    }
 
     if (crossing.xyz.y <= 0.0)
+    {
+      ++yRejectCount;
       return;
+    }
 
     PuncturePoint puncture;
     puncture.xyz = crossing.xyz;
@@ -1635,9 +1670,19 @@ private:
               TrajectoryState &prevState, const TrajectoryState &currentState,
               Point3D &prevTrajectory, bool &havePrevPrevState,
               viskores::Id stateCount, FloatType &connectionLength,
-              int &punctureCount, FloatType &lastFitRoot,
+              int &punctureCount, int &signChangeCandidateCount,
+              int &refinementIterationCount, int &dedupRejectCount,
+              int &yRejectCount, FloatType &lastFitRoot,
               viskores::Id punctureBase, PuncturePortalType &puncturesOut) const
   {
+    if (!punctureDetection_)
+    {
+      prevPrevState = prevState;
+      prevState = currentState;
+      havePrevPrevState = true;
+      return;
+    }
+
     const Point3D currentTrajectory =
         field.reconstructTrajectoryXYZ(currentState);
     const FloatType dx =
@@ -1651,7 +1696,10 @@ private:
     tryDetectPunctureOnLastSegment(field, prevPrevState, havePrevPrevState,
                                    prevState, currentState, prevTrajectory,
                                    currentTrajectory, stateCount, punctureCount,
-                                   lastFitRoot, punctureBase, puncturesOut);
+                                   signChangeCandidateCount,
+                                   refinementIterationCount, dedupRejectCount,
+                                   yRejectCount, lastFitRoot, punctureBase,
+                                   puncturesOut);
 
     prevPrevState = prevState;
     prevState = currentState;
@@ -1696,6 +1744,8 @@ private:
   viskores::Id maxStatesPerSeed_ = 1;
   viskores::Id maxPuncPerSeed_ = 1;
   int direction_ = 1;
+  bool punctureDetection_ = true;
+  bool punctureRefinement_ = true;
 };
 
 #endif

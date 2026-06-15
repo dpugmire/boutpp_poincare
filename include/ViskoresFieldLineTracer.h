@@ -47,7 +47,8 @@ public:
                   std::vector<int> &punctureCountPerSeed,
                   std::vector<TraceStatus> &traceStatuses,
                   double *deviceInvokeSeconds = nullptr,
-                  double *hostPostprocessSeconds = nullptr) const;
+                  double *hostPostprocessSeconds = nullptr,
+                  TraceDiagnostics *diagnostics = nullptr) const;
 
 private:
   const AparData &data_;

@@ -275,6 +275,22 @@ Large Frontier runs print only aggregate trace summaries by default. Add
 `--per-seed-log` to print the rank-ordered seed IDs and one trace-result line
 per seed for debugging small runs.
 
+The aggregate trace summary includes step counts, end-region counts, puncture
+cap hits, and compact Viskores puncture diagnostics. Use these switches to
+separate RK4/interpolation cost from puncture bookkeeping:
+
+```sh
+# Keep detection, but skip the iterative crossing refinement.
+--puncture-refine off
+
+# Run only the compact Viskores RK4/region loop. This disables connection
+# length accumulation and writes no punctures, so use it only for timing.
+--puncture-detection off
+```
+
+For GPU timing on Frontier, compare the same seed count and `--max-steps` with
+the default, `--puncture-refine off`, and `--puncture-detection off`.
+
 
 ## tests
 

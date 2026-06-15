@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <chrono>
 #include <cmath>
@@ -276,6 +277,10 @@ void printUsage(const char *prog)
                "(default: serial)\n"
             << "  --viskores-output MODE viskores output mode: "
                "punctures|states (default: punctures)\n"
+            << "  --puncture-detection MODE compact Viskores puncture "
+               "detection: on|off (default: on)\n"
+            << "  --puncture-refine MODE compact Viskores puncture "
+               "refinement: on|off (default: on)\n"
             << "  --per-seed-log       print one trace-result line per seed "
                "(default: off)\n"
             << "  --compare             enable MATLAB comparison mode (default "
@@ -418,24 +423,60 @@ TraceStatus traceStatusFromSummaryIndex(int index)
 
 void printTraceResultSummary(
     const MpiRuntime &mpi, const std::vector<TraceStatus> &traceStatusPerSeed,
+    const std::vector<int> &stateCountPerSeed,
+    const std::vector<int> &endRegionPerSeed,
     const std::vector<int> &punctureCountPerSeed,
-    const std::vector<double> &connectionLengthPerSeed)
+    const std::vector<double> &connectionLengthPerSeed, int maxPuncPerSeed,
+    const TraceDiagnostics *diagnostics)
 {
   constexpr int kStatusCount = 5;
+  constexpr int kEndRegionOtherSlot = 100;
+  constexpr int kEndRegionSlotCount = kEndRegionOtherSlot + 1;
   long long localStatusCounts[kStatusCount] = {};
+  std::array<long long, kEndRegionSlotCount> localEndRegionCounts = {};
+  long long localStepTotal = 0;
+  int localStepMin = std::numeric_limits<int>::max();
+  int localStepMax = 0;
   long long localPunctureTotal = 0;
   int localPunctureMin = std::numeric_limits<int>::max();
   int localPunctureMax = 0;
+  long long localPunctureCapHits = 0;
   long long localLengthCount = 0;
   double localLengthTotal = 0.0;
   double localLengthMin = std::numeric_limits<double>::infinity();
   double localLengthMax = -std::numeric_limits<double>::infinity();
+  long long localSignChangeCandidates = 0;
+  long long localRefinementIterations = 0;
+  long long localDedupRejects = 0;
+  long long localYRejects = 0;
+  const bool haveDiagnostics =
+      diagnostics != nullptr &&
+      diagnostics->signChangeCandidatesPerSeed.size() >=
+          traceStatusPerSeed.size() &&
+      diagnostics->refinementIterationsPerSeed.size() >=
+          traceStatusPerSeed.size() &&
+      diagnostics->dedupRejectsPerSeed.size() >= traceStatusPerSeed.size() &&
+      diagnostics->yRejectsPerSeed.size() >= traceStatusPerSeed.size();
 
   for (std::size_t i = 0; i < traceStatusPerSeed.size(); ++i)
   {
     const int statusIndex = traceStatusSummaryIndex(traceStatusPerSeed[i]);
     if (statusIndex >= 0 && statusIndex < kStatusCount)
       ++localStatusCounts[statusIndex];
+
+    const int stateCount =
+        (i < stateCountPerSeed.size()) ? std::max(0, stateCountPerSeed[i]) : 0;
+    const int stepCount = std::max(0, stateCount - 1);
+    localStepTotal += static_cast<long long>(stepCount);
+    localStepMin = std::min(localStepMin, stepCount);
+    localStepMax = std::max(localStepMax, stepCount);
+
+    const int endRegion = (i < endRegionPerSeed.size()) ? endRegionPerSeed[i] : 0;
+    const int endRegionSlot =
+        (endRegion >= 0 && endRegion < kEndRegionOtherSlot)
+            ? endRegion
+            : kEndRegionOtherSlot;
+    ++localEndRegionCounts[static_cast<std::size_t>(endRegionSlot)];
 
     const int punctureCount =
         (i < punctureCountPerSeed.size())
@@ -444,6 +485,8 @@ void printTraceResultSummary(
     localPunctureTotal += static_cast<long long>(punctureCount);
     localPunctureMin = std::min(localPunctureMin, punctureCount);
     localPunctureMax = std::max(localPunctureMax, punctureCount);
+    if (maxPuncPerSeed > 0 && punctureCount >= maxPuncPerSeed)
+      ++localPunctureCapHits;
 
     if (i < connectionLengthPerSeed.size() &&
         std::isfinite(connectionLengthPerSeed[i]))
@@ -453,6 +496,16 @@ void printTraceResultSummary(
       localLengthMin = std::min(localLengthMin, connectionLengthPerSeed[i]);
       localLengthMax = std::max(localLengthMax, connectionLengthPerSeed[i]);
     }
+
+    if (haveDiagnostics)
+    {
+      localSignChangeCandidates +=
+          std::max(0, diagnostics->signChangeCandidatesPerSeed[i]);
+      localRefinementIterations +=
+          std::max(0, diagnostics->refinementIterationsPerSeed[i]);
+      localDedupRejects += std::max(0, diagnostics->dedupRejectsPerSeed[i]);
+      localYRejects += std::max(0, diagnostics->yRejectsPerSeed[i]);
+    }
   }
 
   const long long globalSeedCount =
@@ -461,15 +514,35 @@ void printTraceResultSummary(
   for (int i = 0; i < kStatusCount; ++i)
     globalStatusCounts[i] = mpi.allreduceSumLongLong(localStatusCounts[i]);
 
+  std::array<long long, kEndRegionSlotCount> globalEndRegionCounts = {};
+  for (int i = 0; i < kEndRegionSlotCount; ++i)
+  {
+    globalEndRegionCounts[static_cast<std::size_t>(i)] =
+        mpi.allreduceSumLongLong(
+            localEndRegionCounts[static_cast<std::size_t>(i)]);
+  }
+
+  const long long globalStepTotal = mpi.allreduceSumLongLong(localStepTotal);
+  const int globalStepMin = mpi.allreduceMinInt(localStepMin);
+  const int globalStepMax = mpi.allreduceMaxInt(localStepMax);
   const long long globalPunctureTotal =
       mpi.allreduceSumLongLong(localPunctureTotal);
   const int globalPunctureMin = mpi.allreduceMinInt(localPunctureMin);
   const int globalPunctureMax = mpi.allreduceMaxInt(localPunctureMax);
+  const long long globalPunctureCapHits =
+      mpi.allreduceSumLongLong(localPunctureCapHits);
   const long long globalLengthCount =
       mpi.allreduceSumLongLong(localLengthCount);
   const double globalLengthTotal = mpi.allreduceSumDouble(localLengthTotal);
   const double globalLengthMin = mpi.allreduceMinDouble(localLengthMin);
   const double globalLengthMax = mpi.allreduceMaxDouble(localLengthMax);
+  const long long globalSignChangeCandidates =
+      mpi.allreduceSumLongLong(localSignChangeCandidates);
+  const long long globalRefinementIterations =
+      mpi.allreduceSumLongLong(localRefinementIterations);
+  const long long globalDedupRejects =
+      mpi.allreduceSumLongLong(localDedupRejects);
+  const long long globalYRejects = mpi.allreduceSumLongLong(localYRejects);
 
   if (mpi.rank != 0)
     return;
@@ -488,6 +561,35 @@ void printTraceResultSummary(
               << std::setprecision(2) << percent << "%)\n";
   }
 
+  const double averageSteps =
+      (globalSeedCount > 0)
+          ? (static_cast<double>(globalStepTotal) /
+             static_cast<double>(globalSeedCount))
+          : 0.0;
+  const int printedStepMin = (globalSeedCount > 0) ? globalStepMin : 0;
+  std::cout << "  steps/seed: min=" << printedStepMin
+            << ", max=" << globalStepMax << ", avg=" << std::fixed
+            << std::setprecision(3) << averageSteps
+            << ", total=" << globalStepTotal << "\n";
+
+  std::cout << "  end-regions:";
+  bool printedRegion = false;
+  for (int i = 0; i < kEndRegionSlotCount; ++i)
+  {
+    const long long count =
+        globalEndRegionCounts[static_cast<std::size_t>(i)];
+    if (count == 0)
+      continue;
+    if (i == kEndRegionOtherSlot)
+      std::cout << " other=" << count;
+    else
+      std::cout << " " << i << "=" << count;
+    printedRegion = true;
+  }
+  if (!printedRegion)
+    std::cout << " none";
+  std::cout << "\n";
+
   const double averagePunctures =
       (globalSeedCount > 0)
           ? (static_cast<double>(globalPunctureTotal) /
@@ -499,6 +601,13 @@ void printTraceResultSummary(
             << ", max=" << globalPunctureMax << ", avg=" << std::fixed
             << std::setprecision(3) << averagePunctures
             << ", total=" << globalPunctureTotal << "\n";
+  const double capHitPercent =
+      (globalSeedCount > 0)
+          ? (100.0 * static_cast<double>(globalPunctureCapHits) /
+             static_cast<double>(globalSeedCount))
+          : 0.0;
+  std::cout << "  puncture cap hits: " << globalPunctureCapHits << " ("
+            << std::fixed << std::setprecision(2) << capHitPercent << "%)\n";
 
   if (globalLengthCount > 0)
   {
@@ -511,6 +620,25 @@ void printTraceResultSummary(
       std::cout << " (" << globalLengthCount << " finite)";
     std::cout << "\n";
   }
+
+  if (haveDiagnostics)
+  {
+    std::cout << "  puncture diagnostics: sign-change-candidates="
+              << globalSignChangeCandidates
+              << ", accepted=" << globalPunctureTotal
+              << ", refinement-iterations=" << globalRefinementIterations;
+    if (globalSignChangeCandidates > 0)
+    {
+      const double averageRefinementIterations =
+          static_cast<double>(globalRefinementIterations) /
+          static_cast<double>(globalSignChangeCandidates);
+      std::cout << ", refine-iter/candidate=" << std::fixed
+                << std::setprecision(3) << averageRefinementIterations;
+    }
+    std::cout << "\n";
+    std::cout << "  puncture rejects: dedup=" << globalDedupRejects
+              << ", y<=0=" << globalYRejects << "\n";
+  }
 }
 
 std::string toLowerAscii(std::string text)
@@ -518,6 +646,21 @@ std::string toLowerAscii(std::string text)
   std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c)
                  { return static_cast<char>(std::tolower(c)); });
   return text;
+}
+
+bool parseOnOffChoice(const std::string &valueLower, bool &enabled)
+{
+  if (valueLower == "on" || valueLower == "true" || valueLower == "1")
+  {
+    enabled = true;
+    return true;
+  }
+  if (valueLower == "off" || valueLower == "false" || valueLower == "0")
+  {
+    enabled = false;
+    return true;
+  }
+  return false;
 }
 
 bool isSupportedViskoresDeviceChoice(const std::string &valueLower)
@@ -760,6 +903,32 @@ bool parseCommandLineArguments(int argc, char **argv, const MpiRuntime &mpi,
       options.viskoresOutputModeSpecified = true;
       continue;
     }
+    if (arg == "--puncture-detection" && i + 1 < argc)
+    {
+      bool enabled = true;
+      const std::string valueLower = toLowerAscii(argv[++i]);
+      if (!parseOnOffChoice(valueLower, enabled))
+      {
+        if (mpi.rank == 0)
+          std::cerr << "Error: --puncture-detection must be on|off\n";
+        return false;
+      }
+      options.config.traceOptions.punctureDetection = enabled;
+      continue;
+    }
+    if (arg == "--puncture-refine" && i + 1 < argc)
+    {
+      bool enabled = true;
+      const std::string valueLower = toLowerAscii(argv[++i]);
+      if (!parseOnOffChoice(valueLower, enabled))
+      {
+        if (mpi.rank == 0)
+          std::cerr << "Error: --puncture-refine must be on|off\n";
+        return false;
+      }
+      options.config.traceOptions.punctureRefinement = enabled;
+      continue;
+    }
     if (arg == "--compare")
     {
       options.doCompare = true;
@@ -939,7 +1108,8 @@ std::string viskoresPrecisionName()
 
 void printTraceBackendSelection(const MpiRuntime &mpi, TraceEngine traceEngine,
                                 const std::string &viskoresDevice,
-                                const std::string &viskoresOutputMode)
+                                const std::string &viskoresOutputMode,
+                                const TraceOptions &traceOptions)
 {
   const bool viskoresActive = (traceEngine == TraceEngine::Viskores);
 
@@ -952,6 +1122,10 @@ void printTraceBackendSelection(const MpiRuntime &mpi, TraceEngine traceEngine,
                 << traceEngineName(traceEngine)
                 << ", viskores-device=" << viskoresDevice
                 << ", viskores-output=" << viskoresOutputMode
+                << ", puncture-detection="
+                << (traceOptions.punctureDetection ? "on" : "off")
+                << ", puncture-refine="
+                << (traceOptions.punctureRefinement ? "on" : "off")
                 << ", viskores-active=" << (viskoresActive ? "yes" : "no");
       if (!viskoresActive)
         std::cout << " (device ignored unless --trace-engine viskores)";
@@ -1300,9 +1474,10 @@ void traceLocalTasksForDivertorViskores(
     std::vector<TraceStatus> &traceStatusPerSeed,
     std::vector<TrajectoryState> &states, std::vector<Point3D> &trajectories,
     std::vector<PuncturePoint> &punctures,
-    std::vector<std::uint8_t> &punctureValid, bool perSeedLog,
-    double &localDeviceInvokeSeconds, double &localHostPostprocessSeconds,
-    bool &localFatal, std::string &localFatalMsg)
+    std::vector<std::uint8_t> &punctureValid, TraceDiagnostics *diagnostics,
+    bool perSeedLog, double &localDeviceInvokeSeconds,
+    double &localHostPostprocessSeconds, bool &localFatal,
+    std::string &localFatalMsg)
 {
   ViskoresFieldLineTracer tracer(data, config.traceOptions, viskoresOutputMode);
 
@@ -1340,7 +1515,7 @@ void traceLocalTasksForDivertorViskores(
       makeTraceOutputViews(states, trajectories, punctures, &punctureValid),
       ilinePerSeed, endRegionPerSeed, connectionLengthPerSeed,
       stateCountPerSeed, trajCountPerSeed, punctureCountPerSeed, traceStatuses,
-      &batchDeviceInvokeSeconds, &batchHostPostprocessSeconds);
+      &batchDeviceInvokeSeconds, &batchHostPostprocessSeconds, diagnostics);
   localDeviceInvokeSeconds += batchDeviceInvokeSeconds;
   localHostPostprocessSeconds += batchHostPostprocessSeconds;
 
@@ -1476,11 +1651,32 @@ int main(int argc, char **argv)
   }
 #endif
 
+  const bool usesPunctureDiagnosticShortcut =
+      !config.traceOptions.punctureDetection ||
+      !config.traceOptions.punctureRefinement;
+  if (usesPunctureDiagnosticShortcut && traceEngine != TraceEngine::Viskores)
+  {
+    if (mpi.rank == 0)
+      std::cerr << "Error: --puncture-detection off / "
+                   "--puncture-refine off are only supported with "
+                   "--trace-engine viskores\n";
+    return 1;
+  }
+  if (usesPunctureDiagnosticShortcut &&
+      viskoresOutputModeChoice != "punctures")
+  {
+    if (mpi.rank == 0)
+      std::cerr << "Error: puncture diagnostic shortcuts require "
+                   "--viskores-output punctures\n";
+    return 1;
+  }
+
   try
   {
     const SteadyClock::time_point totalStart = SteadyClock::now();
     printTraceBackendSelection(mpi, traceEngine, viskoresDevice,
-                               viskoresOutputModeChoice);
+                               viskoresOutputModeChoice,
+                               config.traceOptions);
 
     if (doCompare && mpi.size > 1)
     {
@@ -1632,6 +1828,15 @@ int main(int argc, char **argv)
     std::vector<std::uint8_t> punctureValid(
         localTaskCount * static_cast<size_t>(maxPuncPerSeed),
         static_cast<std::uint8_t>(0));
+    TraceDiagnostics traceDiagnostics;
+    traceDiagnostics.signChangeCandidatesPerSeed.assign(localTaskCount, 0);
+    traceDiagnostics.refinementIterationsPerSeed.assign(localTaskCount, 0);
+    traceDiagnostics.dedupRejectsPerSeed.assign(localTaskCount, 0);
+    traceDiagnostics.yRejectsPerSeed.assign(localTaskCount, 0);
+    TraceDiagnostics *traceDiagnosticsForSummary =
+        (traceEngine == TraceEngine::Viskores && compactViskoresOutput)
+            ? &traceDiagnostics
+            : nullptr;
 
     bool localFatal = false;
     std::string localFatalMsg;
@@ -1653,8 +1858,8 @@ int main(int argc, char **argv)
           ilinePerSeed, endRegionPerSeed, connectionLengthPerSeed,
           stateCountPerSeed, trajCountPerSeed, punctureCountPerSeed,
           traceStatusPerSeed, states, trajectories, punctures, punctureValid,
-          perSeedLog, localDeviceInvokeSeconds, localHostPostprocessSeconds,
-          localFatal, localFatalMsg);
+          traceDiagnosticsForSummary, perSeedLog, localDeviceInvokeSeconds,
+          localHostPostprocessSeconds, localFatal, localFatalMsg);
 #endif
 
     if (doCirc && !localFatal && traceEngine != TraceEngine::Viskores)
@@ -1671,9 +1876,9 @@ int main(int argc, char **argv)
           maxStatesPerSeed, maxTrajPerSeed, maxPuncPerSeed, ilinePerSeed,
           endRegionPerSeed, connectionLengthPerSeed, stateCountPerSeed,
           trajCountPerSeed, punctureCountPerSeed, traceStatusPerSeed, states,
-          trajectories, punctures, punctureValid, perSeedLog,
-          localDeviceInvokeSeconds, localHostPostprocessSeconds, localFatal,
-          localFatalMsg);
+          trajectories, punctures, punctureValid, traceDiagnosticsForSummary,
+          perSeedLog, localDeviceInvokeSeconds, localHostPostprocessSeconds,
+          localFatal, localFatalMsg);
 #endif
 
     const int anyFatal = mpi.allreduceMaxInt(localFatal ? 1 : 0);
@@ -1693,8 +1898,10 @@ int main(int argc, char **argv)
                                                : -1.0;
     const char *traceTimingLabel =
         (traceEngine == TraceEngine::Viskores) ? "device-invoke" : "trace";
-    printTraceResultSummary(mpi, traceStatusPerSeed, punctureCountPerSeed,
-                            connectionLengthPerSeed);
+    printTraceResultSummary(mpi, traceStatusPerSeed, stateCountPerSeed,
+                            endRegionPerSeed, punctureCountPerSeed,
+                            connectionLengthPerSeed, maxPuncPerSeed,
+                            traceDiagnosticsForSummary);
 
     const SteadyClock::time_point outputStart = SteadyClock::now();
     PoincareOutput output;
