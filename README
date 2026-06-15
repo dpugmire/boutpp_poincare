@@ -271,6 +271,10 @@ cmake \
   ..
 ```
 
+Large Frontier runs print only aggregate trace summaries by default. Add
+`--per-seed-log` to print the rank-ordered seed IDs and one trace-result line
+per seed for debugging small runs.
+
 
 ## tests
 
