@@ -289,8 +289,12 @@ def run_minimal(gridFile, aparFile, zperiod, timeStep, outputFile,
         apar = np.asarray(mat["apar"]).astype(float)
     elif ('.npy' in aparFile) :
         print("Loading A_parallel from .npy ...")
-        apar = np.load(aparfile)
-        apar = apar[...,timeStep]
+        apar_all = np.load(aparfile, mmap_mode="r")
+        if apar_all.ndim < 4:
+            raise ValueError(f"{aparFile} does not contain a 4D array (got {apar_all.ndim}D)")
+        if timeStep < 0 or timeStep >= apar_all.shape[-1]:
+            raise ValueError(f"time_step={timeStep} is out of range (0..{apar_all.shape[-1] - 1})")
+        apar = np.asarray(apar_all[..., timeStep], dtype=float)
 
     if apar.ndim != 3:
         raise ValueError(f"apar has unexpected shape {apar.shape}")
