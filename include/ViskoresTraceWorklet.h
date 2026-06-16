@@ -1066,17 +1066,42 @@ public:
     return interp1(xiarray, xarray, xind);
   }
 
-  VISKORES_EXEC void evaluateStage(const XZPoint &point, int yStart1b,
-                                   int region, int direction, int stage,
-                                   XZDeriv &deriv) const
+  VISKORES_EXEC void setDerivPair(FloatType dx, FloatType dz,
+                                  XZDeriv &deriv) const
   {
-    stage = clampInt(stage, 0, 2);
+    deriv.dxdy = dx;
+    deriv.dzdy = dz;
+  }
 
-    int yp = clampInt(yStart1b - 1, 0, ny - 1);
+  VISKORES_EXEC void zeroDeriv(XZDeriv &deriv) const
+  {
+    deriv.dxdy = 0.0;
+    deriv.dzdy = 0.0;
+  }
 
+  VISKORES_EXEC void evaluateStage0(const XZPoint &point, int yStart1b,
+                                    int direction, XZDeriv &deriv) const
+  {
+    if (direction != 1 && direction != -1)
+    {
+      zeroDeriv(deriv);
+      return;
+    }
+
+    const int yp = clampInt(yStart1b - 1, 0, ny - 1);
+    FloatType dxOut = 0.0;
+    FloatType dzOut = 0.0;
+    interpXZ3DPairAtYSpline(dxdy, dzdy, yp, point.x, point.z, dxOut, dzOut);
+    setDerivPair(dxOut, dzOut, deriv);
+  }
+
+  VISKORES_EXEC void evaluateStage2(const XZPoint &point, int yStart1b,
+                                    int region, int direction,
+                                    XZDeriv &deriv) const
+  {
+    int yn = clampInt(yStart1b - 1, 0, ny - 1);
     bool useTwist = false;
     bool usePlus = false;
-    int yn = yp;
 
     if (direction == 1)
     {
@@ -1104,53 +1129,64 @@ public:
     }
     else
     {
-      deriv.dxdy = 0.0;
-      deriv.dzdy = 0.0;
+      zeroDeriv(deriv);
       return;
     }
 
-    if (stage == 0)
+    FloatType dxOut = 0.0;
+    FloatType dzOut = 0.0;
+    if (useTwist)
     {
-      FloatType dxOut = 0.0;
-      FloatType dzOut = 0.0;
-      interpXZ3DPairAtYSpline(dxdy, dzdy, yp, point.x, point.z, dxOut, dzOut);
-      deriv.dxdy = dxOut;
-      deriv.dzdy = dzOut;
-      return;
+      if (usePlus)
+        interpXZ2DPairSpline(dxdy_p1, dzdy_p1, point.x, point.z, dxOut,
+                             dzOut);
+      else
+        interpXZ2DPairSpline(dxdy_m1, dzdy_m1, point.x, point.z, dxOut,
+                             dzOut);
     }
-
-    if (stage == 2)
+    else
     {
-      if (useTwist)
+      interpXZ3DPairAtYSpline(dxdy, dzdy, yn, point.x, point.z, dxOut, dzOut);
+    }
+    setDerivPair(dxOut, dzOut, deriv);
+  }
+
+  VISKORES_EXEC void evaluateStageMid(const XZPoint &point, int yStart1b,
+                                      int region, int direction,
+                                      XZDeriv &deriv) const
+  {
+    const int yp = clampInt(yStart1b - 1, 0, ny - 1);
+    int yn = yp;
+    bool useTwist = false;
+    bool usePlus = false;
+
+    if (direction == 1)
+    {
+      if (region == 0 && yStart1b == nypf2)
       {
-        if (usePlus)
-        {
-          FloatType dxOut = 0.0;
-          FloatType dzOut = 0.0;
-          interpXZ2DPairSpline(dxdy_p1, dzdy_p1, point.x, point.z, dxOut,
-                               dzOut);
-          deriv.dxdy = dxOut;
-          deriv.dzdy = dzOut;
-        }
-        else
-        {
-          FloatType dxOut = 0.0;
-          FloatType dzOut = 0.0;
-          interpXZ2DPairSpline(dxdy_m1, dzdy_m1, point.x, point.z, dxOut,
-                               dzOut);
-          deriv.dxdy = dxOut;
-          deriv.dzdy = dzOut;
-        }
+        useTwist = true;
+        usePlus = true;
       }
       else
       {
-        FloatType dxOut = 0.0;
-        FloatType dzOut = 0.0;
-        interpXZ3DPairAtYSpline(dxdy, dzdy, yn, point.x, point.z, dxOut,
-                                 dzOut);
-        deriv.dxdy = dxOut;
-        deriv.dzdy = dzOut;
+        yn = clampInt(yStart1b, 0, ny - 1);
       }
+    }
+    else if (direction == -1)
+    {
+      if (region == 0 && yStart1b == (nypf1 + 1))
+      {
+        useTwist = true;
+        usePlus = false;
+      }
+      else
+      {
+        yn = clampInt(yStart1b - 2, 0, ny - 1);
+      }
+    }
+    else
+    {
+      zeroDeriv(deriv);
       return;
     }
 
@@ -1163,21 +1199,37 @@ public:
     if (useTwist)
     {
       if (usePlus)
-      {
         interpXZ2DPairSpline(dxdy_p1, dzdy_p1, point.x, point.z, dxN, dzN);
-      }
       else
-      {
         interpXZ2DPairSpline(dxdy_m1, dzdy_m1, point.x, point.z, dxN, dzN);
-      }
     }
     else
     {
       interpXZ3DPairAtYSpline(dxdy, dzdy, yn, point.x, point.z, dxN, dzN);
     }
 
-    deriv.dxdy = 0.5 * (dxP + dxN);
-    deriv.dzdy = 0.5 * (dzP + dzN);
+    setDerivPair(0.5 * (dxP + dxN), 0.5 * (dzP + dzN), deriv);
+  }
+
+  VISKORES_EXEC void evaluateStage(const XZPoint &point, int yStart1b,
+                                   int region, int direction, int stage,
+                                   XZDeriv &deriv) const
+  {
+    stage = clampInt(stage, 0, 2);
+
+    if (stage == 0)
+    {
+      evaluateStage0(point, yStart1b, direction, deriv);
+      return;
+    }
+
+    if (stage == 2)
+    {
+      evaluateStage2(point, yStart1b, region, direction, deriv);
+      return;
+    }
+
+    evaluateStageMid(point, yStart1b, region, direction, deriv);
   }
 
   FloatPortal xiarray;
@@ -1577,19 +1629,19 @@ private:
     XZDeriv k3;
     XZDeriv k4;
 
-    field.evaluateStage(start, yStart, region, direction, 0, k1);
+    field.evaluateStage0(start, yStart, direction, k1);
     const XZPoint p1{start.x + direction * hh * k1.dxdy,
                      start.z + direction * hh * k1.dzdy};
 
-    field.evaluateStage(p1, yStart, region, direction, 1, k2);
+    field.evaluateStageMid(p1, yStart, region, direction, k2);
     const XZPoint p2{start.x + direction * hh * k2.dxdy,
                      start.z + direction * hh * k2.dzdy};
 
-    field.evaluateStage(p2, yStart, region, direction, 1, k3);
+    field.evaluateStageMid(p2, yStart, region, direction, k3);
     const XZPoint p3{start.x + direction * k3.dxdy,
                      start.z + direction * k3.dzdy};
 
-    field.evaluateStage(p3, yStart, region, direction, 2, k4);
+    field.evaluateStage2(p3, yStart, region, direction, k4);
 
     end.x = start.x + direction * h6 *
                           (k1.dxdy + 2.0 * k2.dxdy + 2.0 * k3.dxdy + k4.dxdy);
@@ -2121,19 +2173,19 @@ private:
     XZDeriv k3;
     XZDeriv k4;
 
-    field.evaluateStage(start, yStart, region, direction, 0, k1);
+    field.evaluateStage0(start, yStart, direction, k1);
     const XZPoint p1{start.x + direction * hh * k1.dxdy,
                      start.z + direction * hh * k1.dzdy};
 
-    field.evaluateStage(p1, yStart, region, direction, 1, k2);
+    field.evaluateStageMid(p1, yStart, region, direction, k2);
     const XZPoint p2{start.x + direction * hh * k2.dxdy,
                      start.z + direction * hh * k2.dzdy};
 
-    field.evaluateStage(p2, yStart, region, direction, 1, k3);
+    field.evaluateStageMid(p2, yStart, region, direction, k3);
     const XZPoint p3{start.x + direction * k3.dxdy,
                      start.z + direction * k3.dzdy};
 
-    field.evaluateStage(p3, yStart, region, direction, 2, k4);
+    field.evaluateStage2(p3, yStart, region, direction, k4);
 
     end.x = start.x + direction * h6 *
                           (k1.dxdy + 2.0 * k2.dxdy + 2.0 * k3.dxdy + k4.dxdy);
@@ -2353,19 +2405,19 @@ private:
     XZDeriv k3;
     XZDeriv k4;
 
-    field.evaluateStage(start, yStart, region, direction, 0, k1);
+    field.evaluateStage0(start, yStart, direction, k1);
     const XZPoint p1{start.x + direction * hh * k1.dxdy,
                      start.z + direction * hh * k1.dzdy};
 
-    field.evaluateStage(p1, yStart, region, direction, 1, k2);
+    field.evaluateStageMid(p1, yStart, region, direction, k2);
     const XZPoint p2{start.x + direction * hh * k2.dxdy,
                      start.z + direction * hh * k2.dzdy};
 
-    field.evaluateStage(p2, yStart, region, direction, 1, k3);
+    field.evaluateStageMid(p2, yStart, region, direction, k3);
     const XZPoint p3{start.x + direction * k3.dxdy,
                      start.z + direction * k3.dzdy};
 
-    field.evaluateStage(p3, yStart, region, direction, 2, k4);
+    field.evaluateStage2(p3, yStart, region, direction, k4);
 
     end.x = start.x + direction * h6 *
                           (k1.dxdy + 2.0 * k2.dxdy + 2.0 * k3.dxdy + k4.dxdy);
@@ -2932,19 +2984,19 @@ private:
     XZDeriv k3;
     XZDeriv k4;
 
-    field.evaluateStage(start, yStart, region, direction, 0, k1);
+    field.evaluateStage0(start, yStart, direction, k1);
     const XZPoint p1{start.x + direction * hh * k1.dxdy,
                      start.z + direction * hh * k1.dzdy};
 
-    field.evaluateStage(p1, yStart, region, direction, 1, k2);
+    field.evaluateStageMid(p1, yStart, region, direction, k2);
     const XZPoint p2{start.x + direction * hh * k2.dxdy,
                      start.z + direction * hh * k2.dzdy};
 
-    field.evaluateStage(p2, yStart, region, direction, 1, k3);
+    field.evaluateStageMid(p2, yStart, region, direction, k3);
     const XZPoint p3{start.x + direction * k3.dxdy,
                      start.z + direction * k3.dzdy};
 
-    field.evaluateStage(p3, yStart, region, direction, 2, k4);
+    field.evaluateStage2(p3, yStart, region, direction, k4);
 
     end.x = start.x + direction * h6 *
                           (k1.dxdy + 2.0 * k2.dxdy + 2.0 * k3.dxdy + k4.dxdy);
