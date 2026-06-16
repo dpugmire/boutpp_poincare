@@ -1011,14 +1011,12 @@ public:
     const FloatType rxyValue = interpXIndex2D(rxy, yidx, state.ind.x);
     const FloatType zsValue = interpXIndex2D(zShift, yidx, state.ind.x);
     const FloatType zxyValue = interpXIndex2D(zxy, yidx, state.ind.x);
-    const FloatType zValue = interp1(ziarray, zarray, state.ind.z);
-
-    const FloatType x3dTmp = rxyValue * std::cos(zsValue);
-    const FloatType y3dTmp = rxyValue * std::sin(zsValue);
+    const FloatType zValue = zValueFromIndex(state.ind.z);
+    const FloatType angle = zsValue + zValue;
 
     Point3D p;
-    p.x = x3dTmp * std::cos(zValue) - y3dTmp * std::sin(zValue);
-    p.y = x3dTmp * std::sin(zValue) + y3dTmp * std::cos(zValue);
+    p.x = rxyValue * std::cos(angle);
+    p.y = rxyValue * std::sin(angle);
     p.z = zxyValue;
     return p;
   }
@@ -1046,12 +1044,11 @@ public:
       zsValue = interp2DSpline(xiarray, yiarray, zShift, nx, ny, ind.x, ind.y);
     }
 
-    const FloatType ipx3dTmp = rxyValue * std::cos(zsValue);
-    const FloatType ipy3dTmp = rxyValue * std::sin(zsValue);
+    const FloatType angle = zsValue + zvalue;
 
     Point3D p;
-    p.x = ipx3dTmp * std::cos(zvalue) - ipy3dTmp * std::sin(zvalue);
-    p.y = ipx3dTmp * std::sin(zvalue) + ipy3dTmp * std::cos(zvalue);
+    p.x = rxyValue * std::cos(angle);
+    p.y = rxyValue * std::sin(angle);
     p.z = zxyValue;
     return p;
   }
@@ -1064,6 +1061,30 @@ public:
   VISKORES_EXEC FloatType psiFromX(FloatType xind) const
   {
     return interp1(xiarray, xarray, xind);
+  }
+
+  VISKORES_EXEC FloatType zValueFromIndex(FloatType zind) const
+  {
+    if (dz_torus <= 0.0 || nzG <= 0)
+      return interp1(ziarray, zarray, zind);
+    if (zind <= 1.0)
+      return 0.0;
+    const FloatType maxIndex = static_cast<FloatType>(nzG + 1);
+    if (zind >= maxIndex)
+      return static_cast<FloatType>(nzG) * dz_torus;
+    return (zind - 1.0) * dz_torus;
+  }
+
+  VISKORES_EXEC FloatType zIndexFromValue(FloatType z) const
+  {
+    if (dz_torus <= 0.0 || nzG <= 0)
+      return interp1(zarray, ziarray, z);
+    if (z <= 0.0)
+      return 1.0;
+    const FloatType maxZ = static_cast<FloatType>(nzG) * dz_torus;
+    if (z >= maxZ)
+      return static_cast<FloatType>(nzG + 1);
+    return z / dz_torus + 1.0;
   }
 
   VISKORES_EXEC void setDerivPair(FloatType dx, FloatType dz,
@@ -1443,7 +1464,7 @@ public:
     }
 
     const FloatType zind0 = seedInd.z;
-    current.z = field.interp1(field.ziarray, field.zarray, zind0);
+    current.z = field.zValueFromIndex(zind0);
 
     int region = 1;
     if (xind < static_cast<FloatType>(field.ixsep) + 0.5)
@@ -1515,8 +1536,7 @@ public:
           }
 
           next.z = field.wrapZ(next.z);
-          const FloatType zind =
-              field.interp1(field.zarray, field.ziarray, next.z);
+          const FloatType zind = field.zIndexFromValue(next.z);
 
           TrajectoryState step;
           step.turn = iturn;
@@ -1577,8 +1597,7 @@ public:
           }
 
           next.z = field.wrapZ(next.z);
-          const FloatType zind =
-              field.interp1(field.zarray, field.ziarray, next.z);
+          const FloatType zind = field.zIndexFromValue(next.z);
 
           TrajectoryState step;
           step.turn = iturn;
@@ -1724,7 +1743,7 @@ public:
     }
 
     const FloatType zind0 = seedInd.z;
-    current.z = field.interp1(field.ziarray, field.zarray, zind0);
+    current.z = field.zValueFromIndex(zind0);
 
     int region = 1;
     if (xind < static_cast<FloatType>(field.ixsep) + 0.5)
@@ -1804,8 +1823,7 @@ public:
           }
 
           next.z = field.wrapZ(next.z);
-          const FloatType zind =
-              field.interp1(field.zarray, field.ziarray, next.z);
+          const FloatType zind = field.zIndexFromValue(next.z);
 
           TrajectoryState step;
           step.turn = iturn;
@@ -1868,8 +1886,7 @@ public:
           }
 
           next.z = field.wrapZ(next.z);
-          const FloatType zind =
-              field.interp1(field.zarray, field.ziarray, next.z);
+          const FloatType zind = field.zIndexFromValue(next.z);
 
           TrajectoryState step;
           step.turn = iturn;
@@ -1976,10 +1993,8 @@ private:
       const int yPrev = static_cast<int>(std::round(prevPrevState.ind.y));
       if (yPrev == field.nypf2 || yPrev == (field.nypf1 + 1))
       {
-        const FloatType z0 =
-            field.interp1(field.ziarray, field.zarray, s0.ind.z);
-        const FloatType z1 =
-            field.interp1(field.ziarray, field.zarray, s1.ind.z);
+        const FloatType z0 = field.zValueFromIndex(s0.ind.z);
+        const FloatType z1 = field.zValueFromIndex(s1.ind.z);
         out.zvalue = beta * z0 + alpha * z1;
       }
     }
@@ -2265,7 +2280,7 @@ public:
       yStart = field.ny;
     }
 
-    current.z = field.interp1(field.ziarray, field.zarray, seedInd.z);
+    current.z = field.zValueFromIndex(seedInd.z);
 
     int region = 1;
     if (xind < static_cast<FloatType>(field.ixsep) + 0.5)
@@ -2510,7 +2525,7 @@ public:
     }
 
     const FloatType zind0 = seedInd.z;
-    current.z = field.interp1(field.ziarray, field.zarray, zind0);
+    current.z = field.zValueFromIndex(zind0);
 
     int region = 1;
     if (xind < static_cast<FloatType>(field.ixsep) + 0.5)
@@ -2594,8 +2609,7 @@ public:
           }
 
           next.z = field.wrapZ(next.z);
-          const FloatType zind =
-              field.interp1(field.zarray, field.ziarray, next.z);
+          const FloatType zind = field.zIndexFromValue(next.z);
 
           TrajectoryState step;
           step.turn = iturn;
@@ -2659,8 +2673,7 @@ public:
           }
 
           next.z = field.wrapZ(next.z);
-          const FloatType zind =
-              field.interp1(field.zarray, field.ziarray, next.z);
+          const FloatType zind = field.zIndexFromValue(next.z);
 
           TrajectoryState step;
           step.turn = iturn;
@@ -2772,10 +2785,8 @@ private:
       const int yPrev = static_cast<int>(std::round(prevPrevState.ind.y));
       if (yPrev == field.nypf2 || yPrev == (field.nypf1 + 1))
       {
-        const FloatType z0 =
-            field.interp1(field.ziarray, field.zarray, s0.ind.z);
-        const FloatType z1 =
-            field.interp1(field.ziarray, field.zarray, s1.ind.z);
+        const FloatType z0 = field.zValueFromIndex(s0.ind.z);
+        const FloatType z1 = field.zValueFromIndex(s1.ind.z);
         out.zvalue = beta * z0 + alpha * z1;
       }
     }
