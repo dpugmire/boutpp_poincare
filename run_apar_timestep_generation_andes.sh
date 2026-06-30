@@ -29,7 +29,11 @@
 set -u
 set -o pipefail
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
+  SCRIPT_DIR=${SLURM_SUBMIT_DIR}
+else
+  SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+fi
 cd "${SCRIPT_DIR}"
 
 CONDA_ENV=${CONDA_ENV:-adios2-py}

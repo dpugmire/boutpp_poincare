@@ -242,6 +242,85 @@ python3 heatmap.py ./outputs/circ_openmp.bp \
   --log
 ```
 
+## converting time-varying npy apar data
+
+`calc_dxdz_dy.py` converts one timestep from a 4D `.npy` apar file plus a
+BOUT++ grid NetCDF file into the derived NetCDF file consumed by
+`trace_fieldlines`. The script expects Python with `numpy`, `scipy`, and
+`netCDF4`:
+
+```sh
+python -c "import numpy, scipy, netCDF4; print('ok')"
+```
+
+If those imports fail, activate a Python or conda environment with those
+packages installed before running the conversion.
+
+The converter command is:
+
+```sh
+python3 calc_dxdz_dy.py \
+  GRID_FILE \
+  APAR_NPY \
+  ZPERIOD \
+  TIME_STEP \
+  OUTPUT_NC
+```
+
+`TIME_STEP` is zero-based. For the circular apar files shaped like
+`(516, 64, 320, 1001)`, the `320` z planes are already present in the `.npy`
+file, so use `ZPERIOD=1`:
+
+```sh
+python3 calc_dxdz_dy.py \
+  ../cbm18_dens3_0.5BS_516nx64ny.grid.nc \
+  ../apar_data0_1.npy \
+  1 \
+  0 \
+  apar_data0_1_t0000.nc
+```
+
+Check that the generated file has the required schema:
+
+```sh
+ncdump -h apar_data0_1_t0000.nc
+ncdump -v zperiod,ixsep1,ixsep2,nypf1,nypf2 apar_data0_1_t0000.nc
+```
+
+For the circular case, `ixsep1` and `ixsep2` should normally equal `nx`, and
+`zperiod` should be `1`.
+
+Use `generate_timestep_commands.py` to print conversion commands for a range
+of timesteps:
+
+```sh
+python3 generate_timestep_commands.py \
+  ../apar_data0_1.npy \
+  ../cbm18_dens3_0.5BS_516nx64ny.grid.nc \
+  0 \
+  10 \
+  apar_data0_1
+```
+
+This prints one command per timestep from `n0` through `n1`, inclusive. Output
+files are named:
+
+```text
+outputname.%05d.nc
+```
+
+For example, timestep 0 is written to `apar_data0_1.00000.nc`. To run the
+generated commands directly:
+
+```sh
+python3 generate_timestep_commands.py \
+  ../apar_data0_1.npy \
+  ../cbm18_dens3_0.5BS_516nx64ny.grid.nc \
+  0 \
+  10 \
+  apar_data0_1 | bash
+```
+
 
 
 ## frontier
